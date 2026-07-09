@@ -1,0 +1,2249 @@
+{
+  "bb_groups": [
+    {
+      "bb_id": "metal_node_group_01",
+      "cn": 9,
+      "formula": "C3Ni3O6X9",
+      "kind": "metal_node",
+      "path": "bbs/metal_node_group_01.xyz",
+      "x_sites": [
+        {
+          "site_id": 0,
+          "x_index": 12
+        },
+        {
+          "site_id": 1,
+          "x_index": 13
+        },
+        {
+          "site_id": 2,
+          "x_index": 14
+        },
+        {
+          "site_id": 3,
+          "x_index": 15
+        },
+        {
+          "site_id": 4,
+          "x_index": 16
+        },
+        {
+          "site_id": 5,
+          "x_index": 17
+        },
+        {
+          "site_id": 6,
+          "x_index": 18
+        },
+        {
+          "site_id": 7,
+          "x_index": 19
+        },
+        {
+          "site_id": 8,
+          "x_index": 20
+        }
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_01",
+      "cn": 4,
+      "formula": "C6H2X4",
+      "kind": "organic_node",
+      "path": "bbs/organic_node_group_01.xyz",
+      "x_sites": [
+        {
+          "site_id": 0,
+          "x_index": 8
+        },
+        {
+          "site_id": 1,
+          "x_index": 9
+        },
+        {
+          "site_id": 2,
+          "x_index": 10
+        },
+        {
+          "site_id": 3,
+          "x_index": 11
+        }
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "formula": "OX3",
+      "kind": "organic_node",
+      "path": "bbs/organic_node_group_02.xyz",
+      "x_sites": [
+        {
+          "site_id": 0,
+          "x_index": 1
+        },
+        {
+          "site_id": 1,
+          "x_index": 2
+        },
+        {
+          "site_id": 2,
+          "x_index": 3
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": 0,
+      "endpoint_slots": [
+        0,
+        6
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 0,
+          "x_index": 12
+        },
+        {
+          "slot_id": 6,
+          "x_index": 8
+        }
+      ],
+      "source_cut_bond": [
+        0,
+        18
+      ]
+    },
+    {
+      "edge_id": 1,
+      "endpoint_slots": [
+        1,
+        6
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 1,
+          "x_index": 12
+        },
+        {
+          "slot_id": 6,
+          "x_index": 9
+        }
+      ],
+      "source_cut_bond": [
+        1,
+        19
+      ]
+    },
+    {
+      "edge_id": 2,
+      "endpoint_slots": [
+        2,
+        9
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 2,
+          "x_index": 12
+        },
+        {
+          "slot_id": 9,
+          "x_index": 8
+        }
+      ],
+      "source_cut_bond": [
+        2,
+        20
+      ]
+    },
+    {
+      "edge_id": 3,
+      "endpoint_slots": [
+        3,
+        9
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 3,
+          "x_index": 12
+        },
+        {
+          "slot_id": 9,
+          "x_index": 9
+        }
+      ],
+      "source_cut_bond": [
+        3,
+        21
+      ]
+    },
+    {
+      "edge_id": 4,
+      "endpoint_slots": [
+        4,
+        12
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 4,
+          "x_index": 12
+        },
+        {
+          "slot_id": 12,
+          "x_index": 8
+        }
+      ],
+      "source_cut_bond": [
+        4,
+        22
+      ]
+    },
+    {
+      "edge_id": 5,
+      "endpoint_slots": [
+        5,
+        12
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 5,
+          "x_index": 12
+        },
+        {
+          "slot_id": 12,
+          "x_index": 9
+        }
+      ],
+      "source_cut_bond": [
+        5,
+        23
+      ]
+    },
+    {
+      "edge_id": 6,
+      "endpoint_slots": [
+        4,
+        15
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 4,
+          "x_index": 13
+        },
+        {
+          "slot_id": 15,
+          "x_index": 8
+        }
+      ],
+      "source_cut_bond": [
+        6,
+        24
+      ]
+    },
+    {
+      "edge_id": 7,
+      "endpoint_slots": [
+        3,
+        15
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 3,
+          "x_index": 13
+        },
+        {
+          "slot_id": 15,
+          "x_index": 9
+        }
+      ],
+      "source_cut_bond": [
+        7,
+        25
+      ]
+    },
+    {
+      "edge_id": 8,
+      "endpoint_slots": [
+        0,
+        18
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 0,
+          "x_index": 13
+        },
+        {
+          "slot_id": 18,
+          "x_index": 8
+        }
+      ],
+      "source_cut_bond": [
+        8,
+        26
+      ]
+    },
+    {
+      "edge_id": 9,
+      "endpoint_slots": [
+        5,
+        18
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 5,
+          "x_index": 13
+        },
+        {
+          "slot_id": 18,
+          "x_index": 9
+        }
+      ],
+      "source_cut_bond": [
+        9,
+        27
+      ]
+    },
+    {
+      "edge_id": 10,
+      "endpoint_slots": [
+        2,
+        21
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 2,
+          "x_index": 13
+        },
+        {
+          "slot_id": 21,
+          "x_index": 8
+        }
+      ],
+      "source_cut_bond": [
+        10,
+        28
+      ]
+    },
+    {
+      "edge_id": 11,
+      "endpoint_slots": [
+        1,
+        21
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 1,
+          "x_index": 13
+        },
+        {
+          "slot_id": 21,
+          "x_index": 9
+        }
+      ],
+      "source_cut_bond": [
+        11,
+        29
+      ]
+    },
+    {
+      "edge_id": 12,
+      "endpoint_slots": [
+        2,
+        24
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 2,
+          "x_index": 14
+        },
+        {
+          "slot_id": 24,
+          "x_index": 8
+        }
+      ],
+      "source_cut_bond": [
+        12,
+        30
+      ]
+    },
+    {
+      "edge_id": 13,
+      "endpoint_slots": [
+        5,
+        24
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 5,
+          "x_index": 14
+        },
+        {
+          "slot_id": 24,
+          "x_index": 9
+        }
+      ],
+      "source_cut_bond": [
+        13,
+        31
+      ]
+    },
+    {
+      "edge_id": 14,
+      "endpoint_slots": [
+        4,
+        27
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 4,
+          "x_index": 14
+        },
+        {
+          "slot_id": 27,
+          "x_index": 8
+        }
+      ],
+      "source_cut_bond": [
+        14,
+        32
+      ]
+    },
+    {
+      "edge_id": 15,
+      "endpoint_slots": [
+        1,
+        27
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 1,
+          "x_index": 14
+        },
+        {
+          "slot_id": 27,
+          "x_index": 9
+        }
+      ],
+      "source_cut_bond": [
+        15,
+        33
+      ]
+    },
+    {
+      "edge_id": 16,
+      "endpoint_slots": [
+        0,
+        30
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 0,
+          "x_index": 14
+        },
+        {
+          "slot_id": 30,
+          "x_index": 8
+        }
+      ],
+      "source_cut_bond": [
+        16,
+        34
+      ]
+    },
+    {
+      "edge_id": 17,
+      "endpoint_slots": [
+        3,
+        30
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 3,
+          "x_index": 14
+        },
+        {
+          "slot_id": 30,
+          "x_index": 9
+        }
+      ],
+      "source_cut_bond": [
+        17,
+        35
+      ]
+    },
+    {
+      "edge_id": 18,
+      "endpoint_slots": [
+        6,
+        7
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 6,
+          "x_index": 10
+        },
+        {
+          "slot_id": 7,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        36,
+        144
+      ]
+    },
+    {
+      "edge_id": 19,
+      "endpoint_slots": [
+        6,
+        8
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 6,
+          "x_index": 11
+        },
+        {
+          "slot_id": 8,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        37,
+        145
+      ]
+    },
+    {
+      "edge_id": 20,
+      "endpoint_slots": [
+        9,
+        10
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 9,
+          "x_index": 10
+        },
+        {
+          "slot_id": 10,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        38,
+        146
+      ]
+    },
+    {
+      "edge_id": 21,
+      "endpoint_slots": [
+        9,
+        11
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 9,
+          "x_index": 11
+        },
+        {
+          "slot_id": 11,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        39,
+        147
+      ]
+    },
+    {
+      "edge_id": 22,
+      "endpoint_slots": [
+        12,
+        13
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 12,
+          "x_index": 10
+        },
+        {
+          "slot_id": 13,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        40,
+        148
+      ]
+    },
+    {
+      "edge_id": 23,
+      "endpoint_slots": [
+        12,
+        14
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 12,
+          "x_index": 11
+        },
+        {
+          "slot_id": 14,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        41,
+        149
+      ]
+    },
+    {
+      "edge_id": 24,
+      "endpoint_slots": [
+        15,
+        16
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 15,
+          "x_index": 10
+        },
+        {
+          "slot_id": 16,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        42,
+        150
+      ]
+    },
+    {
+      "edge_id": 25,
+      "endpoint_slots": [
+        15,
+        17
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 15,
+          "x_index": 11
+        },
+        {
+          "slot_id": 17,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        43,
+        151
+      ]
+    },
+    {
+      "edge_id": 26,
+      "endpoint_slots": [
+        18,
+        19
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 18,
+          "x_index": 10
+        },
+        {
+          "slot_id": 19,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        44,
+        152
+      ]
+    },
+    {
+      "edge_id": 27,
+      "endpoint_slots": [
+        18,
+        20
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 18,
+          "x_index": 11
+        },
+        {
+          "slot_id": 20,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        45,
+        153
+      ]
+    },
+    {
+      "edge_id": 28,
+      "endpoint_slots": [
+        21,
+        22
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 21,
+          "x_index": 10
+        },
+        {
+          "slot_id": 22,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        46,
+        154
+      ]
+    },
+    {
+      "edge_id": 29,
+      "endpoint_slots": [
+        21,
+        23
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 21,
+          "x_index": 11
+        },
+        {
+          "slot_id": 23,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        47,
+        155
+      ]
+    },
+    {
+      "edge_id": 30,
+      "endpoint_slots": [
+        24,
+        25
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 24,
+          "x_index": 10
+        },
+        {
+          "slot_id": 25,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        48,
+        156
+      ]
+    },
+    {
+      "edge_id": 31,
+      "endpoint_slots": [
+        24,
+        26
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 24,
+          "x_index": 11
+        },
+        {
+          "slot_id": 26,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        49,
+        157
+      ]
+    },
+    {
+      "edge_id": 32,
+      "endpoint_slots": [
+        27,
+        28
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 27,
+          "x_index": 10
+        },
+        {
+          "slot_id": 28,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        50,
+        158
+      ]
+    },
+    {
+      "edge_id": 33,
+      "endpoint_slots": [
+        27,
+        29
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 27,
+          "x_index": 11
+        },
+        {
+          "slot_id": 29,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        51,
+        159
+      ]
+    },
+    {
+      "edge_id": 34,
+      "endpoint_slots": [
+        30,
+        31
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 30,
+          "x_index": 10
+        },
+        {
+          "slot_id": 31,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        52,
+        160
+      ]
+    },
+    {
+      "edge_id": 35,
+      "endpoint_slots": [
+        30,
+        32
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 30,
+          "x_index": 11
+        },
+        {
+          "slot_id": 32,
+          "x_index": 1
+        }
+      ],
+      "source_cut_bond": [
+        53,
+        161
+      ]
+    },
+    {
+      "edge_id": 36,
+      "endpoint_slots": [
+        1,
+        7
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 1,
+          "x_index": 15
+        },
+        {
+          "slot_id": 7,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        90,
+        144
+      ]
+    },
+    {
+      "edge_id": 37,
+      "endpoint_slots": [
+        1,
+        22
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 1,
+          "x_index": 16
+        },
+        {
+          "slot_id": 22,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        90,
+        154
+      ]
+    },
+    {
+      "edge_id": 38,
+      "endpoint_slots": [
+        0,
+        8
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 0,
+          "x_index": 15
+        },
+        {
+          "slot_id": 8,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        91,
+        145
+      ]
+    },
+    {
+      "edge_id": 39,
+      "endpoint_slots": [
+        0,
+        32
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 0,
+          "x_index": 16
+        },
+        {
+          "slot_id": 32,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        91,
+        161
+      ]
+    },
+    {
+      "edge_id": 40,
+      "endpoint_slots": [
+        3,
+        10
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 3,
+          "x_index": 15
+        },
+        {
+          "slot_id": 10,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        92,
+        146
+      ]
+    },
+    {
+      "edge_id": 41,
+      "endpoint_slots": [
+        3,
+        16
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 3,
+          "x_index": 16
+        },
+        {
+          "slot_id": 16,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        92,
+        150
+      ]
+    },
+    {
+      "edge_id": 42,
+      "endpoint_slots": [
+        2,
+        11
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 2,
+          "x_index": 15
+        },
+        {
+          "slot_id": 11,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        93,
+        147
+      ]
+    },
+    {
+      "edge_id": 43,
+      "endpoint_slots": [
+        2,
+        26
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 2,
+          "x_index": 16
+        },
+        {
+          "slot_id": 26,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        93,
+        157
+      ]
+    },
+    {
+      "edge_id": 44,
+      "endpoint_slots": [
+        5,
+        13
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 5,
+          "x_index": 15
+        },
+        {
+          "slot_id": 13,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        94,
+        148
+      ]
+    },
+    {
+      "edge_id": 45,
+      "endpoint_slots": [
+        5,
+        19
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 5,
+          "x_index": 16
+        },
+        {
+          "slot_id": 19,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        94,
+        152
+      ]
+    },
+    {
+      "edge_id": 46,
+      "endpoint_slots": [
+        4,
+        14
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 4,
+          "x_index": 15
+        },
+        {
+          "slot_id": 14,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        95,
+        149
+      ]
+    },
+    {
+      "edge_id": 47,
+      "endpoint_slots": [
+        4,
+        29
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 4,
+          "x_index": 16
+        },
+        {
+          "slot_id": 29,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        95,
+        159
+      ]
+    },
+    {
+      "edge_id": 48,
+      "endpoint_slots": [
+        3,
+        16
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 3,
+          "x_index": 17
+        },
+        {
+          "slot_id": 16,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        96,
+        150
+      ]
+    },
+    {
+      "edge_id": 49,
+      "endpoint_slots": [
+        3,
+        31
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 3,
+          "x_index": 18
+        },
+        {
+          "slot_id": 31,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        96,
+        160
+      ]
+    },
+    {
+      "edge_id": 50,
+      "endpoint_slots": [
+        4,
+        14
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 4,
+          "x_index": 17
+        },
+        {
+          "slot_id": 14,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        97,
+        149
+      ]
+    },
+    {
+      "edge_id": 51,
+      "endpoint_slots": [
+        4,
+        17
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 4,
+          "x_index": 18
+        },
+        {
+          "slot_id": 17,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        97,
+        151
+      ]
+    },
+    {
+      "edge_id": 52,
+      "endpoint_slots": [
+        5,
+        19
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 5,
+          "x_index": 17
+        },
+        {
+          "slot_id": 19,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        98,
+        152
+      ]
+    },
+    {
+      "edge_id": 53,
+      "endpoint_slots": [
+        5,
+        25
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 5,
+          "x_index": 18
+        },
+        {
+          "slot_id": 25,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        98,
+        156
+      ]
+    },
+    {
+      "edge_id": 54,
+      "endpoint_slots": [
+        0,
+        8
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 0,
+          "x_index": 17
+        },
+        {
+          "slot_id": 8,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        99,
+        145
+      ]
+    },
+    {
+      "edge_id": 55,
+      "endpoint_slots": [
+        0,
+        20
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 0,
+          "x_index": 18
+        },
+        {
+          "slot_id": 20,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        99,
+        153
+      ]
+    },
+    {
+      "edge_id": 56,
+      "endpoint_slots": [
+        1,
+        22
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 1,
+          "x_index": 17
+        },
+        {
+          "slot_id": 22,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        100,
+        154
+      ]
+    },
+    {
+      "edge_id": 57,
+      "endpoint_slots": [
+        1,
+        28
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 1,
+          "x_index": 18
+        },
+        {
+          "slot_id": 28,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        100,
+        158
+      ]
+    },
+    {
+      "edge_id": 58,
+      "endpoint_slots": [
+        2,
+        11
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 2,
+          "x_index": 17
+        },
+        {
+          "slot_id": 11,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        101,
+        147
+      ]
+    },
+    {
+      "edge_id": 59,
+      "endpoint_slots": [
+        2,
+        23
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 2,
+          "x_index": 18
+        },
+        {
+          "slot_id": 23,
+          "x_index": 2
+        }
+      ],
+      "source_cut_bond": [
+        101,
+        155
+      ]
+    },
+    {
+      "edge_id": 60,
+      "endpoint_slots": [
+        5,
+        13
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 5,
+          "x_index": 19
+        },
+        {
+          "slot_id": 13,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        102,
+        148
+      ]
+    },
+    {
+      "edge_id": 61,
+      "endpoint_slots": [
+        5,
+        25
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 5,
+          "x_index": 20
+        },
+        {
+          "slot_id": 25,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        102,
+        156
+      ]
+    },
+    {
+      "edge_id": 62,
+      "endpoint_slots": [
+        2,
+        23
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 2,
+          "x_index": 19
+        },
+        {
+          "slot_id": 23,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        103,
+        155
+      ]
+    },
+    {
+      "edge_id": 63,
+      "endpoint_slots": [
+        2,
+        26
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 2,
+          "x_index": 20
+        },
+        {
+          "slot_id": 26,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        103,
+        157
+      ]
+    },
+    {
+      "edge_id": 64,
+      "endpoint_slots": [
+        1,
+        7
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 1,
+          "x_index": 19
+        },
+        {
+          "slot_id": 7,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        104,
+        144
+      ]
+    },
+    {
+      "edge_id": 65,
+      "endpoint_slots": [
+        1,
+        28
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 1,
+          "x_index": 20
+        },
+        {
+          "slot_id": 28,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        104,
+        158
+      ]
+    },
+    {
+      "edge_id": 66,
+      "endpoint_slots": [
+        4,
+        17
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 4,
+          "x_index": 19
+        },
+        {
+          "slot_id": 17,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        105,
+        151
+      ]
+    },
+    {
+      "edge_id": 67,
+      "endpoint_slots": [
+        4,
+        29
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 4,
+          "x_index": 20
+        },
+        {
+          "slot_id": 29,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        105,
+        159
+      ]
+    },
+    {
+      "edge_id": 68,
+      "endpoint_slots": [
+        3,
+        10
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 3,
+          "x_index": 19
+        },
+        {
+          "slot_id": 10,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        106,
+        146
+      ]
+    },
+    {
+      "edge_id": 69,
+      "endpoint_slots": [
+        3,
+        31
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 3,
+          "x_index": 20
+        },
+        {
+          "slot_id": 31,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        106,
+        160
+      ]
+    },
+    {
+      "edge_id": 70,
+      "endpoint_slots": [
+        0,
+        20
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 0,
+          "x_index": 19
+        },
+        {
+          "slot_id": 20,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        107,
+        153
+      ]
+    },
+    {
+      "edge_id": 71,
+      "endpoint_slots": [
+        0,
+        32
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 0,
+          "x_index": 20
+        },
+        {
+          "slot_id": 32,
+          "x_index": 3
+        }
+      ],
+      "source_cut_bond": [
+        107,
+        161
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "slots": [
+    {
+      "bb_id": "metal_node_group_01",
+      "cn": 9,
+      "debug_instance": "metal_nodes/metal_node_001.xyz",
+      "formula": "C3Ni3O6X9",
+      "kind": "metal_node",
+      "slot_id": 0,
+      "source_indices": [
+        0,
+        8,
+        16,
+        91,
+        99,
+        107,
+        108,
+        116,
+        124,
+        126,
+        134,
+        142
+      ]
+    },
+    {
+      "bb_id": "metal_node_group_01",
+      "cn": 9,
+      "debug_instance": "metal_nodes/metal_node_002.xyz",
+      "formula": "C3Ni3O6X9",
+      "kind": "metal_node",
+      "slot_id": 1,
+      "source_indices": [
+        1,
+        11,
+        15,
+        90,
+        100,
+        104,
+        109,
+        119,
+        123,
+        127,
+        137,
+        141
+      ]
+    },
+    {
+      "bb_id": "metal_node_group_01",
+      "cn": 9,
+      "debug_instance": "metal_nodes/metal_node_003.xyz",
+      "formula": "C3Ni3O6X9",
+      "kind": "metal_node",
+      "slot_id": 2,
+      "source_indices": [
+        2,
+        10,
+        12,
+        93,
+        101,
+        103,
+        110,
+        118,
+        120,
+        128,
+        136,
+        138
+      ]
+    },
+    {
+      "bb_id": "metal_node_group_01",
+      "cn": 9,
+      "debug_instance": "metal_nodes/metal_node_004.xyz",
+      "formula": "C3Ni3O6X9",
+      "kind": "metal_node",
+      "slot_id": 3,
+      "source_indices": [
+        3,
+        7,
+        17,
+        92,
+        96,
+        106,
+        111,
+        115,
+        125,
+        129,
+        133,
+        143
+      ]
+    },
+    {
+      "bb_id": "metal_node_group_01",
+      "cn": 9,
+      "debug_instance": "metal_nodes/metal_node_005.xyz",
+      "formula": "C3Ni3O6X9",
+      "kind": "metal_node",
+      "slot_id": 4,
+      "source_indices": [
+        4,
+        6,
+        14,
+        95,
+        97,
+        105,
+        112,
+        114,
+        122,
+        130,
+        132,
+        140
+      ]
+    },
+    {
+      "bb_id": "metal_node_group_01",
+      "cn": 9,
+      "debug_instance": "metal_nodes/metal_node_006.xyz",
+      "formula": "C3Ni3O6X9",
+      "kind": "metal_node",
+      "slot_id": 5,
+      "source_indices": [
+        5,
+        9,
+        13,
+        94,
+        98,
+        102,
+        113,
+        117,
+        121,
+        131,
+        135,
+        139
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_01",
+      "cn": 4,
+      "debug_instance": "organic_nodes/organic_node_001.xyz",
+      "formula": "C6H2X4",
+      "kind": "organic_node",
+      "slot_id": 6,
+      "source_indices": [
+        18,
+        19,
+        36,
+        37,
+        54,
+        55,
+        72,
+        73
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_002.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 7,
+      "source_indices": [
+        144
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_003.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 8,
+      "source_indices": [
+        145
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_01",
+      "cn": 4,
+      "debug_instance": "organic_nodes/organic_node_004.xyz",
+      "formula": "C6H2X4",
+      "kind": "organic_node",
+      "slot_id": 9,
+      "source_indices": [
+        20,
+        21,
+        38,
+        39,
+        56,
+        57,
+        74,
+        75
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_005.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 10,
+      "source_indices": [
+        146
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_006.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 11,
+      "source_indices": [
+        147
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_01",
+      "cn": 4,
+      "debug_instance": "organic_nodes/organic_node_007.xyz",
+      "formula": "C6H2X4",
+      "kind": "organic_node",
+      "slot_id": 12,
+      "source_indices": [
+        22,
+        23,
+        40,
+        41,
+        58,
+        59,
+        76,
+        77
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_008.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 13,
+      "source_indices": [
+        148
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_009.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 14,
+      "source_indices": [
+        149
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_01",
+      "cn": 4,
+      "debug_instance": "organic_nodes/organic_node_010.xyz",
+      "formula": "C6H2X4",
+      "kind": "organic_node",
+      "slot_id": 15,
+      "source_indices": [
+        24,
+        25,
+        42,
+        43,
+        60,
+        61,
+        78,
+        79
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_011.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 16,
+      "source_indices": [
+        150
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_012.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 17,
+      "source_indices": [
+        151
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_01",
+      "cn": 4,
+      "debug_instance": "organic_nodes/organic_node_013.xyz",
+      "formula": "C6H2X4",
+      "kind": "organic_node",
+      "slot_id": 18,
+      "source_indices": [
+        26,
+        27,
+        44,
+        45,
+        62,
+        63,
+        80,
+        81
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_014.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 19,
+      "source_indices": [
+        152
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_015.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 20,
+      "source_indices": [
+        153
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_01",
+      "cn": 4,
+      "debug_instance": "organic_nodes/organic_node_016.xyz",
+      "formula": "C6H2X4",
+      "kind": "organic_node",
+      "slot_id": 21,
+      "source_indices": [
+        28,
+        29,
+        46,
+        47,
+        64,
+        65,
+        82,
+        83
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_017.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 22,
+      "source_indices": [
+        154
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_018.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 23,
+      "source_indices": [
+        155
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_01",
+      "cn": 4,
+      "debug_instance": "organic_nodes/organic_node_019.xyz",
+      "formula": "C6H2X4",
+      "kind": "organic_node",
+      "slot_id": 24,
+      "source_indices": [
+        30,
+        31,
+        48,
+        49,
+        66,
+        67,
+        84,
+        85
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_020.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 25,
+      "source_indices": [
+        156
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_021.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 26,
+      "source_indices": [
+        157
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_01",
+      "cn": 4,
+      "debug_instance": "organic_nodes/organic_node_022.xyz",
+      "formula": "C6H2X4",
+      "kind": "organic_node",
+      "slot_id": 27,
+      "source_indices": [
+        32,
+        33,
+        50,
+        51,
+        68,
+        69,
+        86,
+        87
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_023.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 28,
+      "source_indices": [
+        158
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_024.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 29,
+      "source_indices": [
+        159
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_01",
+      "cn": 4,
+      "debug_instance": "organic_nodes/organic_node_025.xyz",
+      "formula": "C6H2X4",
+      "kind": "organic_node",
+      "slot_id": 30,
+      "source_indices": [
+        34,
+        35,
+        52,
+        53,
+        70,
+        71,
+        88,
+        89
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_026.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 31,
+      "source_indices": [
+        160
+      ]
+    },
+    {
+      "bb_id": "organic_node_group_02",
+      "cn": 3,
+      "debug_instance": "organic_nodes/organic_node_027.xyz",
+      "formula": "OX3",
+      "kind": "organic_node",
+      "slot_id": 32,
+      "source_indices": [
+        161
+      ]
+    }
+  ],
+  "topology": {
+    "cell": [
+      25.56379,
+      25.56379,
+      6.20132,
+      90.0,
+      90.0,
+      119.99999999999999
+    ],
+    "kind": "node_edge_slots",
+    "path": "topology.cgd",
+    "stock_pormake_reader_safe": false
+  },
+  "validation": {
+    "all_edges_mapped": true,
+    "all_x_sites_used_once": true,
+    "duplicate_edge_warnings": [
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          0,
+          8
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          0,
+          20
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          0,
+          32
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          1,
+          7
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          1,
+          22
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          1,
+          28
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          2,
+          11
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          2,
+          23
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          2,
+          26
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          3,
+          10
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          3,
+          16
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          3,
+          31
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          4,
+          14
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          4,
+          17
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          4,
+          29
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          5,
+          13
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          5,
+          19
+        ]
+      },
+      {
+        "edge_count": 2,
+        "endpoint_slots": [
+          5,
+          25
+        ]
+      }
+    ]
+  }
+}

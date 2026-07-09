@@ -1,0 +1,1829 @@
+{
+  "bb_groups": [
+    {
+      "bb_id": "metal_node_group_01",
+      "cn": 6,
+      "formula": "C6O13X6Zn4",
+      "kind": "metal_node",
+      "path": "bbs/metal_node_group_01.xyz",
+      "x_sites": [
+        {
+          "site_id": 0,
+          "x_index": 23
+        },
+        {
+          "site_id": 1,
+          "x_index": 24
+        },
+        {
+          "site_id": 2,
+          "x_index": 25
+        },
+        {
+          "site_id": 3,
+          "x_index": 26
+        },
+        {
+          "site_id": 4,
+          "x_index": 27
+        },
+        {
+          "site_id": 5,
+          "x_index": 28
+        }
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "path": "bbs/edge_group_01.xyz",
+      "x_sites": [
+        {
+          "site_id": 0,
+          "x_index": 10
+        },
+        {
+          "site_id": 1,
+          "x_index": 11
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": 0,
+      "endpoint_slots": [
+        0,
+        8
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 0,
+          "x_index": 23
+        },
+        {
+          "slot_id": 8,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        136,
+        184
+      ]
+    },
+    {
+      "edge_id": 1,
+      "endpoint_slots": [
+        1,
+        9
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 1,
+          "x_index": 23
+        },
+        {
+          "slot_id": 9,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        137,
+        185
+      ]
+    },
+    {
+      "edge_id": 2,
+      "endpoint_slots": [
+        2,
+        10
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 2,
+          "x_index": 23
+        },
+        {
+          "slot_id": 10,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        138,
+        186
+      ]
+    },
+    {
+      "edge_id": 3,
+      "endpoint_slots": [
+        3,
+        11
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 3,
+          "x_index": 23
+        },
+        {
+          "slot_id": 11,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        139,
+        187
+      ]
+    },
+    {
+      "edge_id": 4,
+      "endpoint_slots": [
+        4,
+        9
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 4,
+          "x_index": 23
+        },
+        {
+          "slot_id": 9,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        140,
+        188
+      ]
+    },
+    {
+      "edge_id": 5,
+      "endpoint_slots": [
+        5,
+        8
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 5,
+          "x_index": 23
+        },
+        {
+          "slot_id": 8,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        141,
+        189
+      ]
+    },
+    {
+      "edge_id": 6,
+      "endpoint_slots": [
+        6,
+        11
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 6,
+          "x_index": 23
+        },
+        {
+          "slot_id": 11,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        142,
+        190
+      ]
+    },
+    {
+      "edge_id": 7,
+      "endpoint_slots": [
+        7,
+        10
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 7,
+          "x_index": 23
+        },
+        {
+          "slot_id": 10,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        143,
+        191
+      ]
+    },
+    {
+      "edge_id": 8,
+      "endpoint_slots": [
+        0,
+        12
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 0,
+          "x_index": 24
+        },
+        {
+          "slot_id": 12,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        144,
+        192
+      ]
+    },
+    {
+      "edge_id": 9,
+      "endpoint_slots": [
+        1,
+        13
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 1,
+          "x_index": 24
+        },
+        {
+          "slot_id": 13,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        145,
+        193
+      ]
+    },
+    {
+      "edge_id": 10,
+      "endpoint_slots": [
+        6,
+        14
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 6,
+          "x_index": 24
+        },
+        {
+          "slot_id": 14,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        146,
+        194
+      ]
+    },
+    {
+      "edge_id": 11,
+      "endpoint_slots": [
+        7,
+        15
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 7,
+          "x_index": 24
+        },
+        {
+          "slot_id": 15,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        147,
+        195
+      ]
+    },
+    {
+      "edge_id": 12,
+      "endpoint_slots": [
+        2,
+        13
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 2,
+          "x_index": 24
+        },
+        {
+          "slot_id": 13,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        148,
+        196
+      ]
+    },
+    {
+      "edge_id": 13,
+      "endpoint_slots": [
+        3,
+        12
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 3,
+          "x_index": 24
+        },
+        {
+          "slot_id": 12,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        149,
+        197
+      ]
+    },
+    {
+      "edge_id": 14,
+      "endpoint_slots": [
+        4,
+        15
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 4,
+          "x_index": 24
+        },
+        {
+          "slot_id": 15,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        150,
+        198
+      ]
+    },
+    {
+      "edge_id": 15,
+      "endpoint_slots": [
+        5,
+        14
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 5,
+          "x_index": 24
+        },
+        {
+          "slot_id": 14,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        151,
+        199
+      ]
+    },
+    {
+      "edge_id": 16,
+      "endpoint_slots": [
+        0,
+        16
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 0,
+          "x_index": 25
+        },
+        {
+          "slot_id": 16,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        152,
+        200
+      ]
+    },
+    {
+      "edge_id": 17,
+      "endpoint_slots": [
+        1,
+        17
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 1,
+          "x_index": 25
+        },
+        {
+          "slot_id": 17,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        153,
+        201
+      ]
+    },
+    {
+      "edge_id": 18,
+      "endpoint_slots": [
+        4,
+        18
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 4,
+          "x_index": 25
+        },
+        {
+          "slot_id": 18,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        154,
+        202
+      ]
+    },
+    {
+      "edge_id": 19,
+      "endpoint_slots": [
+        5,
+        19
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 5,
+          "x_index": 25
+        },
+        {
+          "slot_id": 19,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        155,
+        203
+      ]
+    },
+    {
+      "edge_id": 20,
+      "endpoint_slots": [
+        6,
+        17
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 6,
+          "x_index": 25
+        },
+        {
+          "slot_id": 17,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        156,
+        204
+      ]
+    },
+    {
+      "edge_id": 21,
+      "endpoint_slots": [
+        7,
+        16
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 7,
+          "x_index": 25
+        },
+        {
+          "slot_id": 16,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        157,
+        205
+      ]
+    },
+    {
+      "edge_id": 22,
+      "endpoint_slots": [
+        2,
+        19
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 2,
+          "x_index": 25
+        },
+        {
+          "slot_id": 19,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        158,
+        206
+      ]
+    },
+    {
+      "edge_id": 23,
+      "endpoint_slots": [
+        3,
+        18
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 3,
+          "x_index": 25
+        },
+        {
+          "slot_id": 18,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        159,
+        207
+      ]
+    },
+    {
+      "edge_id": 24,
+      "endpoint_slots": [
+        6,
+        20
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 6,
+          "x_index": 26
+        },
+        {
+          "slot_id": 20,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        160,
+        208
+      ]
+    },
+    {
+      "edge_id": 25,
+      "endpoint_slots": [
+        7,
+        21
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 7,
+          "x_index": 26
+        },
+        {
+          "slot_id": 21,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        161,
+        209
+      ]
+    },
+    {
+      "edge_id": 26,
+      "endpoint_slots": [
+        4,
+        22
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 4,
+          "x_index": 26
+        },
+        {
+          "slot_id": 22,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        162,
+        210
+      ]
+    },
+    {
+      "edge_id": 27,
+      "endpoint_slots": [
+        5,
+        23
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 5,
+          "x_index": 26
+        },
+        {
+          "slot_id": 23,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        163,
+        211
+      ]
+    },
+    {
+      "edge_id": 28,
+      "endpoint_slots": [
+        2,
+        21
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 2,
+          "x_index": 26
+        },
+        {
+          "slot_id": 21,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        164,
+        212
+      ]
+    },
+    {
+      "edge_id": 29,
+      "endpoint_slots": [
+        3,
+        20
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 3,
+          "x_index": 26
+        },
+        {
+          "slot_id": 20,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        165,
+        213
+      ]
+    },
+    {
+      "edge_id": 30,
+      "endpoint_slots": [
+        0,
+        23
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 0,
+          "x_index": 26
+        },
+        {
+          "slot_id": 23,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        166,
+        214
+      ]
+    },
+    {
+      "edge_id": 31,
+      "endpoint_slots": [
+        1,
+        22
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 1,
+          "x_index": 26
+        },
+        {
+          "slot_id": 22,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        167,
+        215
+      ]
+    },
+    {
+      "edge_id": 32,
+      "endpoint_slots": [
+        6,
+        24
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 6,
+          "x_index": 27
+        },
+        {
+          "slot_id": 24,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        168,
+        216
+      ]
+    },
+    {
+      "edge_id": 33,
+      "endpoint_slots": [
+        7,
+        25
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 7,
+          "x_index": 27
+        },
+        {
+          "slot_id": 25,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        169,
+        217
+      ]
+    },
+    {
+      "edge_id": 34,
+      "endpoint_slots": [
+        0,
+        26
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 0,
+          "x_index": 27
+        },
+        {
+          "slot_id": 26,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        170,
+        218
+      ]
+    },
+    {
+      "edge_id": 35,
+      "endpoint_slots": [
+        1,
+        27
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 1,
+          "x_index": 27
+        },
+        {
+          "slot_id": 27,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        171,
+        219
+      ]
+    },
+    {
+      "edge_id": 36,
+      "endpoint_slots": [
+        4,
+        25
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 4,
+          "x_index": 27
+        },
+        {
+          "slot_id": 25,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        172,
+        220
+      ]
+    },
+    {
+      "edge_id": 37,
+      "endpoint_slots": [
+        5,
+        24
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 5,
+          "x_index": 27
+        },
+        {
+          "slot_id": 24,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        173,
+        221
+      ]
+    },
+    {
+      "edge_id": 38,
+      "endpoint_slots": [
+        2,
+        27
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 2,
+          "x_index": 27
+        },
+        {
+          "slot_id": 27,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        174,
+        222
+      ]
+    },
+    {
+      "edge_id": 39,
+      "endpoint_slots": [
+        3,
+        26
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 3,
+          "x_index": 27
+        },
+        {
+          "slot_id": 26,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        175,
+        223
+      ]
+    },
+    {
+      "edge_id": 40,
+      "endpoint_slots": [
+        4,
+        28
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 4,
+          "x_index": 28
+        },
+        {
+          "slot_id": 28,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        176,
+        224
+      ]
+    },
+    {
+      "edge_id": 41,
+      "endpoint_slots": [
+        5,
+        29
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 5,
+          "x_index": 28
+        },
+        {
+          "slot_id": 29,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        177,
+        225
+      ]
+    },
+    {
+      "edge_id": 42,
+      "endpoint_slots": [
+        0,
+        30
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 0,
+          "x_index": 28
+        },
+        {
+          "slot_id": 30,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        178,
+        226
+      ]
+    },
+    {
+      "edge_id": 43,
+      "endpoint_slots": [
+        1,
+        31
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 1,
+          "x_index": 28
+        },
+        {
+          "slot_id": 31,
+          "x_index": 10
+        }
+      ],
+      "source_cut_bond": [
+        179,
+        227
+      ]
+    },
+    {
+      "edge_id": 44,
+      "endpoint_slots": [
+        2,
+        29
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 2,
+          "x_index": 28
+        },
+        {
+          "slot_id": 29,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        180,
+        228
+      ]
+    },
+    {
+      "edge_id": 45,
+      "endpoint_slots": [
+        3,
+        28
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 3,
+          "x_index": 28
+        },
+        {
+          "slot_id": 28,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        181,
+        229
+      ]
+    },
+    {
+      "edge_id": 46,
+      "endpoint_slots": [
+        6,
+        31
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 6,
+          "x_index": 28
+        },
+        {
+          "slot_id": 31,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        182,
+        230
+      ]
+    },
+    {
+      "edge_id": 47,
+      "endpoint_slots": [
+        7,
+        30
+      ],
+      "endpoint_x_sites": [
+        {
+          "slot_id": 7,
+          "x_index": 28
+        },
+        {
+          "slot_id": 30,
+          "x_index": 11
+        }
+      ],
+      "source_cut_bond": [
+        183,
+        231
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "slots": [
+    {
+      "bb_id": "metal_node_group_01",
+      "cn": 6,
+      "debug_instance": "metal_nodes/metal_node_001.xyz",
+      "formula": "C6O13X6Zn4",
+      "kind": "metal_node",
+      "slot_id": 0,
+      "source_indices": [
+        0,
+        8,
+        16,
+        26,
+        32,
+        40,
+        48,
+        56,
+        67,
+        77,
+        87,
+        94,
+        98,
+        107,
+        117,
+        122,
+        133,
+        136,
+        144,
+        152,
+        166,
+        170,
+        178
+      ]
+    },
+    {
+      "bb_id": "metal_node_group_01",
+      "cn": 6,
+      "debug_instance": "metal_nodes/metal_node_002.xyz",
+      "formula": "C6O13X6Zn4",
+      "kind": "metal_node",
+      "slot_id": 1,
+      "source_indices": [
+        1,
+        9,
+        17,
+        27,
+        33,
+        41,
+        49,
+        57,
+        66,
+        76,
+        86,
+        95,
+        99,
+        106,
+        116,
+        123,
+        132,
+        137,
+        145,
+        153,
+        167,
+        171,
+        179
+      ]
+    },
+    {
+      "bb_id": "metal_node_group_01",
+      "cn": 6,
+      "debug_instance": "metal_nodes/metal_node_003.xyz",
+      "formula": "C6O13X6Zn4",
+      "kind": "metal_node",
+      "slot_id": 2,
+      "source_indices": [
+        2,
+        12,
+        22,
+        30,
+        34,
+        42,
+        52,
+        62,
+        65,
+        73,
+        81,
+        92,
+        102,
+        111,
+        115,
+        124,
+        135,
+        138,
+        148,
+        158,
+        164,
+        174,
+        180
+      ]
+    },
+    {
+      "bb_id": "metal_node_group_01",
+      "cn": 6,
+      "debug_instance": "metal_nodes/metal_node_004.xyz",
+      "formula": "C6O13X6Zn4",
+      "kind": "metal_node",
+      "slot_id": 3,
+      "source_indices": [
+        3,
+        13,
+        23,
+        31,
+        35,
+        43,
+        53,
+        63,
+        64,
+        72,
+        80,
+        93,
+        103,
+        110,
+        114,
+        125,
+        134,
+        139,
+        149,
+        159,
+        165,
+        175,
+        181
+      ]
+    },
+    {
+      "bb_id": "metal_node_group_01",
+      "cn": 6,
+      "debug_instance": "metal_nodes/metal_node_005.xyz",
+      "formula": "C6O13X6Zn4",
+      "kind": "metal_node",
+      "slot_id": 4,
+      "source_indices": [
+        4,
+        14,
+        18,
+        28,
+        36,
+        44,
+        54,
+        58,
+        69,
+        79,
+        83,
+        90,
+        100,
+        105,
+        113,
+        120,
+        131,
+        140,
+        150,
+        154,
+        162,
+        172,
+        176
+      ]
+    },
+    {
+      "bb_id": "metal_node_group_01",
+      "cn": 6,
+      "debug_instance": "metal_nodes/metal_node_006.xyz",
+      "formula": "C6O13X6Zn4",
+      "kind": "metal_node",
+      "slot_id": 5,
+      "source_indices": [
+        5,
+        15,
+        19,
+        29,
+        37,
+        45,
+        55,
+        59,
+        68,
+        78,
+        82,
+        91,
+        101,
+        104,
+        112,
+        121,
+        130,
+        141,
+        151,
+        155,
+        163,
+        173,
+        177
+      ]
+    },
+    {
+      "bb_id": "metal_node_group_01",
+      "cn": 6,
+      "debug_instance": "metal_nodes/metal_node_007.xyz",
+      "formula": "C6O13X6Zn4",
+      "kind": "metal_node",
+      "slot_id": 6,
+      "source_indices": [
+        6,
+        10,
+        20,
+        24,
+        38,
+        46,
+        50,
+        60,
+        71,
+        75,
+        85,
+        88,
+        96,
+        109,
+        119,
+        126,
+        129,
+        142,
+        146,
+        156,
+        160,
+        168,
+        182
+      ]
+    },
+    {
+      "bb_id": "metal_node_group_01",
+      "cn": 6,
+      "debug_instance": "metal_nodes/metal_node_008.xyz",
+      "formula": "C6O13X6Zn4",
+      "kind": "metal_node",
+      "slot_id": 7,
+      "source_indices": [
+        7,
+        11,
+        21,
+        25,
+        39,
+        47,
+        51,
+        61,
+        70,
+        74,
+        84,
+        89,
+        97,
+        108,
+        118,
+        127,
+        128,
+        143,
+        147,
+        157,
+        161,
+        169,
+        183
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_001.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 8,
+      "source_indices": [
+        184,
+        189,
+        232,
+        237,
+        274,
+        279,
+        328,
+        333,
+        370,
+        375
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_002.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 9,
+      "source_indices": [
+        185,
+        188,
+        233,
+        236,
+        275,
+        278,
+        329,
+        332,
+        371,
+        374
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_003.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 10,
+      "source_indices": [
+        186,
+        191,
+        234,
+        239,
+        273,
+        276,
+        330,
+        335,
+        369,
+        372
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_004.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 11,
+      "source_indices": [
+        187,
+        190,
+        235,
+        238,
+        272,
+        277,
+        331,
+        334,
+        368,
+        373
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_005.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 12,
+      "source_indices": [
+        192,
+        197,
+        240,
+        245,
+        264,
+        269,
+        336,
+        341,
+        360,
+        365
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_006.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 13,
+      "source_indices": [
+        193,
+        196,
+        241,
+        244,
+        265,
+        268,
+        337,
+        340,
+        361,
+        364
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_007.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 14,
+      "source_indices": [
+        194,
+        199,
+        242,
+        247,
+        267,
+        270,
+        338,
+        343,
+        363,
+        366
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_008.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 15,
+      "source_indices": [
+        195,
+        198,
+        243,
+        246,
+        266,
+        271,
+        339,
+        342,
+        362,
+        367
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_009.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 16,
+      "source_indices": [
+        200,
+        205,
+        248,
+        253,
+        259,
+        262,
+        344,
+        349,
+        355,
+        358
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_010.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 17,
+      "source_indices": [
+        201,
+        204,
+        249,
+        252,
+        258,
+        263,
+        345,
+        348,
+        354,
+        359
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_011.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 18,
+      "source_indices": [
+        202,
+        207,
+        250,
+        255,
+        256,
+        261,
+        346,
+        351,
+        352,
+        357
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_012.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 19,
+      "source_indices": [
+        203,
+        206,
+        251,
+        254,
+        257,
+        260,
+        347,
+        350,
+        353,
+        356
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_013.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 20,
+      "source_indices": [
+        208,
+        213,
+        280,
+        285,
+        306,
+        311,
+        376,
+        381,
+        402,
+        407
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_014.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 21,
+      "source_indices": [
+        209,
+        212,
+        281,
+        284,
+        307,
+        310,
+        377,
+        380,
+        403,
+        406
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_015.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 22,
+      "source_indices": [
+        210,
+        215,
+        282,
+        287,
+        305,
+        308,
+        378,
+        383,
+        401,
+        404
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_016.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 23,
+      "source_indices": [
+        211,
+        214,
+        283,
+        286,
+        304,
+        309,
+        379,
+        382,
+        400,
+        405
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_017.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 24,
+      "source_indices": [
+        216,
+        221,
+        288,
+        293,
+        296,
+        301,
+        384,
+        389,
+        392,
+        397
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_018.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 25,
+      "source_indices": [
+        217,
+        220,
+        289,
+        292,
+        297,
+        300,
+        385,
+        388,
+        393,
+        396
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_019.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 26,
+      "source_indices": [
+        218,
+        223,
+        290,
+        295,
+        299,
+        302,
+        386,
+        391,
+        395,
+        398
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_020.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 27,
+      "source_indices": [
+        219,
+        222,
+        291,
+        294,
+        298,
+        303,
+        387,
+        390,
+        394,
+        399
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_021.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 28,
+      "source_indices": [
+        224,
+        229,
+        312,
+        317,
+        323,
+        326,
+        408,
+        413,
+        419,
+        422
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_022.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 29,
+      "source_indices": [
+        225,
+        228,
+        313,
+        316,
+        322,
+        327,
+        409,
+        412,
+        418,
+        423
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_023.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 30,
+      "source_indices": [
+        226,
+        231,
+        314,
+        319,
+        320,
+        325,
+        410,
+        415,
+        416,
+        421
+      ]
+    },
+    {
+      "bb_id": "edge_group_01",
+      "cn": 2,
+      "debug_instance": "edges/edge_024.xyz",
+      "formula": "C6H4X2",
+      "kind": "edge",
+      "slot_id": 31,
+      "source_indices": [
+        227,
+        230,
+        315,
+        318,
+        321,
+        324,
+        411,
+        414,
+        417,
+        420
+      ]
+    }
+  ],
+  "topology": {
+    "cell": [
+      25.86584,
+      25.86584,
+      25.86584,
+      90.0,
+      90.0,
+      90.0
+    ],
+    "kind": "node_edge_slots",
+    "path": "topology.cgd",
+    "stock_pormake_reader_safe": false
+  },
+  "validation": {
+    "all_edges_mapped": true,
+    "all_x_sites_used_once": true,
+    "duplicate_edge_warnings": []
+  }
+}

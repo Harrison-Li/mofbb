@@ -1,0 +1,860 @@
+{
+  "connecting_bonds": [
+    [
+      76,
+      88
+    ],
+    [
+      77,
+      89
+    ],
+    [
+      78,
+      90
+    ],
+    [
+      79,
+      91
+    ],
+    [
+      80,
+      92
+    ],
+    [
+      81,
+      93
+    ],
+    [
+      82,
+      94
+    ],
+    [
+      83,
+      95
+    ],
+    [
+      84,
+      96
+    ],
+    [
+      85,
+      97
+    ],
+    [
+      86,
+      98
+    ],
+    [
+      87,
+      99
+    ]
+  ],
+  "groups": [
+    {
+      "bb_id": "node_group_01",
+      "cn": 12,
+      "count": 1,
+      "fingerprint": "9d9a0dff58470513",
+      "formula": "C12H4O32X12Zr6",
+      "fragment_indices": [
+        1
+      ],
+      "group": 1,
+      "kind": "node",
+      "num_atoms": 66,
+      "num_x": 12,
+      "path": "bbs/node_group_01.xyz",
+      "x_sites": [
+        {
+          "site_id": 0,
+          "x_index": 54
+        },
+        {
+          "site_id": 1,
+          "x_index": 55
+        },
+        {
+          "site_id": 2,
+          "x_index": 56
+        },
+        {
+          "site_id": 3,
+          "x_index": 57
+        },
+        {
+          "site_id": 4,
+          "x_index": 58
+        },
+        {
+          "site_id": 5,
+          "x_index": 59
+        },
+        {
+          "site_id": 6,
+          "x_index": 60
+        },
+        {
+          "site_id": 7,
+          "x_index": 61
+        },
+        {
+          "site_id": 8,
+          "x_index": 62
+        },
+        {
+          "site_id": 9,
+          "x_index": 63
+        },
+        {
+          "site_id": 10,
+          "x_index": 64
+        },
+        {
+          "site_id": 11,
+          "x_index": 65
+        }
+      ]
+    },
+    {
+      "bb_id": "linker_group_01",
+      "cn": 2,
+      "count": 6,
+      "fingerprint": "0e7782ba17e39448",
+      "formula": "C12H8X2",
+      "fragment_indices": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "group": 1,
+      "kind": "linker",
+      "num_atoms": 22,
+      "num_x": 2,
+      "path": "bbs/linker_group_01.xyz",
+      "x_sites": [
+        {
+          "site_id": 0,
+          "x_index": 20
+        },
+        {
+          "site_id": 1,
+          "x_index": 21
+        }
+      ]
+    }
+  ],
+  "linker_indices": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74,
+    75,
+    88,
+    89,
+    90,
+    91,
+    92,
+    93,
+    94,
+    95,
+    96,
+    97,
+    98,
+    99,
+    100,
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110,
+    111,
+    112,
+    113,
+    114,
+    115,
+    116,
+    117,
+    118,
+    119,
+    120,
+    121,
+    122,
+    123,
+    124,
+    125,
+    126,
+    127,
+    128,
+    129,
+    130,
+    131,
+    132,
+    133,
+    134,
+    135
+  ],
+  "linkers": [
+    {
+      "fingerprint": "0e7782ba17e39448",
+      "formula": "C12H8X2",
+      "index": 1,
+      "kind": "linker",
+      "num_atoms": 22,
+      "num_x": 2,
+      "path": "linkers/linker_001.xyz",
+      "source_indices": [
+        0,
+        1,
+        12,
+        13,
+        29,
+        31,
+        41,
+        43,
+        52,
+        53,
+        64,
+        65,
+        88,
+        89,
+        100,
+        101,
+        117,
+        119,
+        129,
+        131
+      ],
+      "x_sites": [
+        {
+          "anchor_index": 12,
+          "external_source_index": 76,
+          "internal_source_index": 88,
+          "source_cut_bond": [
+            76,
+            88
+          ],
+          "x_index": 20
+        },
+        {
+          "anchor_index": 13,
+          "external_source_index": 77,
+          "internal_source_index": 89,
+          "source_cut_bond": [
+            77,
+            89
+          ],
+          "x_index": 21
+        }
+      ]
+    },
+    {
+      "fingerprint": "0e7782ba17e39448",
+      "formula": "C12H8X2",
+      "index": 2,
+      "kind": "linker",
+      "num_atoms": 22,
+      "num_x": 2,
+      "path": "linkers/linker_002.xyz",
+      "source_indices": [
+        2,
+        3,
+        14,
+        15,
+        28,
+        30,
+        40,
+        42,
+        54,
+        55,
+        66,
+        67,
+        90,
+        91,
+        102,
+        103,
+        116,
+        118,
+        128,
+        130
+      ],
+      "x_sites": [
+        {
+          "anchor_index": 12,
+          "external_source_index": 78,
+          "internal_source_index": 90,
+          "source_cut_bond": [
+            78,
+            90
+          ],
+          "x_index": 20
+        },
+        {
+          "anchor_index": 13,
+          "external_source_index": 79,
+          "internal_source_index": 91,
+          "source_cut_bond": [
+            79,
+            91
+          ],
+          "x_index": 21
+        }
+      ]
+    },
+    {
+      "fingerprint": "0e7782ba17e39448",
+      "formula": "C12H8X2",
+      "index": 3,
+      "kind": "linker",
+      "num_atoms": 22,
+      "num_x": 2,
+      "path": "linkers/linker_003.xyz",
+      "source_indices": [
+        4,
+        5,
+        16,
+        17,
+        33,
+        35,
+        45,
+        47,
+        56,
+        57,
+        68,
+        69,
+        92,
+        93,
+        104,
+        105,
+        121,
+        123,
+        133,
+        135
+      ],
+      "x_sites": [
+        {
+          "anchor_index": 12,
+          "external_source_index": 80,
+          "internal_source_index": 92,
+          "source_cut_bond": [
+            80,
+            92
+          ],
+          "x_index": 20
+        },
+        {
+          "anchor_index": 13,
+          "external_source_index": 81,
+          "internal_source_index": 93,
+          "source_cut_bond": [
+            81,
+            93
+          ],
+          "x_index": 21
+        }
+      ]
+    },
+    {
+      "fingerprint": "0e7782ba17e39448",
+      "formula": "C12H8X2",
+      "index": 4,
+      "kind": "linker",
+      "num_atoms": 22,
+      "num_x": 2,
+      "path": "linkers/linker_004.xyz",
+      "source_indices": [
+        6,
+        7,
+        18,
+        19,
+        32,
+        34,
+        44,
+        46,
+        58,
+        59,
+        70,
+        71,
+        94,
+        95,
+        106,
+        107,
+        120,
+        122,
+        132,
+        134
+      ],
+      "x_sites": [
+        {
+          "anchor_index": 12,
+          "external_source_index": 82,
+          "internal_source_index": 94,
+          "source_cut_bond": [
+            82,
+            94
+          ],
+          "x_index": 20
+        },
+        {
+          "anchor_index": 13,
+          "external_source_index": 83,
+          "internal_source_index": 95,
+          "source_cut_bond": [
+            83,
+            95
+          ],
+          "x_index": 21
+        }
+      ]
+    },
+    {
+      "fingerprint": "0e7782ba17e39448",
+      "formula": "C12H8X2",
+      "index": 5,
+      "kind": "linker",
+      "num_atoms": 22,
+      "num_x": 2,
+      "path": "linkers/linker_005.xyz",
+      "source_indices": [
+        8,
+        9,
+        20,
+        21,
+        25,
+        27,
+        37,
+        39,
+        60,
+        61,
+        72,
+        73,
+        96,
+        97,
+        108,
+        109,
+        113,
+        115,
+        125,
+        127
+      ],
+      "x_sites": [
+        {
+          "anchor_index": 12,
+          "external_source_index": 84,
+          "internal_source_index": 96,
+          "source_cut_bond": [
+            84,
+            96
+          ],
+          "x_index": 20
+        },
+        {
+          "anchor_index": 13,
+          "external_source_index": 85,
+          "internal_source_index": 97,
+          "source_cut_bond": [
+            85,
+            97
+          ],
+          "x_index": 21
+        }
+      ]
+    },
+    {
+      "fingerprint": "0e7782ba17e39448",
+      "formula": "C12H8X2",
+      "index": 6,
+      "kind": "linker",
+      "num_atoms": 22,
+      "num_x": 2,
+      "path": "linkers/linker_006.xyz",
+      "source_indices": [
+        10,
+        11,
+        22,
+        23,
+        24,
+        26,
+        36,
+        38,
+        62,
+        63,
+        74,
+        75,
+        98,
+        99,
+        110,
+        111,
+        112,
+        114,
+        124,
+        126
+      ],
+      "x_sites": [
+        {
+          "anchor_index": 12,
+          "external_source_index": 86,
+          "internal_source_index": 98,
+          "source_cut_bond": [
+            86,
+            98
+          ],
+          "x_index": 20
+        },
+        {
+          "anchor_index": 13,
+          "external_source_index": 87,
+          "internal_source_index": 99,
+          "source_cut_bond": [
+            87,
+            99
+          ],
+          "x_index": 21
+        }
+      ]
+    }
+  ],
+  "name": "UiO-67",
+  "node_indices": [
+    48,
+    49,
+    50,
+    51,
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83,
+    84,
+    85,
+    86,
+    87,
+    136,
+    137,
+    138,
+    139,
+    140,
+    141,
+    142,
+    143,
+    144,
+    145,
+    146,
+    147,
+    148,
+    149,
+    150,
+    151,
+    152,
+    153,
+    154,
+    155,
+    156,
+    157,
+    158,
+    159,
+    160,
+    161,
+    162,
+    163,
+    164,
+    165,
+    166,
+    167,
+    168,
+    169,
+    170,
+    171,
+    172,
+    173
+  ],
+  "nodes": [
+    {
+      "fingerprint": "9d9a0dff58470513",
+      "formula": "C12H4O32X12Zr6",
+      "index": 1,
+      "kind": "node",
+      "num_atoms": 66,
+      "num_x": 12,
+      "path": "nodes/node_001.xyz",
+      "source_indices": [
+        48,
+        49,
+        50,
+        51,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166,
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173
+      ],
+      "x_sites": [
+        {
+          "anchor_index": 4,
+          "external_source_index": 88,
+          "internal_source_index": 76,
+          "source_cut_bond": [
+            76,
+            88
+          ],
+          "x_index": 54
+        },
+        {
+          "anchor_index": 5,
+          "external_source_index": 89,
+          "internal_source_index": 77,
+          "source_cut_bond": [
+            77,
+            89
+          ],
+          "x_index": 55
+        },
+        {
+          "anchor_index": 6,
+          "external_source_index": 90,
+          "internal_source_index": 78,
+          "source_cut_bond": [
+            78,
+            90
+          ],
+          "x_index": 56
+        },
+        {
+          "anchor_index": 7,
+          "external_source_index": 91,
+          "internal_source_index": 79,
+          "source_cut_bond": [
+            79,
+            91
+          ],
+          "x_index": 57
+        },
+        {
+          "anchor_index": 8,
+          "external_source_index": 92,
+          "internal_source_index": 80,
+          "source_cut_bond": [
+            80,
+            92
+          ],
+          "x_index": 58
+        },
+        {
+          "anchor_index": 9,
+          "external_source_index": 93,
+          "internal_source_index": 81,
+          "source_cut_bond": [
+            81,
+            93
+          ],
+          "x_index": 59
+        },
+        {
+          "anchor_index": 10,
+          "external_source_index": 94,
+          "internal_source_index": 82,
+          "source_cut_bond": [
+            82,
+            94
+          ],
+          "x_index": 60
+        },
+        {
+          "anchor_index": 11,
+          "external_source_index": 95,
+          "internal_source_index": 83,
+          "source_cut_bond": [
+            83,
+            95
+          ],
+          "x_index": 61
+        },
+        {
+          "anchor_index": 12,
+          "external_source_index": 96,
+          "internal_source_index": 84,
+          "source_cut_bond": [
+            84,
+            96
+          ],
+          "x_index": 62
+        },
+        {
+          "anchor_index": 13,
+          "external_source_index": 97,
+          "internal_source_index": 85,
+          "source_cut_bond": [
+            85,
+            97
+          ],
+          "x_index": 63
+        },
+        {
+          "anchor_index": 14,
+          "external_source_index": 98,
+          "internal_source_index": 86,
+          "source_cut_bond": [
+            86,
+            98
+          ],
+          "x_index": 64
+        },
+        {
+          "anchor_index": 15,
+          "external_source_index": 99,
+          "internal_source_index": 87,
+          "source_cut_bond": [
+            87,
+            99
+          ],
+          "x_index": 65
+        }
+      ]
+    }
+  ],
+  "num_connecting_bonds": 12,
+  "num_linkers": 6,
+  "num_nodes": 1,
+  "points_of_extension": [
+    76,
+    77,
+    78,
+    79,
+    80,
+    81,
+    82,
+    83,
+    84,
+    85,
+    86,
+    87
+  ],
+  "reconstruction_map": "reconstruction_map.json",
+  "topology": {
+    "num_edges": 12,
+    "num_vertices": 7,
+    "path": "topology.cgd"
+  }
+}

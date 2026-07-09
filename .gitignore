@@ -213,4 +213,5 @@ notebook/
 # self make
 /logs
 /outputs
+/docs
 .DS_store

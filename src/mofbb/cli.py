@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 from .decomposer import SingleNodePorDecomposer
+from .edge_decomposer import NodeEdgePorDecomposer
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -20,6 +21,16 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("cif", type=Path, help="Input CIF file readable by ASE.")
+    parser.add_argument(
+        "--decomposition",
+        choices=("single-node", "node-edge"),
+        default="single-node",
+        help=(
+            "Decomposition workflow to run. single-node keeps the existing "
+            "node/linker output; node-edge writes metal nodes, organic nodes, "
+            "and edges. Default: single-node."
+        ),
+    )
     parser.add_argument(
         "-o",
         "--output-dir",
@@ -57,7 +68,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    decomposer = SingleNodePorDecomposer(
+    decomposer_class = (
+        NodeEdgePorDecomposer
+        if args.decomposition == "node-edge"
+        else SingleNodePorDecomposer
+    )
+    decomposer = decomposer_class(
         args.cif,
         x_symbol=args.x_symbol,
         bond_scale=args.bond_scale,
@@ -70,12 +86,21 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(summary, indent=2, sort_keys=True))
     else:
         print(f"Wrote decomposition outputs to {args.output_dir}")
-        print(
-            "Fragments: "
-            f"{summary['num_nodes']} nodes, "
-            f"{summary['num_linkers']} linkers, "
-            f"{summary['num_connecting_bonds']} connecting bonds"
-        )
+        if args.decomposition == "node-edge":
+            print(
+                "Fragments: "
+                f"{summary['num_metal_nodes']} metal nodes, "
+                f"{summary['num_organic_nodes']} organic nodes, "
+                f"{summary['num_edges']} edges, "
+                f"{summary['num_connecting_bonds']} connecting bonds"
+            )
+        else:
+            print(
+                "Fragments: "
+                f"{summary['num_nodes']} nodes, "
+                f"{summary['num_linkers']} linkers, "
+                f"{summary['num_connecting_bonds']} connecting bonds"
+            )
     return 0
 
 
