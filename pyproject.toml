@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mofbbr"
+version = "0.1.0"
+description = "MOFid SingleNode-inspired decomposition with PORMAKE-style X caps."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [
+  {name = "The Authors"}
+]
+keywords = ["MOF", "MOFid", "PORMAKE", "materials", "decomposition", "ASE"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Chemistry",
+]
+dependencies = [
+  "ase>=3.22",
+  "networkx>=3.0",
+  "numpy>=1.23",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.5",
+]
+
+[project.scripts]
+mofbb = "mofbb.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/your-org/mofbbr"
+Issues = "https://github.com/your-org/mofbbr/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mofbb"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "PTH"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
