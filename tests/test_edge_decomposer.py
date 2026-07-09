@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -9,6 +10,7 @@ from ase import Atoms
 
 from mofbb.bonding import BondNetwork
 from mofbb.edge_decomposer import (
+    NodeEdgePorDecomposer,
     NodeEdgeDecompositionResult,
     NodeEdgeTopologyBuilder,
     OrganicLinkerSplitter,
@@ -273,3 +275,112 @@ def test_node_edge_result_write_uses_three_output_roles(tmp_path) -> None:
 
     reconstruction = json.loads((tmp_path / "reconstruction_map.json").read_text())
     assert reconstruction["validation"]["all_edges_mapped"] is True
+
+
+def _pormake_acs_h_edge_sample() -> Path:
+    return (
+        Path(__file__).resolve().parents[2]
+        / "test_decom"
+        / "pormake_stratified_manual_examples"
+        / "decomposed_no_source_match"
+        / "0014_acs-h_edge"
+        / "generated.cif"
+    )
+
+
+def _strip_geom_bond_loop(cif_text: str) -> str:
+    lines = cif_text.splitlines()
+    stripped_lines: list[str] = []
+    i = 0
+    while i < len(lines):
+        if (
+            lines[i].strip() == "loop_"
+            and i + 1 < len(lines)
+            and lines[i + 1].strip() == "_geom_bond_atom_site_label_1"
+        ):
+            i += 1
+            while i < len(lines):
+                stripped = lines[i].strip()
+                if stripped == "loop_" or stripped.startswith("data_"):
+                    break
+                i += 1
+            continue
+        stripped_lines.append(lines[i])
+        i += 1
+    return "\n".join(stripped_lines) + "\n"
+
+
+def _assert_pormake_acs_h_edge_summary(summary: dict) -> None:
+    assert summary["num_metal_nodes"] == 12
+    assert summary["num_organic_nodes"] == 0
+    assert summary["num_edges"] == 30
+    assert summary["num_metal_connecting_bonds"] == 60
+    assert summary["num_organic_connecting_bonds"] == 0
+    assert summary["groups"] == [
+        {
+            "bb_id": "metal_node_group_01",
+            "kind": "metal_node",
+            "group": 1,
+            "count": 12,
+            "cn": 5,
+            "formula": "C5Cd2O10X5",
+            "num_atoms": 22,
+            "num_x": 5,
+            "x_sites": [
+                {"site_id": 0, "x_index": 17},
+                {"site_id": 1, "x_index": 18},
+                {"site_id": 2, "x_index": 19},
+                {"site_id": 3, "x_index": 20},
+                {"site_id": 4, "x_index": 21},
+            ],
+            "fingerprint": summary["groups"][0]["fingerprint"],
+            "fragment_indices": list(range(1, 13)),
+            "path": "bbs/metal_node_group_01.xyz",
+        },
+        {
+            "bb_id": "edge_group_01",
+            "kind": "edge",
+            "group": 1,
+            "count": 30,
+            "cn": 2,
+            "formula": "C10H4S2X2",
+            "num_atoms": 18,
+            "num_x": 2,
+            "x_sites": [
+                {"site_id": 0, "x_index": 16},
+                {"site_id": 1, "x_index": 17},
+            ],
+            "fingerprint": summary["groups"][1]["fingerprint"],
+            "fragment_indices": list(range(1, 31)),
+            "path": "bbs/edge_group_01.xyz",
+        },
+    ]
+
+
+def test_node_edge_decomposer_uses_explicit_pormake_cif_bonds(tmp_path) -> None:
+    sample = _pormake_acs_h_edge_sample()
+    if not sample.exists():
+        pytest.skip("PORMAKE stratified benchmark sample is not available")
+
+    result = NodeEdgePorDecomposer(sample).decompose()
+    summary = result.write(tmp_path)
+
+    _assert_pormake_acs_h_edge_summary(summary)
+
+
+def test_node_edge_decomposer_recovers_pormake_cif_without_geom_bonds(
+    tmp_path,
+) -> None:
+    sample = _pormake_acs_h_edge_sample()
+    if not sample.exists():
+        pytest.skip("PORMAKE stratified benchmark sample is not available")
+    stripped_sample = tmp_path / "generated_without_geom_bond.cif"
+    stripped_sample.write_text(
+        _strip_geom_bond_loop(sample.read_text(encoding="utf-8")),
+        encoding="utf-8",
+    )
+
+    result = NodeEdgePorDecomposer(stripped_sample).decompose()
+    summary = result.write(tmp_path / "decomposed")
+
+    _assert_pormake_acs_h_edge_summary(summary)

@@ -10,13 +10,12 @@ from pathlib import Path
 from typing import Literal
 
 import ase
-import ase.io
 from ase.geometry import cell_to_cellpar
 import networkx as nx
 import numpy as np
 
 from .assignment import SingleNodeAtomAssigner
-from .bonding import BondNetwork, build_bond_network, largest_connected_component
+from .bonding import BondNetwork, read_bonded_structure
 from .decomposer import find_connecting_bonds
 from .fragments import FragmentBuilder
 from .geometry import format_float, unwrap_fractional_near
@@ -79,9 +78,12 @@ class NodeEdgePorDecomposer:
         self.x_symbol = x_symbol
         self.bond_scale = bond_scale
         self.cleanup = cleanup
-        self.atoms = self._read_atoms()
+        self.atoms, self.bonds = read_bonded_structure(
+            self.cif,
+            scale=self.bond_scale,
+            cleanup=self.cleanup,
+        )
         self.symbols = self.atoms.get_chemical_symbols()
-        self.bonds = build_bond_network(self.atoms, scale=self.bond_scale)
 
     def decompose(self) -> NodeEdgeDecompositionResult:
         """Run the node/edge decomposition workflow."""
@@ -144,10 +146,7 @@ class NodeEdgePorDecomposer:
         )
 
     def _read_atoms(self) -> ase.Atoms:
-        atoms = ase.io.read(str(self.cif))
-        if not self.cleanup:
-            return atoms
-        return largest_connected_component(atoms, scale=self.bond_scale)
+        return self.atoms
 
 
 @dataclass(frozen=True)

@@ -5,11 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import ase
-import ase.io
 from ase.geometry import cell_to_cellpar
 
 from .assignment import SingleNodeAtomAssigner
-from .bonding import build_bond_network, largest_connected_component
+from .bonding import read_bonded_structure
 from .fragments import FragmentBuilder
 from .results import DecompositionResult
 from .topology import TopologyBuilder
@@ -38,9 +37,12 @@ class SingleNodePorDecomposer:
         self.x_symbol = x_symbol
         self.bond_scale = bond_scale
         self.cleanup = cleanup
-        self.atoms = self._read_atoms()
+        self.atoms, self.bonds = read_bonded_structure(
+            self.cif,
+            scale=self.bond_scale,
+            cleanup=self.cleanup,
+        )
         self.symbols = self.atoms.get_chemical_symbols()
-        self.bonds = build_bond_network(self.atoms, scale=self.bond_scale)
 
     def decompose(self) -> DecompositionResult:
         """Run decomposition and return fragments plus topology metadata."""
@@ -83,10 +85,7 @@ class SingleNodePorDecomposer:
         )
 
     def _read_atoms(self) -> ase.Atoms:
-        atoms = ase.io.read(str(self.cif))
-        if not self.cleanup:
-            return atoms
-        return largest_connected_component(atoms, scale=self.bond_scale)
+        return self.atoms
 
 
 def find_connecting_bonds(

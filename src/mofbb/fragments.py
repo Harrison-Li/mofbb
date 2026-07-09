@@ -101,7 +101,7 @@ class FragmentBuilder:
 
             a = local_index[i]
             b = local_index[j]
-            local_bonds.append((a, b, "S"))
+            local_bonds.append((a, b, self.bonds.bond_type(i, j)))
             unwrap_edges.append((a, b))
 
         return local_bonds, unwrap_edges
