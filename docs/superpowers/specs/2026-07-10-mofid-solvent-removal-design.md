@@ -124,6 +124,13 @@ duplicating reindexing logic.
   fragment decomposition.
 - Attach the solvent result, mode, and index mapping to the returned result.
 
+In node-edge `free` mode, an original linker component identified as bound
+solvent remains present in the FSR structure but has only one topology port. It
+must therefore be retained as an accessory `linker` fragment rather than being
+misclassified as a two-port edge or a three-plus-port organic node. These
+accessory fragments participate in atom accounting and the written topology,
+and disappear in `all` mode with the rest of the bound-solvent atoms.
+
 ### Results and CLI
 
 `results.py` and the node-edge result writer add the shared solvent JSON block
@@ -151,6 +158,12 @@ each collapsed component unwraps across the unit cell. For every site, traverse
 its internal bond graph from a stable root and assign each atom an integer cell
 image offset. The stored minimum-image bond vectors determine the offset
 between adjacent atoms.
+
+If a previously visited atom is reached with a different integral image offset,
+the component itself contains a periodic cycle. Record the nonzero cycle
+translation as a periodic self-connection on the collapsed site. Such a
+connection contributes two to site degree, preventing an infinite component
+from being mistaken for an isolated finite solvent molecule.
 
 For a crossing bond from atom `i` in site A to atom `j` in site B:
 
@@ -246,7 +259,10 @@ When solvent analysis is enabled, `result.write(output_dir)` writes:
 - `mof_asr.cif`: the original structure minus free and bound solvent.
 
 All files retain the original cell, periodic flags, coordinates, and original
-atom order. Empty solvent selections still produce valid, readable empty CIFs.
+atom order. Empty solvent selections produce standards-valid, metadata-only
+CIF placeholders with an empty atom loop. ASE 3.x cannot deserialize a
+zero-atom CIF, so only non-empty outputs are required to round-trip through
+ASE; empty outputs are validated structurally as text.
 
 The decomposition summary gains:
 
@@ -330,10 +346,13 @@ Cover:
 
 - `none`, `free`, and `all` in `SingleNodePorDecomposer`;
 - the same preparation path in `NodeEdgePorDecomposer`;
+- preservation of one-port accessory `linker` fragments in node-edge `free`
+  mode and their removal in `all` mode;
 - CLI parsing and forwarding;
 - summary JSON schema and values;
 - creation of all four CIF files, including empty solvent files;
-- reading each emitted CIF back with ASE and comparing atom count and formula;
+- reading each non-empty emitted CIF back with ASE and comparing atom count and
+  formula, plus text validation of metadata-only empty CIFs;
 - default-mode regression behavior and the complete existing test suite.
 
 ### MOFid reference audit
