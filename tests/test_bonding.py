@@ -12,9 +12,11 @@ from ase import Atoms
 
 from mofbb.bonding import (
     BondNetwork,
+    _prune_carboxylate_extra_neighbors,
     build_bond_network,
     build_bond_network_from_cif,
     largest_connected_component_with_bonds,
+    subset_bonded_structure,
 )
 from mofbb.fragments import FragmentBuilder
 
@@ -113,6 +115,25 @@ def test_build_bond_network_prunes_extra_carboxylate_carbon_neighbors() -> None:
     assert 5 not in carbon_neighbors
 
 
+def test_carboxylate_pruning_refreshes_adjacency_after_removing_shared_bond() -> None:
+    symbols = ["C", "O", "O", "C", "O", "O", "C", "C"]
+    vectors = {
+        (0, 1): np.array([1.2, 0.0, 0.0]),
+        (0, 2): np.array([0.0, 1.2, 0.0]),
+        (0, 3): np.array([1.6, 0.0, 0.0]),
+        (0, 6): np.array([1.4, 0.0, 0.0]),
+        (3, 4): np.array([1.2, 0.0, 0.0]),
+        (3, 5): np.array([0.0, 1.2, 0.0]),
+        (3, 7): np.array([1.4, 0.0, 0.0]),
+    }
+
+    _prune_carboxylate_extra_neighbors(symbols, vectors)
+
+    assert (0, 3) not in vectors
+    assert (0, 6) in vectors
+    assert (3, 7) in vectors
+
+
 def test_build_bond_network_prunes_extra_coordinating_oxygen_neighbors() -> None:
     atoms = Atoms(
         symbols=["Cd", "O", "C", "C"],
@@ -207,6 +228,43 @@ def test_build_bond_network_reconnects_both_terminals_to_same_component() -> Non
 
     assert (0, 2) in bonds.pairs
     assert (1, 3) in bonds.pairs
+
+
+def test_subset_bonded_structure_preserves_order_vectors_and_types() -> None:
+    atoms = Atoms(
+        symbols=["C", "N", "O"],
+        positions=[(0, 0, 0), (1, 0, 0), (2, 0, 0)],
+        cell=[10, 10, 10],
+        pbc=True,
+    )
+    bonds = BondNetwork(
+        adjacency=(frozenset({1}), frozenset({0, 2}), frozenset({1})),
+        vectors={(0, 1): np.array([1.0, 0, 0]), (1, 2): np.array([1.0, 0, 0])},
+        bond_types={(0, 1): "A", (1, 2): "D"},
+    )
+
+    kept_atoms, kept_bonds, selected_to_original = subset_bonded_structure(
+        atoms, bonds, (2, 1)
+    )
+
+    assert selected_to_original == (2, 1)
+    assert kept_atoms.get_chemical_symbols() == ["O", "N"]
+    assert kept_bonds.pairs == [(0, 1)]
+    assert kept_bonds.adjacency == (frozenset({1}), frozenset({0}))
+    np.testing.assert_allclose(kept_bonds.vector(0, 1), [-1.0, 0, 0])
+    assert kept_bonds.bond_type(0, 1) == "D"
+
+
+def test_subset_bonded_structure_rejects_invalid_indices() -> None:
+    atoms = Atoms("CO", positions=[(0, 0, 0), (1, 0, 0)])
+    bonds = BondNetwork(
+        adjacency=(frozenset({1}), frozenset({0})),
+        vectors={(0, 1): np.array([1.0, 0.0, 0.0])},
+    )
+    with pytest.raises(ValueError, match="unique"):
+        subset_bonded_structure(atoms, bonds, (0, 0))
+    with pytest.raises(ValueError, match="out of range"):
+        subset_bonded_structure(atoms, bonds, (0, 2))
 
 
 def test_cleanup_warns_before_dropping_nontrivial_components() -> None:

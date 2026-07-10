@@ -32,6 +32,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--solvent-mode",
+        choices=("none", "free", "all"),
+        default="none",
+        help=(
+            "Solvent removal before decomposition: none keeps legacy cleanup, "
+            "free uses the FSR structure, and all uses the ASR structure."
+        ),
+    )
+    parser.add_argument(
         "-o",
         "--output-dir",
         type=Path,
@@ -78,6 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         x_symbol=args.x_symbol,
         bond_scale=args.bond_scale,
         cleanup=not args.no_cleanup,
+        solvent_mode=args.solvent_mode,
     )
     result = decomposer.decompose()
     summary = result.write(args.output_dir)

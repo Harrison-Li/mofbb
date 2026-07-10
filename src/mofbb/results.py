@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .geometry import format_float
 from .models import Fragment, TopologyEdge, TopologyVertex
+from .solvent import SolventMode, SolventRemovalResult
 
 
 def fragment_instance_path(fragment: Fragment) -> str:
@@ -35,6 +36,9 @@ class DecompositionResult:
     topology_edges: list[TopologyEdge]
     node_fragments: list[Fragment] = field(default_factory=list)
     linker_fragments: list[Fragment] = field(default_factory=list)
+    solvent_mode: SolventMode = "none"
+    solvent: SolventRemovalResult | None = None
+    selected_to_original: tuple[int, ...] | None = None
 
     @property
     def fragments(self) -> list[Fragment]:
@@ -44,6 +48,25 @@ class DecompositionResult:
 
     def write(self, output_dir: Path) -> dict[str, object]:
         """Write all output files and return a JSON-serializable summary."""
+
+        if self.solvent_mode == "none":
+            if self.solvent is not None or self.selected_to_original is not None:
+                raise ValueError(
+                    "Inconsistent solvent metadata: mode 'none' requires both "
+                    "the solvent result and selected-to-original mapping to be absent."
+                )
+        elif self.solvent_mode in {"free", "all"}:
+            if self.solvent is None or self.selected_to_original is None:
+                raise ValueError(
+                    f"Inconsistent solvent metadata: active mode {self.solvent_mode!r} "
+                    "requires both a solvent result and selected-to-original mapping."
+                )
+            self.solvent.validate_write_request(
+                self.solvent_mode,
+                self.selected_to_original,
+            )
+        else:
+            raise ValueError(f"Unsupported solvent mode: {self.solvent_mode!r}.")
 
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -91,6 +114,12 @@ class DecompositionResult:
                 for fragment in self.linker_fragments
             ],
         }
+        if self.solvent is not None and self.selected_to_original is not None:
+            summary["solvent"] = self.solvent.write(
+                output_dir,
+                self.solvent_mode,
+                self.selected_to_original,
+            )
         with (output_dir / "decomposition_summary.json").open("w", encoding="utf-8") as handle:
             json.dump(summary, handle, indent=2, sort_keys=True)
             handle.write("\n")

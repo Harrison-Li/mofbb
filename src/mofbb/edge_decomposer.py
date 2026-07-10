@@ -21,6 +21,7 @@ from .fragments import FragmentBuilder
 from .geometry import format_float, unwrap_fractional_near
 from .models import Fragment, TopologyEdge, TopologyVertex
 from .results import fragment_instance_path
+from .solvent import MofidSolventRemover, SolventMode, SolventRemovalResult
 
 OrganicFragmentKind = Literal["organic_node", "edge"]
 
@@ -48,11 +49,39 @@ def classify_organic_fragment_kind(fragment: Fragment) -> OrganicFragmentKind:
     )
 
 
+def _partition_bound_linkers(
+    organic_fragments: list[Fragment],
+    selected_to_original: tuple[int, ...],
+    bound_solvent_indices: tuple[int, ...],
+) -> tuple[list[Fragment], list[Fragment]]:
+    """Partition FSR organics using whole-fragment original-index containment.
+
+    MOFid bound-solvent degree counts unique collapsed site connections after
+    endpoint/translation deduplication, not atom-level boundary bonds. An
+    accessory linker may therefore retain zero, one, or many X sites; its
+    preserved ``linker`` role comes from containment, never from X-site count.
+    """
+
+    bound_original = set(bound_solvent_indices)
+    accessories: list[Fragment] = []
+    splittable: list[Fragment] = []
+    for fragment in organic_fragments:
+        original_indices = {
+            selected_to_original[index] for index in fragment.source_indices
+        }
+        if bound_original and original_indices <= bound_original:
+            accessories.append(fragment)
+        else:
+            splittable.append(fragment)
+    return accessories, splittable
+
+
 def decompose_mof_with_edges(
     cif: str | Path,
     x_symbol: str = "X",
     bond_scale: float = 1.2,
     cleanup: bool = True,
+    solvent_mode: SolventMode = "none",
 ) -> NodeEdgeDecompositionResult:
     """Convenience function for the node/edge decomposition workflow."""
 
@@ -61,6 +90,7 @@ def decompose_mof_with_edges(
         x_symbol=x_symbol,
         bond_scale=bond_scale,
         cleanup=cleanup,
+        solvent_mode=solvent_mode,
     ).decompose()
 
 
@@ -73,16 +103,27 @@ class NodeEdgePorDecomposer:
         x_symbol: str = "X",
         bond_scale: float = 1.2,
         cleanup: bool = True,
+        solvent_mode: SolventMode = "none",
     ) -> None:
+        if solvent_mode not in {"none", "free", "all"}:
+            raise ValueError(f"Unsupported solvent mode: {solvent_mode!r}.")
         self.cif = Path(cif)
         self.x_symbol = x_symbol
         self.bond_scale = bond_scale
         self.cleanup = cleanup
+        self.solvent_mode = solvent_mode
+        self.solvent: SolventRemovalResult | None = None
+        self.selected_to_original: tuple[int, ...] | None = None
         self.atoms, self.bonds = read_bonded_structure(
             self.cif,
             scale=self.bond_scale,
-            cleanup=self.cleanup,
+            cleanup=self.cleanup if solvent_mode == "none" else False,
         )
+        if solvent_mode != "none":
+            self.solvent = MofidSolventRemover(self.atoms, self.bonds).classify()
+            self.atoms, self.bonds, self.selected_to_original = self.solvent.subset(
+                solvent_mode
+            )
         self.symbols = self.atoms.get_chemical_symbols()
 
     def decompose(self) -> NodeEdgeDecompositionResult:
@@ -106,13 +147,27 @@ class NodeEdgePorDecomposer:
             "linker", organic_indices, connecting_bonds
         )
 
+        if (
+            self.solvent_mode == "free"
+            and self.solvent is not None
+            and self.selected_to_original is not None
+        ):
+            bound_linker_fragments, splittable_organics = _partition_bound_linkers(
+                raw_organics,
+                self.selected_to_original,
+                self.solvent.bound_solvent_indices,
+            )
+        else:
+            bound_linker_fragments = []
+            splittable_organics = raw_organics
+
         metal_node_fragments = relabel_fragments(raw_metal_nodes, "metal_node")
         organic_split = OrganicLinkerSplitter(
             self.atoms,
             self.bonds,
             self.symbols,
             x_symbol=self.x_symbol,
-        ).split(raw_organics, connecting_bonds)
+        ).split(splittable_organics, connecting_bonds)
         all_connecting_bonds = tuple(
             sorted((*connecting_bonds, *organic_split.organic_connecting_bonds))
         )
@@ -125,6 +180,7 @@ class NodeEdgePorDecomposer:
                 *metal_node_fragments,
                 *organic_split.organic_node_fragments,
                 *organic_split.edge_fragments,
+                *bound_linker_fragments,
             ],
             all_connecting_bonds,
         )
@@ -141,8 +197,12 @@ class NodeEdgePorDecomposer:
             metal_node_fragments=metal_node_fragments,
             organic_node_fragments=organic_split.organic_node_fragments,
             edge_fragments=organic_split.edge_fragments,
+            bound_linker_fragments=bound_linker_fragments,
             metal_connecting_bonds=connecting_bonds,
             organic_connecting_bonds=organic_split.organic_connecting_bonds,
+            solvent_mode=self.solvent_mode,
+            solvent=self.solvent,
+            selected_to_original=self.selected_to_original,
         )
 
     def _read_atoms(self) -> ase.Atoms:
@@ -712,6 +772,10 @@ class NodeEdgeDecompositionResult:
     edge_fragments: list[Fragment] = field(default_factory=list)
     metal_connecting_bonds: tuple[tuple[int, int], ...] = ()
     organic_connecting_bonds: tuple[tuple[int, int], ...] = ()
+    bound_linker_fragments: list[Fragment] = field(default_factory=list)
+    solvent_mode: SolventMode = "none"
+    solvent: SolventRemovalResult | None = None
+    selected_to_original: tuple[int, ...] | None = None
 
     @property
     def fragments(self) -> list[Fragment]:
@@ -721,10 +785,30 @@ class NodeEdgeDecompositionResult:
             *self.metal_node_fragments,
             *self.organic_node_fragments,
             *self.edge_fragments,
+            *self.bound_linker_fragments,
         ]
 
     def write(self, output_dir: Path) -> dict[str, object]:
         """Write all node/edge decomposition outputs and return a summary."""
+
+        if self.solvent_mode == "none":
+            if self.solvent is not None or self.selected_to_original is not None:
+                raise ValueError(
+                    "Inconsistent solvent metadata: mode 'none' requires both "
+                    "the solvent result and selected-to-original mapping to be absent."
+                )
+        elif self.solvent_mode in {"free", "all"}:
+            if self.solvent is None or self.selected_to_original is None:
+                raise ValueError(
+                    f"Inconsistent solvent metadata: active mode {self.solvent_mode!r} "
+                    "requires both a solvent result and selected-to-original mapping."
+                )
+            self.solvent.validate_write_request(
+                self.solvent_mode,
+                self.selected_to_original,
+            )
+        else:
+            raise ValueError(f"Unsupported solvent mode: {self.solvent_mode!r}.")
 
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -785,6 +869,18 @@ class NodeEdgeDecompositionResult:
                 for fragment in self.edge_fragments
             ],
         }
+        if self.bound_linker_fragments:
+            summary["num_bound_linkers"] = len(self.bound_linker_fragments)
+            summary["bound_linkers"] = [
+                fragment.as_dict(fragment_instance_path(fragment))
+                for fragment in self.bound_linker_fragments
+            ]
+        if self.solvent is not None and self.selected_to_original is not None:
+            summary["solvent"] = self.solvent.write(
+                output_dir,
+                self.solvent_mode,
+                self.selected_to_original,
+            )
         with (output_dir / "decomposition_summary.json").open("w", encoding="utf-8") as handle:
             json.dump(summary, handle, indent=2, sort_keys=True)
             handle.write("\n")
@@ -800,6 +896,7 @@ class NodeEdgeDecompositionResult:
             ("metal_node", self.metal_node_fragments),
             ("organic_node", self.organic_node_fragments),
             ("edge", self.edge_fragments),
+            ("linker", self.bound_linker_fragments),
         ):
             grouped: dict[str, list[Fragment]] = defaultdict(list)
             for fragment in fragments:

@@ -11,6 +11,7 @@ from .assignment import SingleNodeAtomAssigner
 from .bonding import read_bonded_structure
 from .fragments import FragmentBuilder
 from .results import DecompositionResult
+from .solvent import MofidSolventRemover, SolventMode, SolventRemovalResult
 from .topology import TopologyBuilder
 
 
@@ -32,16 +33,27 @@ class SingleNodePorDecomposer:
         x_symbol: str = "X",
         bond_scale: float = 1.2,
         cleanup: bool = True,
+        solvent_mode: SolventMode = "none",
     ) -> None:
+        if solvent_mode not in {"none", "free", "all"}:
+            raise ValueError(f"Unsupported solvent mode: {solvent_mode!r}.")
         self.cif = Path(cif)
         self.x_symbol = x_symbol
         self.bond_scale = bond_scale
         self.cleanup = cleanup
+        self.solvent_mode = solvent_mode
+        self.solvent: SolventRemovalResult | None = None
+        self.selected_to_original: tuple[int, ...] | None = None
         self.atoms, self.bonds = read_bonded_structure(
             self.cif,
             scale=self.bond_scale,
-            cleanup=self.cleanup,
+            cleanup=self.cleanup if solvent_mode == "none" else False,
         )
+        if solvent_mode != "none":
+            self.solvent = MofidSolventRemover(self.atoms, self.bonds).classify()
+            self.atoms, self.bonds, self.selected_to_original = self.solvent.subset(
+                solvent_mode
+            )
         self.symbols = self.atoms.get_chemical_symbols()
 
     def decompose(self) -> DecompositionResult:
@@ -82,6 +94,9 @@ class SingleNodePorDecomposer:
             topology_edges=topology_edges,
             node_fragments=node_fragments,
             linker_fragments=linker_fragments,
+            solvent_mode=self.solvent_mode,
+            solvent=self.solvent,
+            selected_to_original=self.selected_to_original,
         )
 
     def _read_atoms(self) -> ase.Atoms:

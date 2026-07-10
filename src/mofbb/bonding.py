@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 import re
@@ -207,6 +207,45 @@ def largest_connected_component(atoms: ase.Atoms, scale: float = 1.2) -> ase.Ato
     return atoms[sorted(components[0])]
 
 
+def subset_bonded_structure(
+    atoms: ase.Atoms,
+    bonds: BondNetwork,
+    indices: Iterable[int],
+) -> tuple[ase.Atoms, BondNetwork, tuple[int, ...]]:
+    """Return an ordered atom subset with its reindexed bond graph."""
+
+    selected_to_original = tuple(int(index) for index in indices)
+    if len(set(selected_to_original)) != len(selected_to_original):
+        raise ValueError("Bonded-structure subset indices must be unique.")
+    if any(index < 0 or index >= len(atoms) for index in selected_to_original):
+        raise ValueError("Bonded-structure subset index is out of range.")
+
+    reindex = {old: new for new, old in enumerate(selected_to_original)}
+    selected = set(selected_to_original)
+    vectors: dict[tuple[int, int], np.ndarray] = {}
+    bond_types: dict[tuple[int, int], str] = {}
+    for i, j in bonds.pairs:
+        if i not in selected or j not in selected:
+            continue
+        new_i = reindex[i]
+        new_j = reindex[j]
+        pair = tuple(sorted((new_i, new_j)))
+        vector = bonds.vector(i, j)
+        vectors[pair] = np.array(vector if new_i < new_j else -vector, dtype=float)
+        bond_types[pair] = bonds.bond_type(i, j)
+
+    adjacency = [set() for _ in selected_to_original]
+    for i, j in vectors:
+        adjacency[i].add(j)
+        adjacency[j].add(i)
+    subset_bonds = BondNetwork(
+        adjacency=tuple(frozenset(neighbors) for neighbors in adjacency),
+        vectors=vectors,
+        bond_types=bond_types,
+    )
+    return atoms[list(selected_to_original)], subset_bonds, selected_to_original
+
+
 def largest_connected_component_with_bonds(
     atoms: ase.Atoms,
     bonds: BondNetwork,
@@ -223,32 +262,8 @@ def largest_connected_component_with_bonds(
 
     _warn_about_dropped_components(atoms, components)
     kept = sorted(components[0])
-    kept_set = set(kept)
-    reindex = {old: new for new, old in enumerate(kept)}
-    vectors: dict[tuple[int, int], np.ndarray] = {}
-    bond_types: dict[tuple[int, int], str] = {}
-    for i, j in bonds.pairs:
-        if i not in kept_set or j not in kept_set:
-            continue
-        a = reindex[i]
-        b = reindex[j]
-        pair = tuple(sorted((a, b)))
-        vectors[pair] = np.array(bonds.vector(i, j) if a < b else -bonds.vector(i, j))
-        bond_types[pair] = bonds.bond_type(i, j)
-
-    adjacency = [set() for _ in kept]
-    for i, j in vectors:
-        adjacency[i].add(j)
-        adjacency[j].add(i)
-
-    return (
-        atoms[kept],
-        BondNetwork(
-            adjacency=tuple(frozenset(neighbors) for neighbors in adjacency),
-            vectors=vectors,
-            bond_types=bond_types,
-        ),
-    )
+    kept_atoms, kept_bonds, _ = subset_bonded_structure(atoms, bonds, kept)
+    return kept_atoms, kept_bonds
 
 
 def _cif_loops(path: Path) -> Iterator[tuple[list[str], list[list[str]]]]:
@@ -405,7 +420,10 @@ def _prune_carboxylate_extra_neighbors(
         )
         for neighbor in extension_neighbors:
             if neighbor != keep:
-                vectors.pop(tuple(sorted((atom_index, neighbor))), None)
+                pair = tuple(sorted((atom_index, neighbor)))
+                del vectors[pair]
+                adjacency[atom_index].remove(neighbor)
+                adjacency[neighbor].remove(atom_index)
 
 
 def _prune_carboxylate_oxygen_extra_neighbors(

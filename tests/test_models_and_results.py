@@ -78,10 +78,12 @@ def test_result_write_uses_stable_instance_paths(tmp_path) -> None:
 
     summary = result.write(tmp_path)
 
+    assert "solvent" not in summary
     assert summary["nodes"][0]["path"] == "nodes/node_001.xyz"
     assert summary["linkers"][0]["path"] == "linkers/linker_001.xyz"
     assert (tmp_path / "bbs" / "node_group_01.xyz").exists()
     assert (tmp_path / "topology.cgd").exists()
+    assert list(tmp_path.glob("*.cif")) == []
 
     reconstruction = json.loads((tmp_path / "reconstruction_map.json").read_text())
     assert reconstruction["validation"]["all_edges_mapped"] is True
