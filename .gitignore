@@ -214,4 +214,5 @@ notebook/
 /logs
 /outputs
 /docs
+/.worktrees/
 .DS_store
