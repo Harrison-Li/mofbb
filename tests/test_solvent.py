@@ -7,6 +7,7 @@ from ase.cell import Cell
 from ase.io import read
 from ase.io.cif import parse_cif
 
+import mofbb.solvent as solvent_module
 from mofbb.bonding import BondNetwork
 from mofbb.decomposer import SingleNodePorDecomposer
 from mofbb.solvent import (
@@ -132,6 +133,32 @@ def test_distinct_periodic_images_prevent_bound_classification() -> None:
     result = MofidSolventRemover(atoms, bonds).classify()
     assert result.free_solvent_components == ()
     assert result.bound_solvent_components == ()
+
+
+def test_solvent_remover_reuses_cached_periodic_bonds(monkeypatch) -> None:
+    atoms, bonds = make_atoms_and_bonds(
+        ["Zn", "N"],
+        [(0, 1)],
+        shifts={(0, 1): (1, 0, 0)},
+    )
+    calls = []
+    original_periodic_bonds = solvent_module.periodic_bonds
+
+    def counting_periodic_bonds(candidate_atoms, candidate_bonds):
+        calls.append((candidate_atoms, candidate_bonds))
+        return original_periodic_bonds(candidate_atoms, candidate_bonds)
+
+    monkeypatch.setattr(solvent_module, "periodic_bonds", counting_periodic_bonds)
+
+    remover = MofidSolventRemover(atoms, bonds)
+
+    assert len(calls) == 1
+    assert calls[0][0] is atoms
+    assert calls[0][1] is bonds
+    for _ in range(2):
+        np.testing.assert_array_equal(remover._bond_shift(0, 1), (1, 0, 0))
+        np.testing.assert_array_equal(remover._bond_shift(1, 0), (-1, 0, 0))
+    assert len(calls) == 1
 
 
 def test_redundant_nonperiodic_connections_collapse_to_one() -> None:

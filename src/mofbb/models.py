@@ -17,6 +17,8 @@ class XSite:
     source_cut_bond: tuple[int, int]
     internal_source_index: int
     external_source_index: int
+    source_cut_shift: tuple[int, int, int] = (0, 0, 0)
+    external_image_shift: tuple[int, int, int] = (0, 0, 0)
 
     def as_dict(self) -> dict[str, int | list[int]]:
         """Return JSON-serializable site metadata."""
@@ -27,6 +29,30 @@ class XSite:
             "source_cut_bond": list(self.source_cut_bond),
             "internal_source_index": self.internal_source_index,
             "external_source_index": self.external_source_index,
+            "source_cut_shift": list(self.source_cut_shift),
+            "external_image_shift": list(self.external_image_shift),
+        }
+
+
+@dataclass(frozen=True)
+class LogicalPort:
+    """One stable group of physical connection sites to a fragment slot."""
+
+    logical_port_id: int
+    x_indices: tuple[int, ...]
+    neighbor_kind: str
+    neighbor_index: int
+    translation: tuple[int, int, int]
+
+    def as_dict(self) -> dict[str, object]:
+        """Return JSON-serializable logical-port metadata."""
+
+        return {
+            "logical_port_id": self.logical_port_id,
+            "x_indices": list(self.x_indices),
+            "neighbor_kind": self.neighbor_kind,
+            "neighbor_index": self.neighbor_index,
+            "translation": list(self.translation),
         }
 
 
@@ -41,6 +67,11 @@ class Fragment:
     bonds: tuple[tuple[int, int, str], ...]
     fingerprint: str
     x_sites: tuple[XSite, ...] = ()
+    source_image_offsets: tuple[
+        tuple[int, tuple[int, int, int]], ...
+    ] = ()
+    logical_kind: str | None = None
+    logical_ports: tuple[LogicalPort, ...] = ()
 
     @property
     def formula(self) -> str:
@@ -58,6 +89,8 @@ class Fragment:
     def num_x(self) -> int:
         """Return the number of PORMAKE dummy connection atoms."""
 
+        if self.x_sites:
+            return len(self.x_sites)
         return self.atoms.get_chemical_symbols().count("X")
 
     def write_xyz(self, path: Path) -> Path:
@@ -84,13 +117,22 @@ class Fragment:
     def as_dict(self, path: str | Path | None = None) -> dict[str, object]:
         """Return JSON-serializable fragment metadata."""
 
+        logical_cn = len(self.logical_ports) if self.logical_ports else self.num_x
         return {
             "kind": self.kind,
             "index": self.index,
             "formula": self.formula,
             "num_atoms": self.num_atoms,
             "num_x": self.num_x,
+            "physical_cn": self.num_x,
+            "logical_cn": logical_cn,
+            "logical_kind": self.logical_kind or self.kind,
+            "logical_ports": [port.as_dict() for port in self.logical_ports],
             "source_indices": list(self.source_indices),
+            "source_image_offsets": [
+                [atom_index, list(offset)]
+                for atom_index, offset in self.source_image_offsets
+            ],
             "fingerprint": self.fingerprint,
             "x_sites": [site.as_dict() for site in self.x_sites],
             "path": None if path is None else str(path),
@@ -118,3 +160,6 @@ class TopologyEdge:
     begin_frac: tuple[float, float, float]
     end_frac: tuple[float, float, float]
     center_frac: tuple[float, float, float]
+    source_cut_bond: tuple[int, int] | None = None
+    source_cut_shift: tuple[int, int, int] = (0, 0, 0)
+    slot_translation: tuple[int, int, int] = (0, 0, 0)

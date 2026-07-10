@@ -81,6 +81,40 @@ than two connection ports become `organic_node` fragments, while paths with
 exactly two connection ports become `edge` fragments. The summary records both
 original metal-linker cut bonds and new organic internal cut bonds.
 
+### Periodic rod components
+
+Infinite one-dimensional metal components are exported as finite
+crystallographic repeats. Bonds that close the rod through a neighboring cell
+become translated topology self-edges, with their exact cell shifts recorded in
+`reconstruction_map.json`. This representation preserves the input cell and
+bond multiplicity; it does not try to infer a smaller chemistry-specific SBU.
+
+The output distinguishes two coordination views:
+
+- `physical_cn` and the X atoms in each slot's `exact_instance_path` XYZ file
+  describe every cut bond and should be used for exact reconstruction.
+- `logical_cn`, `logical_kind`, and `logical_ports` quotient parallel bonds
+  that connect the same neighboring repeat. They are the better view for
+  interpreting topology or matching reusable building-block roles.
+
+For example, an intact linker may contain six physical X sites but have two
+logical ports containing three X sites each. Its exact reconstruction still
+uses all six X atoms, while its logical role is a 2-connected edge. Exact
+per-instance X membership is stored on reconstruction slots; grouped building
+block metadata stores only invariant logical-port sizes.
+
+The files under `bbs/` are fingerprint-group representatives for inspection or
+library matching. Equivalent instances can have different local atom/X index
+orders, and schema 2 does not emit a representative-to-instance permutation.
+Consequently, a grouped representative is not an exact drop-in replacement for
+`slots[].exact_instance_path`; this limitation is recorded by the
+`geometry_contract` object in `reconstruction_map.json`.
+
+`topology.cgd` exposes the translated geometry, but a stock PORMAKE reader may
+not preserve every periodic self-edge or parallel edge. Treat
+`reconstruction_map.json` schema 2 as the authoritative reconstruction record
+for periodic rods.
+
 
 ## Code layout
 

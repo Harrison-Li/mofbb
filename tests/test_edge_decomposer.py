@@ -18,8 +18,10 @@ from mofbb.edge_decomposer import (
     classify_organic_fragment_kind,
     decompose_mof_with_edges,
 )
+from mofbb.decomposer import SingleNodePorDecomposer
 from mofbb.fragments import FragmentBuilder
 from mofbb.models import Fragment, TopologyEdge, TopologyVertex, XSite
+from mofbb.periodicity import PeriodicBond, periodic_bonds
 from mofbb.solvent import MofidSolventRemover  # noqa: E402
 
 SOLVENT_ARTIFACT_NAMES = {
@@ -108,6 +110,8 @@ def test_organic_fragment_classification_uses_connection_sites() -> None:
 
     assert classify_organic_fragment_kind(edge) == "edge"
     assert classify_organic_fragment_kind(organic_node) == "organic_node"
+    assert edge.num_x == 2
+    assert organic_node.num_x == 3
 
 
 def test_organic_fragment_classification_rejects_terminal_fragments() -> None:
@@ -163,6 +167,145 @@ def make_periodic_atoms_and_bonds(
     )
 
 
+def test_fragment_builder_caps_both_sides_of_periodic_internal_cut() -> None:
+    atoms, bonds = make_periodic_atoms_and_bonds(
+        ["C", "C", "C"],
+        [(0, 1), (1, 2), (0, 2)],
+        shifts={(0, 2): (-1, 0, 0)},
+    )
+    cut = PeriodicBond(0, 2, (-1, 0, 0))
+
+    fragment = FragmentBuilder(
+        atoms, bonds, ["C", "C", "C"]
+    ).materialize_fragment("node", 1, {0, 1, 2}, (cut,))
+
+    assert fragment.source_indices == (0, 1, 2)
+    assert fragment.source_image_offsets == (
+        (0, (0, 0, 0)),
+        (1, (0, 0, 0)),
+        (2, (0, 0, 0)),
+    )
+    assert fragment.num_x == 2
+    assert [
+        (site.internal_source_index, site.external_image_shift)
+        for site in fragment.x_sites
+    ] == [
+        (0, (-1, 0, 0)),
+        (2, (1, 0, 0)),
+    ]
+    assert [site.source_cut_shift for site in fragment.x_sites] == [
+        (-1, 0, 0),
+        (-1, 0, 0),
+    ]
+    assert not any({i, j} == {0, 2} for i, j, _ in fragment.bonds)
+
+    for site in fragment.x_sites:
+        actual = (
+            fragment.atoms.positions[site.x_index]
+            - fragment.atoms.positions[site.anchor_index]
+        )
+        expected = 0.5 * bonds.vector(
+            site.internal_source_index, site.external_source_index
+        )
+        np.testing.assert_allclose(actual, expected, atol=1.0e-12)
+
+
+def test_fragment_builder_retains_explicit_non_nearest_images_in_skew_cell() -> None:
+    cell = np.array(
+        [
+            [4.0, 0.0, 0.0],
+            [1.0, 3.0, 0.0],
+            [0.0, 0.0, 8.0],
+        ]
+    )
+    positions = np.array(
+        [
+            [0.2, 0.1, 0.3],
+            [0.8, 0.2, 0.4],
+            [1.4, 0.9, 0.5],
+        ]
+    )
+    atoms = Atoms(
+        symbols=["C", "N", "C"],
+        positions=positions,
+        cell=cell,
+        pbc=(True, True, False),
+    )
+    shifts = {
+        (0, 1): (2, 0, 0),
+        (1, 2): (0, 1, 0),
+        (0, 2): (-1, 0, 0),
+    }
+    adjacency = (frozenset({1, 2}), frozenset({0, 2}), frozenset({0, 1}))
+    vectors = {
+        pair: positions[pair[1]] + np.asarray(shift) @ cell - positions[pair[0]]
+        for pair, shift in shifts.items()
+    }
+    bonds = BondNetwork(adjacency=adjacency, vectors=vectors)
+
+    fragment = FragmentBuilder(
+        atoms, bonds, atoms.get_chemical_symbols()
+    ).materialize_fragment(
+        "node",
+        7,
+        {0, 1, 2},
+        (PeriodicBond(0, 2, (-1, 0, 0)),),
+    )
+
+    assert fragment.source_image_offsets == (
+        (0, (0, 0, 0)),
+        (1, (2, 0, 0)),
+        (2, (2, 1, 0)),
+    )
+    np.testing.assert_allclose(
+        fragment.atoms.positions[1] - fragment.atoms.positions[0],
+        bonds.vector(0, 1),
+        atol=1.0e-12,
+    )
+    np.testing.assert_allclose(
+        fragment.atoms.positions[2] - fragment.atoms.positions[1],
+        bonds.vector(1, 2),
+        atol=1.0e-12,
+    )
+
+
+def test_fragment_builder_rejects_disconnected_internal_cut_residual() -> None:
+    atoms, bonds = make_periodic_atoms_and_bonds(
+        ["C", "C", "C"],
+        [(0, 1), (1, 2)],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"Fragment node 3.*disconnected.*internal cut",
+    ):
+        FragmentBuilder(atoms, bonds, ["C", "C", "C"]).materialize_fragment(
+            "node",
+            3,
+            {0, 1, 2},
+            (PeriodicBond(1, 2, (0, 0, 0)),),
+        )
+
+
+def test_fragment_builder_rejects_nonzero_residual_holonomy() -> None:
+    atoms, bonds = make_periodic_atoms_and_bonds(
+        ["C", "C", "C", "C"],
+        [(0, 1), (1, 2), (0, 2), (2, 3), (0, 3)],
+        shifts={(0, 1): (1, 0, 0)},
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"Fragment linker 4.*non-zero holonomy.*rank 1",
+    ):
+        FragmentBuilder(atoms, bonds, ["C", "C", "C", "C"]).materialize_fragment(
+            "linker",
+            4,
+            {0, 1, 2, 3},
+            (PeriodicBond(0, 3, (0, 0, 0)),),
+        )
+
+
 def test_organic_linker_splitter_rejects_terminal_fragments_directly() -> None:
     positions = [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)]
     atoms = Atoms(
@@ -213,6 +356,81 @@ def test_node_edge_result_preserves_legacy_positional_field_order() -> None:
     assert result.metal_connecting_bonds == metal_connecting_bonds
     assert result.organic_connecting_bonds == organic_connecting_bonds
     assert result.bound_linker_fragments == []
+    assert result.connection_records == ()
+    assert result.periodic_openings == ()
+    assert result.periodic_validation == {}
+
+
+def test_relabel_fragment_preserves_source_image_offsets() -> None:
+    fragment = make_fragment("node", 4, (0,), ((0, 1),))
+    fragment.source_image_offsets = ((0, (2, -1, 0)),)
+
+    relabeled = edge_decomposer.relabel_fragment(fragment, "metal_node", 2)
+
+    assert relabeled.source_image_offsets == ((0, (2, -1, 0)),)
+
+
+def test_logical_port_model_is_additive_public_and_survives_relabeling() -> None:
+    from mofbb import LogicalPort
+
+    atoms = Atoms(symbols=["C"], positions=[(0.0, 0.0, 0.0)])
+    legacy = Fragment("node", 1, (0,), atoms, (), "legacy-fingerprint")
+    port = LogicalPort(1, (2, 3), "metal_node", 4, (1, -1, 0))
+
+    assert legacy.logical_kind is None
+    assert legacy.logical_ports == ()
+    assert port.as_dict() == {
+        "logical_port_id": 1,
+        "x_indices": [2, 3],
+        "neighbor_kind": "metal_node",
+        "neighbor_index": 4,
+        "translation": [1, -1, 0],
+    }
+
+    legacy.logical_kind = "organic_node"
+    legacy.logical_ports = (port,)
+    relabeled = edge_decomposer.relabel_fragment(legacy, "metal_node", 2)
+
+    assert relabeled.logical_kind == "organic_node"
+    assert relabeled.logical_ports == (port,)
+
+
+def test_decomposers_open_periodic_metal_components_and_publish_validation(
+    monkeypatch,
+) -> None:
+    atoms, bonds = make_periodic_atoms_and_bonds(
+        ["Zn", "Zn", "Zn"],
+        [(0, 1), (1, 2), (0, 2)],
+        shifts={(0, 2): (-1, 0, 0)},
+    )
+    monkeypatch.setattr(
+        "mofbb.decomposer.read_bonded_structure",
+        lambda *args, **kwargs: (atoms.copy(), bonds),
+    )
+    monkeypatch.setattr(
+        "mofbb.edge_decomposer.read_bonded_structure",
+        lambda *args, **kwargs: (atoms.copy(), bonds),
+    )
+
+    single = SingleNodePorDecomposer("periodic-metal.cif").decompose()
+    node_edge = NodeEdgePorDecomposer("periodic-metal.cif").decompose()
+
+    expected_validation = {
+        "all_source_atoms_owned_once": True,
+        "all_fragments_zero_holonomy": True,
+        "all_retained_bonds_undistorted": True,
+    }
+    for result in (single, node_edge):
+        assert len(result.connection_records) == 1
+        assert result.connecting_bonds == (result.connection_records[0].pair,)
+        assert len(result.periodic_openings) == 1
+        assert result.periodic_openings[0].cuts == result.connection_records
+        assert result.periodic_validation == expected_validation
+        assert len(result.topology_edges) == 1
+        assert result.topology_edges[0].slot_translation != (0, 0, 0)
+        assert result.topology_vertices[0].coordination == 2
+    assert node_edge.metal_connecting_bonds == ()
+    assert node_edge.organic_connecting_bonds == ()
 
 
 def test_partition_bound_linkers_requires_whole_original_containment() -> None:
@@ -378,17 +596,30 @@ def test_node_edge_free_mode_preserves_zero_cut_bound_accessory(
     assert linker_group["fragment_indices"] == [1]
     assert linker_group["cn"] == 0
     reconstruction = json.loads((tmp_path / "reconstruction_map.json").read_text())
-    assert reconstruction["slots"] == [
-        {
-            "bb_id": "linker_group_01",
-            "cn": 0,
-            "debug_instance": "linkers/linker_001.xyz",
-            "formula": "CN2",
-            "kind": "linker",
-            "slot_id": 0,
-            "source_indices": [0, 1, 2],
-        }
-    ]
+    assert len(reconstruction["slots"]) == 1
+    slot = reconstruction["slots"][0]
+    assert {
+        key: slot[key]
+        for key in (
+            "bb_id",
+            "cn",
+            "debug_instance",
+            "formula",
+            "kind",
+            "slot_id",
+            "source_indices",
+        )
+    } == {
+        "bb_id": "linker_group_01",
+        "cn": 0,
+        "debug_instance": "linkers/linker_001.xyz",
+        "formula": "CN2",
+        "kind": "linker",
+        "slot_id": 0,
+        "source_indices": [0, 1, 2],
+    }
+    assert slot["physical_cn"] == slot["logical_cn"] == 0
+    assert slot["logical_kind"] == "linker"
     assert reconstruction["edges"] == []
     assert reconstruction["validation"]["all_edges_mapped"] is True
     assert reconstruction["validation"]["all_x_sites_used_once"] is True
@@ -452,7 +683,18 @@ def test_node_edge_free_mode_preserves_multi_cut_bound_accessory(
     accessory_edges = [
         edge for edge in reconstruction["edges"] if 2 in edge["endpoint_slots"]
     ]
-    assert accessory_edges == [
+    assert [
+        {
+            "edge_id": edge["edge_id"],
+            "endpoint_slots": edge["endpoint_slots"],
+            "endpoint_x_sites": [
+                {"slot_id": site["slot_id"], "x_index": site["x_index"]}
+                for site in edge["endpoint_x_sites"]
+            ],
+            "source_cut_bond": edge["source_cut_bond"],
+        }
+        for edge in accessory_edges
+    ] == [
         {
             "edge_id": 2,
             "endpoint_slots": [0, 2],
@@ -472,6 +714,8 @@ def test_node_edge_free_mode_preserves_multi_cut_bound_accessory(
             "source_cut_bond": [0, 5],
         },
     ]
+    assert all(edge["source_cut_shift"] == [0, 0, 0] for edge in accessory_edges)
+    assert all(edge["slot_translation"] == [0, 0, 0] for edge in accessory_edges)
     assert reconstruction["validation"]["all_edges_mapped"] is True
     assert reconstruction["validation"]["all_x_sites_used_once"] is True
 
@@ -633,7 +877,19 @@ def test_node_edge_free_result_writes_accessory_and_solvent_outputs(
     assert linker_group["path"] == "bbs/linker_group_01.xyz"
 
     reconstruction = json.loads((tmp_path / "reconstruction_map.json").read_text())
-    assert reconstruction["slots"][-1] == {
+    slot = reconstruction["slots"][-1]
+    assert {
+        key: slot[key]
+        for key in (
+            "bb_id",
+            "cn",
+            "debug_instance",
+            "formula",
+            "kind",
+            "slot_id",
+            "source_indices",
+        )
+    } == {
         "bb_id": "linker_group_01",
         "cn": 1,
         "debug_instance": "linkers/linker_003.xyz",
@@ -642,7 +898,18 @@ def test_node_edge_free_result_writes_accessory_and_solvent_outputs(
         "slot_id": 4,
         "source_indices": [8, 9],
     }
-    assert reconstruction["edges"][2] == {
+    assert slot["physical_cn"] == slot["logical_cn"] == 1
+    assert slot["logical_kind"] == "linker"
+    edge = reconstruction["edges"][2]
+    assert {
+        "edge_id": edge["edge_id"],
+        "endpoint_slots": edge["endpoint_slots"],
+        "endpoint_x_sites": [
+            {"slot_id": site["slot_id"], "x_index": site["x_index"]}
+            for site in edge["endpoint_x_sites"]
+        ],
+        "source_cut_bond": edge["source_cut_bond"],
+    } == {
         "edge_id": 2,
         "endpoint_slots": [0, 4],
         "endpoint_x_sites": [
@@ -651,6 +918,8 @@ def test_node_edge_free_result_writes_accessory_and_solvent_outputs(
         ],
         "source_cut_bond": [0, 8],
     }
+    assert edge["source_cut_shift"] == [0, 0, 0]
+    assert edge["slot_translation"] == [0, 0, 0]
     assert reconstruction["validation"]["all_edges_mapped"] is True
     assert reconstruction["validation"]["all_x_sites_used_once"] is True
 
@@ -841,68 +1110,306 @@ def test_organic_linker_splitter_creates_internal_nodes_and_edges() -> None:
     assert all(fragment.num_x == 2 for fragment in split.edge_fragments)
 
 
-def test_node_edge_topology_uses_connection_site_directions_for_parallel_edges() -> None:
+def test_organic_splitter_absorbs_multidentate_pendant_oxygen_into_core() -> None:
+    symbols = ["Zn", "Zn", "Zn", "Zn", "C", "C", "C", "O"]
+    positions = [
+        (-2.0, 0.0, 0.0),
+        (-2.0, 1.0, 0.0),
+        (2.0, 0.0, 0.0),
+        (0.0, 2.0, 0.0),
+        (0.0, 0.0, 0.0),
+        (0.8, 0.0, 0.0),
+        (0.4, 0.7, 0.0),
+        (-0.8, 0.0, 0.0),
+    ]
+    pairs = [
+        (4, 5),
+        (5, 6),
+        (4, 6),
+        (4, 7),
+        (0, 7),
+        (1, 7),
+        (2, 5),
+        (3, 6),
+    ]
+    atoms = Atoms(symbols=symbols, positions=positions, cell=[10, 10, 10], pbc=True)
+    bonds = make_bond_network(positions, pairs)
+    metal_cuts = ((0, 7), (1, 7), (2, 5), (3, 6))
+    raw = FragmentBuilder(atoms, bonds, symbols).materialize_fragment(
+        "linker", 1, {4, 5, 6, 7}, metal_cuts
+    )
+
+    split = OrganicLinkerSplitter(atoms, bonds, symbols).split([raw], metal_cuts)
+
+    assert len(split.organic_node_fragments) == 1
+    assert split.organic_node_fragments[0].source_indices == (4, 5, 6, 7)
+    assert split.edge_fragments == []
+    assert (4, 7) not in split.organic_connecting_bonds
+
+
+def test_pendant_donor_rejects_two_bonds_into_one_core() -> None:
+    symbols = ["C", "C", "O", "Zn"]
+    positions = [(float(index), 0.0, 0.0) for index in range(len(symbols))]
+    bonds = make_bond_network(positions, [(0, 1), (0, 2), (1, 2), (2, 3)])
+    splitter = OrganicLinkerSplitter(
+        Atoms(symbols=symbols, positions=positions), bonds, symbols
+    )
+
+    assert not splitter._is_pendant_donor_component(
+        {2},
+        {0, 1, 2},
+        {0: 0, 1: 0},
+        ((2, 3),),
+    )
+
+
+def test_pendant_donor_rejects_bridge_between_two_cores() -> None:
+    symbols = ["C", "C", "S", "Zn"]
+    positions = [(float(index), 0.0, 0.0) for index in range(len(symbols))]
+    bonds = make_bond_network(positions, [(0, 2), (1, 2), (2, 3)])
+    splitter = OrganicLinkerSplitter(
+        Atoms(symbols=symbols, positions=positions), bonds, symbols
+    )
+
+    assert not splitter._is_pendant_donor_component(
+        {2},
+        {0, 1, 2},
+        {0: 0, 1: 1},
+        ((2, 3),),
+    )
+
+
+def test_absorbed_donor_core_groups_six_physical_sites_into_two_logical_ports() -> None:
+    symbols = ["Zn"] * 6 + ["C", "C", "C", "O", "C", "Zn"]
+    positions = [(float(index), 0.0, 0.0) for index in range(len(symbols))]
+    metal_cuts = (
+        (0, 9),
+        (1, 9),
+        (2, 9),
+        (3, 7),
+        (4, 8),
+        (5, 8),
+    )
+    pairs = [
+        (0, 1),
+        (1, 2),
+        (3, 4),
+        (4, 5),
+        (6, 7),
+        (7, 8),
+        (6, 8),
+        (6, 9),
+        *metal_cuts,
+    ]
     atoms = Atoms(
-        symbols=["Zn", "Zn", "C", "C"],
-        positions=[
-            (5.0, 4.0, 5.0),
-            (5.0, 6.0, 5.0),
-            (9.0, 4.0, 5.0),
-            (9.0, 6.0, 5.0),
-        ],
-        cell=[10.0, 10.0, 10.0],
+        symbols=symbols,
+        positions=positions,
+        cell=[30.0, 30.0, 30.0],
         pbc=True,
     )
-    bonds = make_bond_network(
-        [tuple(position) for position in atoms.positions],
-        [(0, 2), (1, 3)],
+    bonds = make_bond_network(positions, pairs)
+    builder = FragmentBuilder(atoms, bonds, symbols)
+    raw_organic = builder.materialize_fragment(
+        "linker", 1, {6, 7, 8, 9}, metal_cuts
+    )
+
+    split = OrganicLinkerSplitter(atoms, bonds, symbols).split(
+        [raw_organic], metal_cuts
+    )
+
+    assert len(split.organic_node_fragments) == 1
+    assert split.edge_fragments == []
+    assert split.organic_connecting_bonds == ()
+    organic = split.organic_node_fragments[0]
+    assert organic.kind == "organic_node"
+    assert organic.source_indices == (6, 7, 8, 9)
+    assert organic.num_x == 6
+
+    left = builder.materialize_fragment("metal_node", 1, {0, 1, 2}, metal_cuts)
+    right = builder.materialize_fragment("metal_node", 2, {3, 4, 5}, metal_cuts)
+    accessory = builder.materialize_fragment("linker", 1, {10}, ())
+    generic_node = builder.materialize_fragment("node", 1, {11}, ())
+    cut_set = set(metal_cuts)
+    records = tuple(
+        record for record in periodic_bonds(atoms, bonds) if record.pair in cut_set
+    )
+
+    edge_decomposer.assign_logical_ports(
+        atoms,
+        bonds,
+        [generic_node, accessory, organic, right, left],
+        tuple(reversed(records)),
+    )
+
+    assert organic.logical_kind == "edge"
+    assert [port.logical_port_id for port in organic.logical_ports] == [0, 1]
+    assert [port.x_indices for port in organic.logical_ports] == [
+        (4, 5, 6),
+        (7, 8, 9),
+    ]
+    assert [
+        (port.neighbor_kind, port.neighbor_index, port.translation)
+        for port in organic.logical_ports
+    ] == [
+        ("metal_node", 1, (0, 0, 0)),
+        ("metal_node", 2, (0, 0, 0)),
+    ]
+    assert left.logical_kind == "metal_node"
+    assert right.logical_kind == "metal_node"
+    assert accessory.logical_kind == "linker"
+    assert generic_node.logical_kind == "node"
+
+
+def test_logical_ports_separate_effective_slot_translations() -> None:
+    atoms, bonds = make_periodic_atoms_and_bonds(
+        ["Zn", "Zn", "C", "C"],
+        [(0, 1), (2, 3), (0, 2), (1, 3)],
+        shifts={(0, 2): (1, 0, 0), (1, 3): (-1, 0, 0)},
+    )
+    records = (
+        PeriodicBond(0, 2, (1, 0, 0)),
+        PeriodicBond(1, 3, (-1, 0, 0)),
+    )
+    builder = FragmentBuilder(atoms, bonds, atoms.get_chemical_symbols())
+    metal = builder.materialize_fragment("metal_node", 1, {0, 1}, records)
+    organic = builder.materialize_fragment("organic_node", 1, {2, 3}, records)
+
+    edge_decomposer.assign_logical_ports(atoms, bonds, [metal, organic], records)
+
+    assert organic.logical_kind == "edge"
+    assert [port.x_indices for port in organic.logical_ports] == [(2,), (3,)]
+    assert [port.translation for port in organic.logical_ports] == [
+        (-1, 0, 0),
+        (1, 0, 0),
+    ]
+
+
+def test_logical_ports_quotient_neighbor_periodic_self_translation() -> None:
+    atoms, bonds = make_periodic_atoms_and_bonds(
+        ["Zn", "Zn", "Zn", "C", "C"],
+        [(0, 1), (1, 2), (0, 2), (3, 4), (0, 3), (2, 4)],
+        shifts={(0, 2): (-2, 0, 0), (2, 4): (-2, 0, 0)},
+    )
+    self_cut = PeriodicBond(0, 2, (-2, 0, 0))
+    connections = (
+        self_cut,
+        PeriodicBond(0, 3, (0, 0, 0)),
+        PeriodicBond(2, 4, (-2, 0, 0)),
+    )
+    builder = FragmentBuilder(atoms, bonds, atoms.get_chemical_symbols())
+    metal = builder.materialize_fragment("metal_node", 1, {0, 1, 2}, connections)
+    organic = builder.materialize_fragment("organic_node", 1, {3, 4}, connections)
+
+    edge_decomposer.assign_logical_ports(
+        atoms, bonds, [metal, organic], connections
+    )
+
+    assert len(organic.logical_ports) == 1
+    assert organic.logical_ports[0].x_indices == (2, 3)
+    assert organic.logical_ports[0].translation == (0, 0, 0)
+
+
+def test_logical_ports_keep_two_sides_of_own_periodic_self_edge() -> None:
+    atoms, bonds = make_periodic_atoms_and_bonds(
+        ["Zn", "Zn", "Zn"],
+        [(0, 1), (1, 2), (0, 2)],
+        shifts={(0, 2): (-2, 0, 0)},
+    )
+    self_cut = PeriodicBond(0, 2, (-2, 0, 0))
+    metal = FragmentBuilder(
+        atoms, bonds, atoms.get_chemical_symbols()
+    ).materialize_fragment("metal_node", 1, {0, 1, 2}, (self_cut,))
+
+    edge_decomposer.assign_logical_ports(atoms, bonds, [metal], (self_cut,))
+
+    assert metal.logical_kind == "metal_node"
+    assert [port.logical_port_id for port in metal.logical_ports] == [0, 1]
+    assert [port.x_indices for port in metal.logical_ports] == [(3,), (4,)]
+    assert [port.translation for port in metal.logical_ports] == [
+        (-2, 0, 0),
+        (2, 0, 0),
+    ]
+
+
+def test_logical_ports_reject_independent_self_edge_generators() -> None:
+    atoms, bonds = make_periodic_atoms_and_bonds(
+        ["Zn"] * 4,
+        [(0, 1), (1, 2), (2, 3), (0, 2), (1, 3)],
+        shifts={(0, 2): (1, 0, 0), (1, 3): (0, 1, 0)},
+    )
+    self_cuts = (
+        PeriodicBond(0, 2, (1, 0, 0)),
+        PeriodicBond(1, 3, (0, 1, 0)),
+    )
+    metal = FragmentBuilder(
+        atoms, bonds, atoms.get_chemical_symbols()
+    ).materialize_fragment("metal_node", 1, set(range(4)), self_cuts)
+
+    with pytest.raises(ValueError, match="independent self-edge translations"):
+        edge_decomposer.assign_logical_ports(atoms, bonds, [metal], self_cuts)
+
+
+def test_logical_port_assignment_rejects_site_without_connection_record() -> None:
+    atoms, bonds = make_periodic_atoms_and_bonds(
+        ["Zn", "C"],
+        [(0, 1)],
+    )
+    record = PeriodicBond(0, 1, (0, 0, 0))
+    builder = FragmentBuilder(atoms, bonds, atoms.get_chemical_symbols())
+    metal = builder.materialize_fragment("metal_node", 1, {0}, (record,))
+    organic = builder.materialize_fragment("edge", 1, {1}, (record,))
+
+    with pytest.raises(ValueError, match="X site.*connection record"):
+        edge_decomposer.assign_logical_ports(atoms, bonds, [metal, organic], ())
+
+
+def test_node_edge_topology_uses_exact_shifts_for_parallel_edges() -> None:
+    atoms, bonds = make_periodic_atoms_and_bonds(
+        ["Zn", "Zn", "C", "C"],
+        [(0, 1), (2, 3), (0, 2), (1, 3)],
+        shifts={(0, 2): (1, 0, 0), (1, 3): (-1, 0, 0)},
     )
     metal_node = make_fragment("metal_node", 1, (0, 1), ((0, 2), (1, 3)))
-    metal_node.atoms.positions[2] = (6.0, 5.0, 5.0)
-    metal_node.atoms.positions[3] = (4.0, 5.0, 5.0)
     edge = make_fragment("edge", 1, (2, 3), ((0, 2), (1, 3)))
-    edge.atoms.positions[2] = (4.0, 5.0, 5.0)
-    edge.atoms.positions[3] = (6.0, 5.0, 5.0)
+    connections = (
+        PeriodicBond(0, 2, (1, 0, 0)),
+        PeriodicBond(1, 3, (-1, 0, 0)),
+    )
 
     _, topology_edges = NodeEdgeTopologyBuilder(atoms, bonds).build(
         [metal_node, edge],
-        ((0, 2), (1, 3)),
+        connections,
     )
 
     assert len(topology_edges) == 2
     assert topology_edges[0].end_frac != topology_edges[1].end_frac
+    assert [edge.source_cut_bond for edge in topology_edges] == [(0, 2), (1, 3)]
+    assert [edge.slot_translation for edge in topology_edges] == [
+        (1, 0, 0),
+        (-1, 0, 0),
+    ]
 
 
 def test_node_edge_topology_keeps_non_edge_connections_centroid_based() -> None:
-    atoms = Atoms(
-        symbols=["Zn", "Zn", "C", "C"],
-        positions=[
-            (5.0, 4.0, 5.0),
-            (5.0, 6.0, 5.0),
-            (9.0, 4.0, 5.0),
-            (9.0, 6.0, 5.0),
-        ],
-        cell=[10.0, 10.0, 10.0],
-        pbc=True,
-    )
-    bonds = make_bond_network(
-        [tuple(position) for position in atoms.positions],
-        [(0, 2), (1, 3)],
+    atoms, bonds = make_periodic_atoms_and_bonds(
+        ["Zn", "Zn", "C", "C"],
+        [(0, 1), (2, 3), (0, 2), (1, 3)],
     )
     metal_node = make_fragment("metal_node", 1, (0, 1), ((0, 2), (1, 3)))
-    metal_node.atoms.positions[2] = (6.0, 5.0, 5.0)
-    metal_node.atoms.positions[3] = (4.0, 5.0, 5.0)
     organic_node = make_fragment("organic_node", 1, (2, 3), ((0, 2), (1, 3)))
-    organic_node.atoms.positions[2] = (4.0, 5.0, 5.0)
-    organic_node.atoms.positions[3] = (6.0, 5.0, 5.0)
+    connections = (
+        PeriodicBond(0, 2, (0, 0, 0)),
+        PeriodicBond(1, 3, (0, 0, 0)),
+    )
 
     _, topology_edges = NodeEdgeTopologyBuilder(atoms, bonds).build(
         [metal_node, organic_node],
-        ((0, 2), (1, 3)),
+        connections,
     )
 
     assert len(topology_edges) == 2
     assert topology_edges[0].end_frac == topology_edges[1].end_frac
+    assert [edge.source_cut_bond for edge in topology_edges] == [(0, 2), (1, 3)]
 
 
 def test_node_edge_result_write_uses_three_output_roles(tmp_path) -> None:
@@ -932,7 +1439,43 @@ def test_node_edge_result_write_uses_three_output_roles(tmp_path) -> None:
                 (0.25, 0.25, 0.25),
                 (0.50, 0.25, 0.25),
                 (0.375, 0.25, 0.25),
-            )
+            ),
+            TopologyEdge(
+                "edge",
+                1,
+                "metal_node",
+                1,
+                (0.50, 0.25, 0.25),
+                (0.25, 0.25, 0.25),
+                (0.375, 0.25, 0.25),
+            ),
+            TopologyEdge(
+                "metal_node",
+                1,
+                "organic_node",
+                1,
+                (0.25, 0.25, 0.25),
+                (0.75, 0.25, 0.25),
+                (0.50, 0.25, 0.25),
+            ),
+            TopologyEdge(
+                "metal_node",
+                1,
+                "organic_node",
+                1,
+                (0.25, 0.25, 0.25),
+                (0.75, 0.25, 0.25),
+                (0.50, 0.25, 0.25),
+            ),
+            TopologyEdge(
+                "organic_node",
+                1,
+                "metal_node",
+                1,
+                (0.75, 0.25, 0.25),
+                (0.25, 0.25, 0.25),
+                (0.50, 0.25, 0.25),
+            ),
         ],
         metal_node_fragments=[metal_node],
         organic_node_fragments=[organic_node],

@@ -16,6 +16,7 @@ from ase.geometry import cell_to_cellpar
 from .assignment import SingleNodeAtomAssigner
 from .bonding import BondNetwork, subset_bonded_structure
 from .fragments import connected_components
+from .periodicity import periodic_bonds
 
 SolventMode: TypeAlias = Literal["none", "free", "all"]
 ActiveSolventMode: TypeAlias = Literal["free", "all"]
@@ -360,6 +361,9 @@ class MofidSolventRemover:
         self.bonds = bonds
         self.symbols = atoms.get_chemical_symbols()
         self._inverse_cell: np.ndarray | None = None
+        self._periodic_bond_by_pair = {
+            record.pair: record for record in periodic_bonds(atoms, bonds)
+        }
 
     def classify(self) -> SolventRemovalResult:
         self._inverse_cell = self._inverse_cell_matrix()
@@ -409,25 +413,11 @@ class MofidSolventRemover:
         return np.linalg.inv(cell)
 
     def _bond_shift(self, i: int, j: int) -> np.ndarray:
-        direct = np.asarray(self.atoms.positions[j] - self.atoms.positions[i])
-        shift_cart = np.asarray(self.bonds.vector(i, j)) - direct
-        if not np.any(self.atoms.pbc):
-            if not np.allclose(shift_cart, 0.0, atol=1.0e-6):
-                raise ValueError(f"Bond ({i}, {j}) shifts along a non-periodic axis.")
-            return np.zeros(3, dtype=int)
-        if self._inverse_cell is None:
-            self._inverse_cell = self._inverse_cell_matrix()
-        fractional_shift = shift_cart @ self._inverse_cell
-        rounded = np.rint(fractional_shift)
-        if not np.allclose(fractional_shift, rounded, atol=1.0e-6):
-            raise ValueError(
-                f"Bond ({i}, {j}) has a non-integral periodic translation: "
-                f"{fractional_shift.tolist()}."
-            )
-        shift = rounded.astype(int)
-        if np.any(shift[~np.asarray(self.atoms.pbc, dtype=bool)]):
-            raise ValueError(f"Bond ({i}, {j}) shifts along a non-periodic axis.")
-        return shift
+        pair = tuple(sorted((i, j)))
+        return np.asarray(
+            self._periodic_bond_by_pair[pair].oriented_shift(i, j),
+            dtype=int,
+        )
 
     @staticmethod
     def _normalize_self_shift(shift: np.ndarray) -> CellShift:

@@ -9,10 +9,11 @@ from ase.geometry import cell_to_cellpar
 
 from .assignment import SingleNodeAtomAssigner
 from .bonding import read_bonded_structure
-from .fragments import FragmentBuilder
+from .fragments import FragmentBuilder, connected_components
+from .periodicity import PeriodicOpening, periodic_bonds, select_periodic_cuts
 from .results import DecompositionResult
 from .solvent import MofidSolventRemover, SolventMode, SolventRemovalResult
-from .topology import TopologyBuilder
+from .topology import TopologyBuilder, validate_source_atom_ownership
 
 
 class SingleNodePorDecomposer:
@@ -63,6 +64,29 @@ class SingleNodePorDecomposer:
         node_indices = set(assignment.node_indices)
         linker_indices = set(range(len(self.atoms))) - node_indices
         connecting_bonds = find_connecting_bonds(self.bonds.pairs, node_indices)
+        source_records = periodic_bonds(self.atoms, self.bonds)
+        periodic_cuts = []
+        periodic_openings: list[PeriodicOpening] = []
+        for component in connected_components(node_indices, self.bonds.pairs):
+            selection = select_periodic_cuts(
+                self.atoms,
+                self.bonds,
+                self.symbols,
+                component,
+                source_records,
+            )
+            periodic_cuts.extend(selection.cuts)
+            if selection.cuts:
+                periodic_openings.append(
+                    PeriodicOpening.from_selection(component, selection)
+                )
+
+        boundary_pairs = set(connecting_bonds)
+        boundary_records = tuple(
+            record for record in source_records if record.pair in boundary_pairs
+        )
+        connection_records = tuple(sorted((*boundary_records, *periodic_cuts)))
+        all_connecting_bonds = tuple(record.pair for record in connection_records)
 
         fragment_builder = FragmentBuilder(
             self.atoms,
@@ -71,16 +95,20 @@ class SingleNodePorDecomposer:
             x_symbol=self.x_symbol,
         )
         node_fragments = fragment_builder.build_role_fragments(
-            "node", node_indices, connecting_bonds
+            "node", node_indices, connection_records
         )
         linker_fragments = fragment_builder.build_role_fragments(
-            "linker", linker_indices, connecting_bonds
+            "linker", linker_indices, connection_records
+        )
+        validate_source_atom_ownership(
+            range(len(self.atoms)),
+            [*node_fragments, *linker_fragments],
         )
 
         topology_vertices, topology_edges = TopologyBuilder(self.atoms, self.bonds).build(
             node_fragments,
             linker_fragments,
-            connecting_bonds,
+            connection_records,
         )
 
         return DecompositionResult(
@@ -88,7 +116,7 @@ class SingleNodePorDecomposer:
             node_indices=tuple(sorted(node_indices)),
             linker_indices=tuple(sorted(linker_indices)),
             points_of_extension=tuple(sorted(assignment.points_of_extension)),
-            connecting_bonds=connecting_bonds,
+            connecting_bonds=all_connecting_bonds,
             cell_parameters=tuple(float(value) for value in cell_to_cellpar(self.atoms.cell)),
             topology_vertices=topology_vertices,
             topology_edges=topology_edges,
@@ -97,6 +125,13 @@ class SingleNodePorDecomposer:
             solvent_mode=self.solvent_mode,
             solvent=self.solvent,
             selected_to_original=self.selected_to_original,
+            connection_records=connection_records,
+            periodic_openings=tuple(periodic_openings),
+            periodic_validation={
+                "all_source_atoms_owned_once": True,
+                "all_fragments_zero_holonomy": True,
+                "all_retained_bonds_undistorted": True,
+            },
         )
 
     def _read_atoms(self) -> ase.Atoms:
