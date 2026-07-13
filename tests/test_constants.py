@@ -1,4 +1,4 @@
-from mofbb.constants import is_mofid_metal
+from mofbb.decompose.constants import is_mofid_metal
 
 
 def test_mofid_metal_classification() -> None:

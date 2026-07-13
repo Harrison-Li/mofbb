@@ -2,7 +2,7 @@ import pytest
 
 ase = pytest.importorskip("ase")
 
-from mofbb.fingerprint import fragment_fingerprint
+from mofbb.decompose.fingerprint import fragment_fingerprint
 
 
 def test_fragment_fingerprint_is_stable_for_isomorphic_ordering() -> None:

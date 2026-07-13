@@ -1,4 +1,4 @@
-"""Distance-based bond graph construction for ASE structures."""
+"""Distance-based bond graph construction for MOF decomposition."""
 
 from __future__ import annotations
 

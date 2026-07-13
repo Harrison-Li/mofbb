@@ -1,4 +1,4 @@
-"""Chemical classification constants used by the MOFid-style assignment rules."""
+"""Chemical classification constants for decomposition assignment rules."""
 
 from __future__ import annotations
 

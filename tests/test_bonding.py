@@ -10,7 +10,7 @@ ase = pytest.importorskip("ase")
 import ase.io
 from ase import Atoms
 
-from mofbb.bonding import (
+from mofbb.decompose.bonding import (
     BondNetwork,
     _prune_carboxylate_extra_neighbors,
     build_bond_network,
@@ -18,7 +18,7 @@ from mofbb.bonding import (
     largest_connected_component_with_bonds,
     subset_bonded_structure,
 )
-from mofbb.fragments import FragmentBuilder
+from mofbb.decompose.fragments import FragmentBuilder
 
 
 def test_build_bond_network_from_cif_preserves_periodic_bonds_and_types(

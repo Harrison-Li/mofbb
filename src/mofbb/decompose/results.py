@@ -1,4 +1,4 @@
-"""Output writers for SingleNode-style decomposition results."""
+"""Output writers for MOF decomposition results."""
 
 from __future__ import annotations
 

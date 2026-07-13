@@ -1,4 +1,4 @@
-"""Collapsed topology construction for decomposition fragments."""
+"""Collapsed topology construction for MOF decomposition fragments."""
 
 from __future__ import annotations
 

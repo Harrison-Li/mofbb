@@ -7,12 +7,18 @@ ase = pytest.importorskip("ase")
 
 from ase import Atoms
 
-import mofbb.topology as topology
-from mofbb.bonding import BondNetwork
-from mofbb.fragments import FragmentBuilder
-from mofbb.models import Fragment, LogicalPort, TopologyEdge, TopologyVertex, XSite
-from mofbb.periodicity import PeriodicBond
-from mofbb.results import (
+import mofbb.decompose.topology as topology
+from mofbb.decompose.bonding import BondNetwork
+from mofbb.decompose.fragments import FragmentBuilder
+from mofbb.decompose.models import (
+    Fragment,
+    LogicalPort,
+    TopologyEdge,
+    TopologyVertex,
+    XSite,
+)
+from mofbb.decompose.periodicity import PeriodicBond
+from mofbb.decompose.results import (
     DecompositionResult,
     fragment_group_key,
     fragment_group_metadata,

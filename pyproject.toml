@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "mofbbr"
 version = "0.1.0"
-description = "MOFid SingleNode-inspired decomposition with PORMAKE-style X caps."
+description = "MOF building-block decomposition, reconstruction, and composition."
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "Bo Li"}]
@@ -13,6 +13,8 @@ dependencies = [
   "ase>=3.22",
   "networkx>=3.0",
   "numpy>=1.23",
+  "pymatgen>=2024.1",
+  "scipy>=1.10",
 ]
 
 [project.optional-dependencies]
@@ -22,7 +24,8 @@ dev = [
 ]
 
 [project.scripts]
-mofbb = "mofbb.cli:main"
+mofbb = "mofbb.decompose.cli:main"
+mofbb-compose = "mofbb.compose.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mofbb"]

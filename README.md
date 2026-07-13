@@ -1,6 +1,9 @@
 # MOFBB
 
-MOFBB is a Python package for decomposing metal-organic framework (MOF) CIF files into MOFid SingleNode-inspired node and linker fragments capped with dummy `X` connection sites.
+MOFBB decomposes metal-organic framework (MOF) CIF files into reusable
+building blocks with dummy `X` connection sites and composes those outputs back
+into periodic frameworks. It supports both single-node and metal-node,
+organic-node, edge decomposition styles.
 
 The package emits:
 
@@ -53,26 +56,61 @@ mofbb path/to/structure.cif \
   --output-dir outputs/structure-node-edge
 ```
 
+Both command-line modules can also be run without installed launchers:
+
+```bash
+python -m mofbb.decompose --help
+python -m mofbb.compose --help
+```
+
+## Composition
+
+Reconstruct the exact per-slot geometry from a decomposition output directory:
+
+```bash
+mofbb-compose outputs/structure --output reconstructed.cif
+```
+
+The composer also supports topology-driven assembly with explicitly assigned
+building blocks:
+
+```bash
+mofbb-compose topology.cgd \
+  --node-bb 0=node_type_0.xyz \
+  --node-bb 1=node_type_1.xyz \
+  --edge-bb 0,1=edge_type_0_1.xyz \
+  --output composed.cif
+```
+
+JAX is not required; topology scaling uses NumPy and SciPy.
+
 ## Python usage
 
 ```python
-from mofbb import SingleNodePorDecomposer
+from mofbb.decompose import SingleNodeDecomposer
 
-result = SingleNodePorDecomposer("path/to/structure.cif").decompose()
+result = SingleNodeDecomposer("path/to/structure.cif").decompose()
 summary = result.write("outputs/structure")
 print(summary["num_nodes"], summary["num_linkers"])
 ```
 
 ```python
-from mofbb import NodeEdgePorDecomposer
+from mofbb.decompose import NodeEdgeDecomposer
 
-result = NodeEdgePorDecomposer("path/to/structure.cif").decompose()
+result = NodeEdgeDecomposer("path/to/structure.cif").decompose()
 summary = result.write("outputs/structure-node-edge")
 print(
     summary["num_metal_nodes"],
     summary["num_organic_nodes"],
     summary["num_edges"],
 )
+```
+
+```python
+from mofbb.compose import Reconstructor
+
+framework = Reconstructor("outputs/structure").reconstruct()
+framework.write_cif("reconstructed.cif")
 ```
 
 In node-edge mode, the first-stage metal-node/linker boundary is preserved.
@@ -122,21 +160,37 @@ The implementation is split so each module has a narrow responsibility:
 
 ```text
 src/mofbb/
-├── decomposer.py      # Thin orchestration layer and public workflow class
-├── edge_decomposer.py # Alternative metal-node, organic-node, edge workflow
-├── assignment.py      # SingleNode-inspired atom assignment rules
-├── bonding.py         # ASE neighbor-list bond graph and connectivity cleanup
-├── fragments.py       # Connected components, fragment materialization, X caps
-├── topology.py        # Collapsed topology vertices and edges
-├── results.py         # Output summaries, CGD, groups, reconstruction map
-├── geometry.py        # Periodic coordinate and unwrapping helpers
-├── fingerprint.py     # Connectivity-aware fragment grouping hash
-├── models.py          # Dataclasses used across the package
-├── constants.py       # MOFid metal/nonmetal classification
-└── type_aliases.py    # Shared typing aliases
+├── __init__.py             # Top-level public API compatibility exports
+├── cli.py                  # Compatibility decomposition entry point
+├── compose/
+│   ├── __init__.py         # Composition public API
+│   ├── cli.py              # Composition command-line interface
+│   ├── reconstructor.py    # Exact decomposition-output reconstruction
+│   ├── builder.py          # Topology-driven framework assembly
+│   ├── building_block.py   # Building-block geometry and connectivity
+│   ├── topology.py         # CGD topology model
+│   ├── neighbor.py         # Scale-independent topology connectivity
+│   └── scaler.py           # NumPy/SciPy topology scaling
+└── decompose/
+    ├── __init__.py         # Decomposition public API
+    ├── cli.py              # Decomposition command-line interface
+    ├── decomposer.py       # SingleNode orchestration and workflow class
+    ├── edge_decomposer.py  # Metal-node, organic-node, edge workflow
+    ├── assignment.py       # SingleNode-inspired atom assignment rules
+    ├── bonding.py          # Bond graph and connectivity cleanup
+    ├── constants.py        # MOFid metal/nonmetal classification
+    ├── fingerprint.py      # Connectivity-aware fragment grouping hash
+    ├── fragments.py        # Components, fragment materialization, and X caps
+    ├── geometry.py         # Periodic coordinate and unwrapping helpers
+    ├── models.py           # Decomposition dataclasses
+    ├── periodicity.py      # Periodic connectivity and repeat opening
+    ├── results.py          # Summaries, CGD, groups, and reconstruction map
+    ├── solvent.py          # MOFid-style solvent removal
+    ├── topology.py         # Collapsed topology vertices and edges
+    └── type_aliases.py     # Shared decomposition typing aliases
 ```
 
-The high-level `SingleNodePorDecomposer` class now reads as an execution recipe:
+The high-level `SingleNodeDecomposer` class now reads as an execution recipe:
 assign atoms, find cut bonds, build capped fragments, build topology records, and
 return a `DecompositionResult`.
 

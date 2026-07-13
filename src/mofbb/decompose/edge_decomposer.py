@@ -1,4 +1,4 @@
-"""Alternative decomposition into metal nodes, organic nodes, and edges."""
+"""Decomposition into metal nodes, organic nodes, and edges."""
 
 from __future__ import annotations
 
@@ -96,7 +96,7 @@ def decompose_mof_with_edges(
 ) -> NodeEdgeDecompositionResult:
     """Convenience function for the node/edge decomposition workflow."""
 
-    return NodeEdgePorDecomposer(
+    return NodeEdgeDecomposer(
         cif,
         x_symbol=x_symbol,
         bond_scale=bond_scale,
@@ -105,7 +105,7 @@ def decompose_mof_with_edges(
     ).decompose()
 
 
-class NodeEdgePorDecomposer:
+class NodeEdgeDecomposer:
     """Decompose a MOF into metal nodes, organic nodes, and edge fragments."""
 
     def __init__(

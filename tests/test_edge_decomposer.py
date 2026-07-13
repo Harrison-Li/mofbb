@@ -8,21 +8,21 @@ ase = pytest.importorskip("ase")
 
 from ase import Atoms
 
-import mofbb.edge_decomposer as edge_decomposer  # noqa: E402
-from mofbb.bonding import BondNetwork
-from mofbb.edge_decomposer import (
-    NodeEdgePorDecomposer,
+import mofbb.decompose.edge_decomposer as edge_decomposer  # noqa: E402
+from mofbb.decompose.bonding import BondNetwork
+from mofbb.decompose.edge_decomposer import (
+    NodeEdgeDecomposer,
     NodeEdgeDecompositionResult,
     NodeEdgeTopologyBuilder,
     OrganicLinkerSplitter,
     classify_organic_fragment_kind,
     decompose_mof_with_edges,
 )
-from mofbb.decomposer import SingleNodePorDecomposer
-from mofbb.fragments import FragmentBuilder
-from mofbb.models import Fragment, TopologyEdge, TopologyVertex, XSite
-from mofbb.periodicity import PeriodicBond, periodic_bonds
-from mofbb.solvent import MofidSolventRemover  # noqa: E402
+from mofbb.decompose.decomposer import SingleNodeDecomposer
+from mofbb.decompose.fragments import FragmentBuilder
+from mofbb.decompose.models import Fragment, TopologyEdge, TopologyVertex, XSite
+from mofbb.decompose.periodicity import PeriodicBond, periodic_bonds
+from mofbb.decompose.solvent import MofidSolventRemover  # noqa: E402
 
 SOLVENT_ARTIFACT_NAMES = {
     "free_solvent.cif",
@@ -404,16 +404,16 @@ def test_decomposers_open_periodic_metal_components_and_publish_validation(
         shifts={(0, 2): (-1, 0, 0)},
     )
     monkeypatch.setattr(
-        "mofbb.decomposer.read_bonded_structure",
+        "mofbb.decompose.decomposer.read_bonded_structure",
         lambda *args, **kwargs: (atoms.copy(), bonds),
     )
     monkeypatch.setattr(
-        "mofbb.edge_decomposer.read_bonded_structure",
+        "mofbb.decompose.edge_decomposer.read_bonded_structure",
         lambda *args, **kwargs: (atoms.copy(), bonds),
     )
 
-    single = SingleNodePorDecomposer("periodic-metal.cif").decompose()
-    node_edge = NodeEdgePorDecomposer("periodic-metal.cif").decompose()
+    single = SingleNodeDecomposer("periodic-metal.cif").decompose()
+    node_edge = NodeEdgeDecomposer("periodic-metal.cif").decompose()
 
     expected_validation = {
         "all_source_atoms_owned_once": True,
@@ -471,10 +471,12 @@ def test_node_edge_active_modes_disable_cleanup_and_classify_once(
         classify_calls.append(remover)
         return original_classify(remover)
 
-    monkeypatch.setattr("mofbb.edge_decomposer.read_bonded_structure", fake_read)
+    monkeypatch.setattr(
+        "mofbb.decompose.edge_decomposer.read_bonded_structure", fake_read
+    )
     monkeypatch.setattr(MofidSolventRemover, "classify", counting_classify)
 
-    result = NodeEdgePorDecomposer("fixture.cif", solvent_mode=mode).decompose()
+    result = NodeEdgeDecomposer("fixture.cif", solvent_mode=mode).decompose()
 
     assert cleanup_values == [False]
     assert len(classify_calls) == 1
@@ -505,11 +507,13 @@ def test_node_edge_free_mode_preserves_bound_solvent_as_accessory_linker(
         splitter_inputs.extend(organic_fragments)
         return original_split(splitter, organic_fragments, metal_connecting_bonds)
 
-    monkeypatch.setattr("mofbb.edge_decomposer.read_bonded_structure", fake_read)
+    monkeypatch.setattr(
+        "mofbb.decompose.edge_decomposer.read_bonded_structure", fake_read
+    )
     monkeypatch.setattr(MofidSolventRemover, "classify", counting_classify)
     monkeypatch.setattr(OrganicLinkerSplitter, "split", inspecting_split)
 
-    result = NodeEdgePorDecomposer("fixture.cif", solvent_mode="free").decompose()
+    result = NodeEdgeDecomposer("fixture.cif", solvent_mode="free").decompose()
 
     assert cleanup_values == [False]
     assert len(classify_calls) == 1
@@ -563,11 +567,11 @@ def test_node_edge_free_mode_preserves_zero_cut_bound_accessory(
         [(0, 1), (0, 2), (1, 3), (2, 3)],
     )
     monkeypatch.setattr(
-        "mofbb.edge_decomposer.read_bonded_structure",
+        "mofbb.decompose.edge_decomposer.read_bonded_structure",
         lambda *args, **kwargs: (atoms.copy(), bonds),
     )
 
-    result = NodeEdgePorDecomposer("zero_cut.cif", solvent_mode="free").decompose()
+    result = NodeEdgeDecomposer("zero_cut.cif", solvent_mode="free").decompose()
 
     assert result.solvent is not None
     assert result.solvent.free_solvent_components == ((0,),)
@@ -644,11 +648,11 @@ def test_node_edge_free_mode_preserves_multi_cut_bound_accessory(
         shifts={(0, 2): (1, 0, 0)},
     )
     monkeypatch.setattr(
-        "mofbb.edge_decomposer.read_bonded_structure",
+        "mofbb.decompose.edge_decomposer.read_bonded_structure",
         lambda *args, **kwargs: (atoms.copy(), bonds),
     )
 
-    result = NodeEdgePorDecomposer("multi_cut.cif", solvent_mode="free").decompose()
+    result = NodeEdgeDecomposer("multi_cut.cif", solvent_mode="free").decompose()
 
     assert result.solvent is not None
     assert result.solvent.free_solvent_components == ()
@@ -726,11 +730,11 @@ def test_node_edge_all_mode_removes_bound_linker(
 ) -> None:
     atoms, bonds = framework_with_free_and_bound_solvent
     monkeypatch.setattr(
-        "mofbb.edge_decomposer.read_bonded_structure",
+        "mofbb.decompose.edge_decomposer.read_bonded_structure",
         lambda *args, **kwargs: (atoms.copy(), bonds),
     )
 
-    result = NodeEdgePorDecomposer("fixture.cif", solvent_mode="all").decompose()
+    result = NodeEdgeDecomposer("fixture.cif", solvent_mode="all").decompose()
 
     assert result.solvent_mode == "all"
     assert result.solvent is not None
@@ -752,10 +756,12 @@ def test_node_edge_rejects_invalid_solvent_mode_before_reading_cif(
         read_called = True
         raise AssertionError("CIF read should not be attempted")
 
-    monkeypatch.setattr("mofbb.edge_decomposer.read_bonded_structure", fake_read)
+    monkeypatch.setattr(
+        "mofbb.decompose.edge_decomposer.read_bonded_structure", fake_read
+    )
 
     with pytest.raises(ValueError, match="solvent mode"):
-        NodeEdgePorDecomposer("fixture.cif", solvent_mode="invalid")
+        NodeEdgeDecomposer("fixture.cif", solvent_mode="invalid")
 
     assert read_called is False
 
@@ -780,9 +786,11 @@ def test_node_edge_default_mode_preserves_cleanup_and_legacy_state(
         cleanup_values.append(cleanup)
         return atoms.copy(), bonds
 
-    monkeypatch.setattr("mofbb.edge_decomposer.read_bonded_structure", fake_read)
+    monkeypatch.setattr(
+        "mofbb.decompose.edge_decomposer.read_bonded_structure", fake_read
+    )
 
-    result = NodeEdgePorDecomposer("fixture.cif", cleanup=cleanup).decompose()
+    result = NodeEdgeDecomposer("fixture.cif", cleanup=cleanup).decompose()
 
     assert cleanup_values == [cleanup]
     assert result.solvent_mode == "none"
@@ -815,7 +823,9 @@ def test_decompose_mof_with_edges_forwards_solvent_mode(
         def decompose(self):
             return sentinel
 
-    monkeypatch.setattr("mofbb.edge_decomposer.NodeEdgePorDecomposer", FakeDecomposer)
+    monkeypatch.setattr(
+        "mofbb.decompose.edge_decomposer.NodeEdgeDecomposer", FakeDecomposer
+    )
     kwargs = {
         "x_symbol": "He",
         "bond_scale": 1.3,
@@ -847,10 +857,10 @@ def test_node_edge_free_result_writes_accessory_and_solvent_outputs(
 ) -> None:
     atoms, bonds = framework_with_free_and_bound_solvent
     monkeypatch.setattr(
-        "mofbb.edge_decomposer.read_bonded_structure",
+        "mofbb.decompose.edge_decomposer.read_bonded_structure",
         lambda *args, **kwargs: (atoms.copy(), bonds),
     )
-    result = NodeEdgePorDecomposer("fixture.cif", solvent_mode="free").decompose()
+    result = NodeEdgeDecomposer("fixture.cif", solvent_mode="free").decompose()
     bound_linker = result.bound_linker_fragments[0]
     assert bound_linker.index == 3
     assert bound_linker.source_indices == (8, 9)
@@ -931,10 +941,10 @@ def test_node_edge_all_result_writes_solvent_without_bound_linker_keys(
 ) -> None:
     atoms, bonds = framework_with_free_and_bound_solvent
     monkeypatch.setattr(
-        "mofbb.edge_decomposer.read_bonded_structure",
+        "mofbb.decompose.edge_decomposer.read_bonded_structure",
         lambda *args, **kwargs: (atoms.copy(), bonds),
     )
-    result = NodeEdgePorDecomposer("fixture.cif", solvent_mode="all").decompose()
+    result = NodeEdgeDecomposer("fixture.cif", solvent_mode="all").decompose()
 
     summary = result.write(tmp_path)
 
@@ -954,11 +964,11 @@ def test_node_edge_free_mode_without_bound_components_omits_bound_linker_keys(
         shifts={(0, 2): (1, 0, 0)},
     )
     monkeypatch.setattr(
-        "mofbb.edge_decomposer.read_bonded_structure",
+        "mofbb.decompose.edge_decomposer.read_bonded_structure",
         lambda *args, **kwargs: (atoms.copy(), bonds),
     )
 
-    result = NodeEdgePorDecomposer("no_bound.cif", solvent_mode="free").decompose()
+    result = NodeEdgeDecomposer("no_bound.cif", solvent_mode="free").decompose()
     summary = result.write(tmp_path)
 
     assert result.solvent is not None
@@ -982,10 +992,10 @@ def test_node_edge_write_rejects_inconsistent_solvent_metadata_before_output(
 ) -> None:
     atoms, bonds = framework_with_free_and_bound_solvent
     monkeypatch.setattr(
-        "mofbb.edge_decomposer.read_bonded_structure",
+        "mofbb.decompose.edge_decomposer.read_bonded_structure",
         lambda *args, **kwargs: (atoms.copy(), bonds),
     )
-    result = NodeEdgePorDecomposer("fixture.cif", solvent_mode="all").decompose()
+    result = NodeEdgeDecomposer("fixture.cif", solvent_mode="all").decompose()
     if inconsistent_state == "missing-solvent":
         result.solvent = None
     elif inconsistent_state == "missing-mapping":
@@ -1007,10 +1017,10 @@ def test_node_edge_write_preflights_solvent_mapping_before_output(
 ) -> None:
     atoms, bonds = framework_with_free_and_bound_solvent
     monkeypatch.setattr(
-        "mofbb.edge_decomposer.read_bonded_structure",
+        "mofbb.decompose.edge_decomposer.read_bonded_structure",
         lambda *args, **kwargs: (atoms.copy(), bonds),
     )
-    result = NodeEdgePorDecomposer("fixture.cif", solvent_mode="all").decompose()
+    result = NodeEdgeDecomposer("fixture.cif", solvent_mode="all").decompose()
     assert result.selected_to_original is not None
     result.selected_to_original = tuple(reversed(result.selected_to_original))
     output_dir = tmp_path / "wrong-mapping"
@@ -1031,10 +1041,10 @@ def test_node_edge_write_preflights_solvent_cell_before_output(
 ) -> None:
     atoms, bonds = framework_with_free_and_bound_solvent
     monkeypatch.setattr(
-        "mofbb.edge_decomposer.read_bonded_structure",
+        "mofbb.decompose.edge_decomposer.read_bonded_structure",
         lambda *args, **kwargs: (atoms.copy(), bonds),
     )
-    result = NodeEdgePorDecomposer("fixture.cif", solvent_mode="all").decompose()
+    result = NodeEdgeDecomposer("fixture.cif", solvent_mode="all").decompose()
     assert result.solvent is not None
     result.solvent.original_atoms.set_pbc(False)
     output_dir = tmp_path / "unrepresentable-cell"
@@ -1584,7 +1594,7 @@ def test_node_edge_decomposer_uses_explicit_pormake_cif_bonds(tmp_path) -> None:
     if not sample.exists():
         pytest.skip("PORMAKE stratified benchmark sample is not available")
 
-    result = NodeEdgePorDecomposer(sample).decompose()
+    result = NodeEdgeDecomposer(sample).decompose()
     summary = result.write(tmp_path)
 
     _assert_pormake_acs_h_edge_summary(summary)
@@ -1602,7 +1612,7 @@ def test_node_edge_decomposer_recovers_pormake_cif_without_geom_bonds(
         encoding="utf-8",
     )
 
-    result = NodeEdgePorDecomposer(stripped_sample).decompose()
+    result = NodeEdgeDecomposer(stripped_sample).decompose()
     summary = result.write(tmp_path / "decomposed")
 
     _assert_pormake_acs_h_edge_summary(summary)

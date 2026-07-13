@@ -7,10 +7,10 @@ from ase.cell import Cell
 from ase.io import read
 from ase.io.cif import parse_cif
 
-import mofbb.solvent as solvent_module
-from mofbb.bonding import BondNetwork
-from mofbb.decomposer import SingleNodePorDecomposer
-from mofbb.solvent import (
+import mofbb.decompose.solvent as solvent_module
+from mofbb.decompose.bonding import BondNetwork
+from mofbb.decompose.decomposer import SingleNodeDecomposer
+from mofbb.decompose.solvent import (
     MofidSolventRemover,
     SolventRemovalResult,
     _simplify_topology,
@@ -202,12 +202,12 @@ def test_single_node_decomposer_selects_solvent_mode(
         classify_calls.append(remover)
         return original_classify(remover)
 
-    monkeypatch.setattr("mofbb.decomposer.read_bonded_structure", fake_read)
+    monkeypatch.setattr("mofbb.decompose.decomposer.read_bonded_structure", fake_read)
     monkeypatch.setattr(
-        "mofbb.decomposer.MofidSolventRemover.classify", counting_classify
+        "mofbb.decompose.decomposer.MofidSolventRemover.classify", counting_classify
     )
 
-    result = SingleNodePorDecomposer("fixture.cif", solvent_mode=mode).decompose()
+    result = SingleNodeDecomposer("fixture.cif", solvent_mode=mode).decompose()
 
     assert cleanup_values == [False]
     assert len(classify_calls) == 1
@@ -226,10 +226,10 @@ def test_single_node_rejects_invalid_solvent_mode_before_reading_cif(
         read_called = True
         raise AssertionError("CIF read should not be attempted")
 
-    monkeypatch.setattr("mofbb.decomposer.read_bonded_structure", fake_read)
+    monkeypatch.setattr("mofbb.decompose.decomposer.read_bonded_structure", fake_read)
 
     with pytest.raises(ValueError, match="solvent mode"):
-        SingleNodePorDecomposer("fixture.cif", solvent_mode="invalid")
+        SingleNodeDecomposer("fixture.cif", solvent_mode="invalid")
 
     assert read_called is False
 
@@ -247,9 +247,9 @@ def test_single_node_default_mode_preserves_cleanup_and_legacy_state(
         cleanup_values.append(cleanup)
         return atoms.copy(), bonds
 
-    monkeypatch.setattr("mofbb.decomposer.read_bonded_structure", fake_read)
+    monkeypatch.setattr("mofbb.decompose.decomposer.read_bonded_structure", fake_read)
 
-    result = SingleNodePorDecomposer("fixture.cif", cleanup=cleanup).decompose()
+    result = SingleNodeDecomposer("fixture.cif", cleanup=cleanup).decompose()
 
     assert cleanup_values == [cleanup]
     assert result.solvent_mode == "none"
@@ -264,11 +264,11 @@ def test_result_write_includes_solvent_block_when_enabled(
 ) -> None:
     atoms, bonds = framework_with_free_and_bound_solvent
     monkeypatch.setattr(
-        "mofbb.decomposer.read_bonded_structure",
+        "mofbb.decompose.decomposer.read_bonded_structure",
         lambda *args, **kwargs: (atoms.copy(), bonds),
     )
 
-    result = SingleNodePorDecomposer("fixture.cif", solvent_mode="all").decompose()
+    result = SingleNodeDecomposer("fixture.cif", solvent_mode="all").decompose()
     assert result.selected_to_original is not None
     selected_indices = set(range(len(result.selected_to_original)))
 
@@ -301,10 +301,10 @@ def test_result_write_rejects_inconsistent_solvent_metadata(
 ) -> None:
     atoms, bonds = framework_with_free_and_bound_solvent
     monkeypatch.setattr(
-        "mofbb.decomposer.read_bonded_structure",
+        "mofbb.decompose.decomposer.read_bonded_structure",
         lambda *args, **kwargs: (atoms.copy(), bonds),
     )
-    result = SingleNodePorDecomposer("fixture.cif", solvent_mode="all").decompose()
+    result = SingleNodeDecomposer("fixture.cif", solvent_mode="all").decompose()
     if inconsistent_state == "missing-solvent":
         result.solvent = None
     elif inconsistent_state == "missing-mapping":
@@ -326,10 +326,10 @@ def test_result_write_preflights_wrong_mapping_before_output(
 ) -> None:
     atoms, bonds = framework_with_free_and_bound_solvent
     monkeypatch.setattr(
-        "mofbb.decomposer.read_bonded_structure",
+        "mofbb.decompose.decomposer.read_bonded_structure",
         lambda *args, **kwargs: (atoms.copy(), bonds),
     )
-    result = SingleNodePorDecomposer("fixture.cif", solvent_mode="all").decompose()
+    result = SingleNodeDecomposer("fixture.cif", solvent_mode="all").decompose()
     assert result.selected_to_original is not None
     result.selected_to_original = tuple(reversed(result.selected_to_original))
     output_dir = tmp_path / "wrong-mapping"
@@ -350,10 +350,10 @@ def test_result_write_preflights_unrepresentable_solvent_cell_before_output(
 ) -> None:
     atoms, bonds = framework_with_free_and_bound_solvent
     monkeypatch.setattr(
-        "mofbb.decomposer.read_bonded_structure",
+        "mofbb.decompose.decomposer.read_bonded_structure",
         lambda *args, **kwargs: (atoms.copy(), bonds),
     )
-    result = SingleNodePorDecomposer("fixture.cif", solvent_mode="all").decompose()
+    result = SingleNodeDecomposer("fixture.cif", solvent_mode="all").decompose()
     assert result.solvent is not None
     result.solvent.original_atoms.set_pbc(False)
     output_dir = tmp_path / "unrepresentable-cell"

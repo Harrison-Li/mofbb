@@ -9,7 +9,24 @@ from pathlib import Path
 
 import pytest
 
-from mofbb.cli import build_parser, main
+from mofbb.decompose.cli import build_parser, main
+
+
+def test_decomposers_use_project_owned_public_names() -> None:
+    from mofbb import NodeEdgeDecomposer as top_level_node_edge
+    from mofbb import SingleNodeDecomposer as top_level_single_node
+    from mofbb.decompose import NodeEdgeDecomposer, SingleNodeDecomposer
+
+    assert top_level_single_node is SingleNodeDecomposer
+    assert top_level_node_edge is NodeEdgeDecomposer
+    assert SingleNodeDecomposer.__name__ == "SingleNodeDecomposer"
+    assert NodeEdgeDecomposer.__name__ == "NodeEdgeDecomposer"
+
+
+def test_root_cli_compatibility_entry_point() -> None:
+    from mofbb.cli import main as compatibility_main
+
+    assert compatibility_main is main
 
 
 def test_cli_parser_defaults_to_no_solvent_removal() -> None:
@@ -55,12 +72,12 @@ def test_solvent_types_are_public_lazy_exports() -> None:
             "SolventMode",
             "SolventRemovalResult",
         }
-        assert "mofbb.solvent" not in sys.modules
+        assert "mofbb.decompose.solvent" not in sys.modules
         assert expected <= set(mofbb.__all__)
 
         from mofbb import MofidSolventRemover, SolventMode, SolventRemovalResult
 
-        assert "mofbb.solvent" in sys.modules
+        assert "mofbb.decompose.solvent" in sys.modules
         assert MofidSolventRemover.__name__ == "MofidSolventRemover"
         assert SolventRemovalResult.__name__ == "SolventRemovalResult"
         assert set(SolventMode.__args__) == {"none", "free", "all"}
@@ -82,13 +99,13 @@ def test_solvent_types_are_public_lazy_exports() -> None:
     [
         pytest.param(
             "single-node",
-            "SingleNodePorDecomposer",
+            "SingleNodeDecomposer",
             {"num_nodes": 0, "num_linkers": 0, "num_connecting_bonds": 0},
             id="single-node",
         ),
         pytest.param(
             "node-edge",
-            "NodeEdgePorDecomposer",
+            "NodeEdgeDecomposer",
             {
                 "num_metal_nodes": 0,
                 "num_organic_nodes": 0,
@@ -132,7 +149,7 @@ def test_cli_forwards_solvent_mode_to_each_decomposition(
         def decompose(self) -> FakeResult:
             return FakeResult()
 
-    monkeypatch.setattr(f"mofbb.cli.{decomposer_name}", FakeDecomposer)
+    monkeypatch.setattr(f"mofbb.decompose.cli.{decomposer_name}", FakeDecomposer)
     output_dir = tmp_path / "outputs"
 
     exit_code = main(

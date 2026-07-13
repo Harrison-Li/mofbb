@@ -1,4 +1,4 @@
-"""Shared type aliases used throughout the package."""
+"""Shared type aliases for the decomposition package."""
 
 from __future__ import annotations
 

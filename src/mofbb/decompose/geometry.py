@@ -1,4 +1,4 @@
-"""Coordinate utilities for periodic structures and finite fragments."""
+"""Coordinate utilities for decomposition structures and fragments."""
 
 from __future__ import annotations
 

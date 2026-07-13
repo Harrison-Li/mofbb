@@ -1,6 +1,6 @@
 import numpy as np
 
-from mofbb.geometry import (
+from mofbb.decompose.geometry import (
     cart_to_frac,
     minimum_image_delta,
     unwrap_fractional_near,

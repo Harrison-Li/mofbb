@@ -1,4 +1,4 @@
-"""Connectivity-aware fragment fingerprinting."""
+"""Connectivity-aware fingerprinting for decomposition fragments."""
 
 from __future__ import annotations
 

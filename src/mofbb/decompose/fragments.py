@@ -1,4 +1,4 @@
-"""Fragment construction and PORMAKE-style cut-bond capping."""
+"""Decomposition fragment construction and PORMAKE-style cut-bond capping."""
 
 from __future__ import annotations
 

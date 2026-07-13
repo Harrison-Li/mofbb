@@ -1,3 +1,5 @@
+"""MOFid-style solvent removal for decomposition workflows."""
+
 from __future__ import annotations
 
 import re

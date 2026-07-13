@@ -1,4 +1,4 @@
-"""High-level decomposition orchestration."""
+"""High-level SingleNode decomposition orchestration."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from .solvent import MofidSolventRemover, SolventMode, SolventRemovalResult
 from .topology import TopologyBuilder, validate_source_atom_ownership
 
 
-class SingleNodePorDecomposer:
+class SingleNodeDecomposer:
     """Decompose a MOF using MOFid SingleNode-style SBU boundaries.
 
     The class intentionally acts as a thin coordinator.  The details live in

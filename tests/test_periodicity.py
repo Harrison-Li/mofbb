@@ -2,9 +2,9 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-import mofbb.periodicity as periodicity_module
-from mofbb.bonding import BondNetwork
-from mofbb.periodicity import (
+import mofbb.decompose.periodicity as periodicity_module
+from mofbb.decompose.bonding import BondNetwork
+from mofbb.decompose.periodicity import (
     ComponentPeriodicity,
     PeriodicBond,
     PeriodicOpening,
