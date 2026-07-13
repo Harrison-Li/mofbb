@@ -5,12 +5,104 @@ Adatpted from https://github.com/Sangwon91/PORMAKE/blob/main/src/pormake/builder
 from collections import defaultdict
 
 import numpy as np
+from ase.data import atomic_numbers, covalent_radii
 
 from .framework import Framework
 from .local_structure import LocalStructure
 from .locator import Locator
 from .log import logger
 from .scaler import Scaler
+
+
+def calc_x_mig(
+    atoms,
+    x_pairs: list[tuple[int, int]],
+    tolerance: float = 0.3,
+) -> list[tuple[int, int, float]]:
+    """Return X-X pairs whose minimum-image gap exceeds tolerance."""
+    failures = []
+    for x_i, x_j in x_pairs:
+        distance = atoms.get_distance(x_i, x_j, mic=True)
+        if distance > tolerance:
+            failures.append((x_i, x_j, float(distance)))
+
+    return failures
+
+
+def max_fused_bond_distance(
+    symbol_i: str,
+    symbol_j: str,
+    scale: float = 1.2,
+) -> float:
+    """Maximum fused-bond distance from scaled ASE covalent radii."""
+    radius_i = covalent_radii[atomic_numbers[symbol_i]]
+    radius_j = covalent_radii[atomic_numbers[symbol_j]]
+    return float(scale * (radius_i + radius_j))
+
+
+def calc_fused_bond_failures(
+    atoms,
+    x_pairs: list[tuple[int, int]],
+    x_neighbors: dict[int, int],
+    scale: float = 1.2,
+) -> list[tuple[int, int, float, float]]:
+    """Return real-atom bonds that are too long after X-site fusion."""
+    failures = []
+    for x_i, x_j in x_pairs:
+        atom_i = x_neighbors[x_i]
+        atom_j = x_neighbors[x_j]
+        distance = float(atoms.get_distance(atom_i, atom_j, mic=True))
+        limit = max_fused_bond_distance(
+            atoms[atom_i].symbol,
+            atoms[atom_j].symbol,
+            scale,
+        )
+        if distance > limit:
+            failures.append((atom_i, atom_j, distance, limit))
+    return failures
+
+
+def _find_matched_connection_points(topology, bbs, permutations, edge_index):
+    """Return the node connection points matched to a topology edge."""
+    edge_neighbors = topology.neighbor_list[edge_index]
+    matched = []
+    for edge_neighbor in edge_neighbors:
+        node_index = edge_neighbor.index
+        node_bb = bbs[node_index]
+        for offset, node_neighbor in enumerate(topology.neighbor_list[node_index]):
+            if np.linalg.norm(
+                node_neighbor.distance_vector + edge_neighbor.distance_vector
+            ) < 0.01:
+                permutation = permutations[node_index]
+                matched.append(
+                    int(node_bb.connection_point_indices[permutation][offset])
+                )
+                break
+        else:
+            raise ValueError(
+                f"Could not match topology edge {edge_index} to node "
+                f"{node_index}'s connection points."
+            )
+    return tuple(matched)
+
+
+def _connection_port(building_block, x_index):
+    """Return an X site's anchor symbol, anchor index, and cap length."""
+    matches = np.flatnonzero(building_block.connection_point_indices == x_index)
+    if len(matches) != 1:
+        raise ValueError(
+            f"Connection point {x_index} does not occur exactly once in "
+            f"{building_block.name!r}."
+        )
+    port_index = int(matches[0])
+    anchor_index = int(
+        building_block.connection_point_anchor_indices[port_index]
+    )
+    return (
+        building_block.atoms[anchor_index].symbol,
+        anchor_index,
+        float(building_block.connection_point_anchor_lengths[port_index]),
+    )
 
 
 # bb: building block.
@@ -181,6 +273,13 @@ class Builder:
             ``wrap`` : bool
                 Whether to wrap the framework into the unit cell;
                 default ``True``.
+            ``x_mig_tolerance`` : float
+                Maximum minimum-image distance, in Å, allowed between
+                paired ``X`` connection atoms before fusion; default
+                ``0.3``.
+            ``fused_bond_scale`` : float
+                Maximum fused-bond distance as a multiplier of the two
+                atoms' summed ASE covalent radii; default ``1.2``.
 
         Returns
         -------
@@ -194,6 +293,10 @@ class Builder:
             If a node placement yields an RMSD below 99% of the cached
             minimum (with that minimum above ``1e-3``), indicating the
             minimum RMSD was computed incorrectly.
+        ValueError
+            If a tolerance is invalid, an X site lacks exactly one real
+            anchor, or a topology connection fails either geometric gate.
+            X atoms are not removed in these cases.
         """
 
         # Parse keyword arguments.
@@ -201,6 +304,21 @@ class Builder:
             max_n_slices = kwargs["accuracy"]
         else:
             max_n_slices = 6
+
+        try:
+            x_mig_tolerance = float(kwargs.get("x_mig_tolerance", 0.3))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("x_mig_tolerance must be a finite number.") from exc
+        if not np.isfinite(x_mig_tolerance) or x_mig_tolerance < 0.0:
+            raise ValueError(
+                "x_mig_tolerance must be a finite, non-negative number."
+            )
+        try:
+            fused_bond_scale = float(kwargs.get("fused_bond_scale", 1.2))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("fused_bond_scale must be a finite number.") from exc
+        if not np.isfinite(fused_bond_scale) or fused_bond_scale <= 0.0:
+            raise ValueError("fused_bond_scale must be a finite, positive number.")
 
         # Empty dictionary.
         if permutations is None:
@@ -365,6 +483,52 @@ class Builder:
             located_bbs[e] = edge_bb
             permutations[e] = np.array(perm)
 
+        for building_block in located_bbs:
+            if building_block is not None:
+                building_block.connection_point_anchor_indices
+
+        predicted_failures = []
+        for edge_index in topology.edge_indices:
+            node_x_i, node_x_j = _find_matched_connection_points(
+                topology, located_bbs, permutations, edge_index
+            )
+            neighbor_i, neighbor_j = topology.neighbor_list[edge_index]
+            node_i = located_bbs[neighbor_i.index]
+            node_j = located_bbs[neighbor_j.index]
+            edge = located_bbs[edge_index]
+            if edge is None:
+                port_pairs = ((node_i, node_x_i, node_j, node_x_j),)
+            else:
+                edge_x_i, edge_x_j = edge.connection_point_indices[
+                    permutations[edge_index]
+                ]
+                port_pairs = (
+                    (node_i, node_x_i, edge, int(edge_x_i)),
+                    (edge, int(edge_x_j), node_j, node_x_j),
+                )
+
+            for bb_i, x_i, bb_j, x_j in port_pairs:
+                symbol_i, _, cap_i = _connection_port(bb_i, x_i)
+                symbol_j, _, cap_j = _connection_port(bb_j, x_j)
+                predicted = cap_i + cap_j
+                limit = max_fused_bond_distance(
+                    symbol_i, symbol_j, fused_bond_scale
+                )
+                if predicted > limit:
+                    predicted_failures.append(
+                        (edge_index, symbol_i, symbol_j, predicted, limit)
+                    )
+
+        if predicted_failures:
+            edge_index, symbol_i, symbol_j, distance, limit = predicted_failures[0]
+            raise ValueError(
+                "Predicted fused-bond gate rejected assembly: "
+                f"{len(predicted_failures)} topology connections exceed "
+                f"{fused_bond_scale:.3f} times their summed covalent radii. "
+                f"Edge {edge_index} {symbol_i}-{symbol_j}: {distance:.3f} Å "
+                f"> {limit:.3f} Å. Resample the building blocks or ports."
+            )
+
         # Scale topology.
         # Change topology to scaled topology.
         original_topology = topology
@@ -406,59 +570,6 @@ class Builder:
 
             rmsd_values.append(rmsd)
         rmsd_values = np.array(rmsd_values)
-
-        # Thie helpers are so verbose. Anoying.
-        def find_matched_atom_indices(e):
-            """Return the two connection-point atoms an edge bonds to.
-
-            For edge ``e``, locate within each adjacent node block the
-            connection-point atom that faces the edge, so a linker can be
-            bonded to it. Reads the enclosing-scope variables
-            ``original_topology``, ``located_bbs``, and ``permutations``.
-
-            Parameters
-            ----------
-            e : int
-                Edge slot index in the (unscaled) topology.
-
-            Returns
-            -------
-            a1, a2 : int
-                Atom indices, within each neighboring node block, of the
-                connection points matched to this edge's two ends.
-            """
-            topology = original_topology
-
-            # i and j: edge index in topology
-            n1, n2 = topology.neighbor_list[e]
-
-            i1 = n1.index
-            i2 = n2.index
-
-            bb1 = located_bbs[i1]
-            bb2 = located_bbs[i2]
-
-            # Find bonded atom index for i1.
-            for o, n in enumerate(topology.neighbor_list[i1]):
-                # Check zero sum.
-                s = n.distance_vector + n1.distance_vector
-                s = np.linalg.norm(s)
-                if s < 0.01:
-                    perm = permutations[i1]
-                    a1 = bb1.connection_point_indices[perm][o]
-                    break
-
-            # Find bonded atom index for i2.
-            for o, n in enumerate(topology.neighbor_list[i2]):
-                # Check zero sum.
-                s = n.distance_vector + n2.distance_vector
-                s = np.linalg.norm(s)
-                if s < 0.01:
-                    perm = permutations[i2]
-                    a2 = bb2.connection_point_indices[perm][o]
-                    break
-
-            return a1, a2
 
         def calc_image(ni, nj, invc):
             """Compute the periodic image offset between two neighbors.
@@ -514,7 +625,9 @@ class Builder:
             bb1 = located_bbs[i1]
             bb2 = located_bbs[i2]
 
-            a1, a2 = find_matched_atom_indices(e)
+            a1, a2 = _find_matched_connection_points(
+                original_topology, located_bbs, permutations, e
+            )
 
             r1 = bb1.atoms.positions[a1]
             r2 = bb2.atoms.positions[a2]
@@ -562,7 +675,9 @@ class Builder:
         bonds = []
         bond_types = []
         for j in topology.edge_indices:
-            a1, a2 = find_matched_atom_indices(j)
+            a1, a2 = _find_matched_connection_points(
+                original_topology, located_bbs, permutations, j
+            )
 
             # i and j: edge index in topology
             n1, n2 = topology.neighbor_list[j]
@@ -596,6 +711,7 @@ class Builder:
                     bonds[-1],
                 )
 
+        x_pairs = bonds
         bonds = np.array(bonds)
 
         # All bonds in generated framework.
@@ -611,6 +727,17 @@ class Builder:
         logger.debug("Set cell and boundary.")
         framework_atoms.set_pbc(True)
         framework_atoms.set_cell(topology.atoms.cell)
+
+        failures = calc_x_mig(framework_atoms, x_pairs, x_mig_tolerance)
+        if failures:
+            x_i, x_j, distance = failures[0]
+            raise ValueError(
+                "Geometric quality gate rejected assembly: "
+                f"{len(failures)} of {len(x_pairs)} topology X-X connections "
+                f"exceed the {x_mig_tolerance:.3f} Å tolerance. "
+                f"Atoms {x_i}-{x_j}: {distance:.3f} Å. Resample the "
+                "building blocks or orientations before fusion."
+            )
 
         # Remove connection points (X) from the framework.
         count = 0
@@ -633,7 +760,7 @@ class Builder:
         XX_bonds = []
         new_bonds = []
         new_bond_types = []
-        X_neighbor_list = defaultdict(list)
+        X_neighbor_list = {}
         for (i, j), t in zip(all_bonds, all_bond_types):
             if is_X(i) and is_X(j):
                 XX_bonds.append((i, j))
@@ -644,6 +771,24 @@ class Builder:
             else:
                 new_bonds.append((i, j))
                 new_bond_types.append(t)
+
+        failures = calc_fused_bond_failures(
+            framework_atoms,
+            x_pairs,
+            X_neighbor_list,
+            fused_bond_scale,
+        )
+        if failures:
+            atom_i, atom_j, distance, limit = failures[0]
+            symbols = framework_atoms.get_chemical_symbols()
+            raise ValueError(
+                "Fused-bond quality gate rejected assembly: "
+                f"{len(failures)} topology connections exceed "
+                f"{fused_bond_scale:.3f} times their summed covalent radii. "
+                f"Atoms {atom_i}-{atom_j} ({symbols[atom_i]}-"
+                f"{symbols[atom_j]}): {distance:.3f} Å > {limit:.3f} Å. "
+                "Resample the building blocks or orientations before fusion."
+            )
 
         for i, j in XX_bonds:
             new_bonds.append((X_neighbor_list[i], X_neighbor_list[j]))
@@ -662,6 +807,8 @@ class Builder:
             "relax_obj": scaling_result.fun,
             "max_rmsd": np.max(rmsd_values),
             "mean_rmsd": np.mean(rmsd_values),
+            "x_mig_tolerance": x_mig_tolerance,
+            "fused_bond_scale": fused_bond_scale,
         }
 
         if "wrap" not in kwargs:

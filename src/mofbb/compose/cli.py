@@ -78,6 +78,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Orientation-search accuracy. Default: 6.",
     )
     parser.add_argument(
+        "--x-mig-tolerance",
+        type=float,
+        default=0.3,
+        metavar="ANGSTROM",
+        help=(
+            "Maximum minimum-image distance between paired X connection "
+            "atoms before rejecting the assembly. Default: 0.3 Å."
+        ),
+    )
+    parser.add_argument(
+        "--fused-bond-scale",
+        type=float,
+        default=1.2,
+        help=(
+            "Maximum fused-bond distance as a multiplier of summed ASE "
+            "covalent radii. Default: 1.2."
+        ),
+    )
+    parser.add_argument(
         "--no-wrap",
         action="store_true",
         help="Do not wrap composed atoms into the unit cell.",
@@ -144,6 +163,8 @@ def main(argv: list[str] | None = None) -> int:
                 node_bbs,
                 edge_bbs,
                 accuracy=args.accuracy,
+                x_mig_tolerance=args.x_mig_tolerance,
+                fused_bond_scale=args.fused_bond_scale,
                 wrap=not args.no_wrap,
             )
         args.output.parent.mkdir(parents=True, exist_ok=True)

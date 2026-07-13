@@ -7,8 +7,13 @@ import subprocess
 import sys
 import textwrap
 from pathlib import Path
+from types import SimpleNamespace
+
+from ase import Atoms
+import pytest
 
 from mofbb.compose import Builder, BuildingBlock, Reconstructor, Topology
+from mofbb.compose.builder import calc_fused_bond_failures, calc_x_mig
 from mofbb.compose.cli import build_parser, main
 
 
@@ -42,6 +47,26 @@ def _write_linear_block(path: Path) -> Path:
             C   0.5 0.0 0.0
             X  -1.0 0.0 0.0
             X   1.0 0.0 0.0
+            0 1 S
+            0 2 S
+            1 3 S
+            """
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_long_cap_block(path: Path) -> Path:
+    path.write_text(
+        textwrap.dedent(
+            """\
+            4
+            2 3
+            C  -0.5 0.0 0.0
+            C   0.5 0.0 0.0
+            X  -1.5 0.0 0.0
+            X   1.5 0.0 0.0
             0 1 S
             0 2 S
             1 3 S
@@ -112,6 +137,124 @@ def test_composer_builds_and_writes_framework(tmp_path: Path) -> None:
     output = tmp_path / "framework.cif"
     framework.write_cif(output)
     assert output.is_file()
+
+
+def test_composer_rejects_misaligned_x_pairs(tmp_path: Path) -> None:
+    class NoOpScaler:
+        def scale(self, topology, bbs, perms, return_result=False):
+            result = SimpleNamespace(fun=0.0)
+            return (topology.copy(), result) if return_result else topology.copy()
+
+    topology_path = _write_linear_topology(tmp_path / "linear.cgd")
+    block_path = _write_linear_block(tmp_path / "linear.xyz")
+    topology = Topology(topology_path)
+    block = BuildingBlock(block_path)
+    builder = Builder(scaler=NoOpScaler())
+
+    with pytest.raises(ValueError, match="Geometric quality gate rejected"):
+        builder.build_by_type(topology, {0: block, 1: block}, accuracy=3)
+
+    framework = builder.build_by_type(
+        topology,
+        {0: block, 1: block},
+        accuracy=3,
+        x_mig_tolerance=10.0,
+        fused_bond_scale=10.0,
+    )
+    assert "X" not in framework.atoms.get_chemical_symbols()
+    assert framework.info["x_mig_tolerance"] == 10.0
+
+
+def test_fused_bond_gate_uses_scaled_covalent_radii() -> None:
+    cases = [
+        ("CNXX", 1.90, True),
+        ("CCXX", 1.55, False),
+        ("ZnNXX", 2.14, False),
+    ]
+    for symbols, distance, should_fail in cases:
+        atoms = Atoms(
+            symbols,
+            positions=[
+                [0.0, 0.0, 0.0],
+                [distance, 0.0, 0.0],
+                [0.5 * distance, 0.0, 0.0],
+                [0.5 * distance, 0.0, 0.0],
+            ],
+            cell=[10.0, 10.0, 10.0],
+            pbc=True,
+        )
+        x_pairs = [(2, 3)]
+        x_neighbors = {2: 0, 3: 1}
+
+        assert calc_x_mig(atoms, x_pairs) == []
+        assert bool(
+            calc_fused_bond_failures(atoms, x_pairs, x_neighbors)
+        ) is should_fail
+
+
+def test_fused_bond_gate_uses_minimum_image_distance() -> None:
+    atoms = Atoms(
+        "CCXX",
+        positions=[
+            [9.9, 0.0, 0.0],
+            [0.1, 0.0, 0.0],
+            [9.95, 0.0, 0.0],
+            [0.05, 0.0, 0.0],
+        ],
+        cell=[10.0, 10.0, 10.0],
+        pbc=True,
+    )
+
+    assert calc_x_mig(atoms, [(2, 3)], tolerance=0.2) == []
+    assert calc_fused_bond_failures(
+        atoms,
+        [(2, 3)],
+        {2: 0, 3: 1},
+    ) == []
+
+
+def test_predicted_fused_bond_failure_prevents_scaling(tmp_path: Path) -> None:
+    class CountingScaler:
+        calls = 0
+
+        def scale(self, topology, bbs, perms, return_result=False):
+            self.calls += 1
+            result = SimpleNamespace(fun=0.0)
+            return (topology.copy(), result) if return_result else topology.copy()
+
+    topology = Topology(_write_linear_topology(tmp_path / "linear.cgd"))
+    block = BuildingBlock(_write_long_cap_block(tmp_path / "long.xyz"))
+    scaler = CountingScaler()
+
+    with pytest.raises(ValueError, match="Predicted fused-bond gate rejected"):
+        Builder(scaler=scaler).build_by_type(
+            topology,
+            {0: block, 1: block},
+            accuracy=3,
+        )
+
+    assert scaler.calls == 0
+
+
+def test_connection_point_requires_one_real_anchor(tmp_path: Path) -> None:
+    block_path = tmp_path / "bad-anchor.xyz"
+    block_path.write_text(
+        textwrap.dedent(
+            """\
+            3
+            0 1
+            C 0.0 0.0 0.0
+            C 1.0 0.0 0.0
+            X 0.5 0.0 0.0
+            0 2 S
+            1 2 S
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="exactly one real-atom anchor"):
+        BuildingBlock(block_path).connection_point_anchor_indices
 
 
 def test_topology_preserves_parallel_edges_with_same_center(tmp_path: Path) -> None:
