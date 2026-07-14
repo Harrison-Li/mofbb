@@ -18,6 +18,50 @@ from .log import logger
 from .utils import bound_values
 
 
+def _objective_value_and_gradient(
+    scaled_positions,
+    cell,
+    ij,
+    ik,
+    ij_image,
+    ik_image,
+    target_dots,
+    weights,
+):
+    """Return the scaling objective and its exact NumPy gradients."""
+    ij_displacements = (
+        scaled_positions[ij[:, 1]]
+        - scaled_positions[ij[:, 0]]
+        + ij_image
+    )
+    ik_displacements = (
+        scaled_positions[ik[:, 1]]
+        - scaled_positions[ik[:, 0]]
+        + ik_image
+    )
+    ij_vectors = ij_displacements @ cell
+    ik_vectors = ik_displacements @ cell
+    errors = np.sum(ij_vectors * ik_vectors, axis=1) - target_dots
+    value = float(np.mean(np.square(errors) * weights))
+
+    dot_gradient = 2.0 * weights * errors / len(errors)
+    ij_vector_gradient = dot_gradient[:, np.newaxis] * ik_vectors
+    ik_vector_gradient = dot_gradient[:, np.newaxis] * ij_vectors
+    ij_displacement_gradient = ij_vector_gradient @ cell.T
+    ik_displacement_gradient = ik_vector_gradient @ cell.T
+
+    position_gradient = np.zeros_like(scaled_positions)
+    np.add.at(position_gradient, ij[:, 1], ij_displacement_gradient)
+    np.add.at(position_gradient, ij[:, 0], -ij_displacement_gradient)
+    np.add.at(position_gradient, ik[:, 1], ik_displacement_gradient)
+    np.add.at(position_gradient, ik[:, 0], -ik_displacement_gradient)
+    cell_gradient = (
+        ij_displacements.T @ ij_vector_gradient
+        + ik_displacements.T @ ik_vector_gradient
+    )
+    return value, position_gradient, cell_gradient
+
+
 class Scaler:
     """Resize an abstract net so chosen building blocks fit without strain.
 
@@ -255,72 +299,37 @@ class Scaler:
         max_dot = np.mean(np.abs(target_dots))
         target_dots /= max_dot
 
-        # Helper functions for calculation of objective function.
-        def calc_dots(s, c):
-            """Compute dot products of edge-vector pairs at every node.
+        node_indices = np.asarray(topology.node_indices, dtype=int)
+        slot_to_node = np.full(topology.n_slots, -1, dtype=int)
+        slot_to_node[node_indices] = np.arange(len(node_indices))
+        ij = slot_to_node[ij]
+        ik = slot_to_node[ik]
 
-            Closes over the enclosing-scope triple-index arrays ``ij``,
-            ``ik`` and their periodic images ``ij_image``, ``ik_image``
-            to build the Cartesian edge vectors and their pairwise dots,
-            the quantities compared against ``target_dots``.
-
-            Parameters
-            ----------
-            s : numpy.ndarray
-                Scaled (fractional) positions, shape ``(n, 3)``.
-            c : numpy.ndarray
-                Cell matrix, one lattice vector per row.
-
-            Returns
-            -------
-            numpy.ndarray
-                Dot product for each ``(ij, ik)`` edge-vector pair.
-            """
-            # diff becames n x n x 3 tensor with element of
-            # diff[i, j, :] = si - sj.
-            diff = s[np.newaxis, :, :] - s[:, np.newaxis, :]
-
-            ij_vecs = (diff[ij[:, 0], ij[:, 1], :] + ij_image) @ c
-            ik_vecs = (diff[ik[:, 0], ik[:, 1], :] + ik_image) @ c
-
-            dots = np.sum(ij_vecs * ik_vecs, axis=-1)
-
-            return dots
-
-        def objective(s, c):
-            """Return the weighted mean-squared dot-product error.
-
-            Compares the current geometry's dot products from
-            :func:`calc_dots` against the enclosing-scope ``target_dots``
-            and reduces them to a single scalar using ``weights``; this
-            is the quantity minimized by the optimizer.
-            """
-            dots = calc_dots(s, c)
-            return np.mean(np.square(dots - target_dots) * weights)
-
-        # Functions for scipy interface.
-        def fun(x):
-            """Evaluate the objective from a flat parameter vector.
-
-            Unpacks the flat vector ``x`` (positions followed by the 9
-            cell entries) into ``s`` and ``c`` and forwards them to
-            :func:`objective`. Uses the enclosing-scope ``topology`` for
-            the slot count.
-            """
-            n = topology.n_slots
-
-            s = np.reshape(x[:-9], (n, 3))
+        # Analytic NumPy gradient: edge centers are reconstructed below, so
+        # only node coordinates and the cell belong in the optimization.
+        def fun_and_jac(x):
+            s = np.reshape(x[:-9], (len(node_indices), 3))
             c = np.reshape(x[-9:], (3, 3))
+            value, position_gradient, cell_gradient = (
+                _objective_value_and_gradient(
+                    s,
+                    c,
+                    ij,
+                    ik,
+                    ij_image,
+                    ik_image,
+                    target_dots,
+                    weights,
+                )
+            )
+            gradient = np.concatenate(
+                [position_gradient.reshape(-1), cell_gradient.reshape(-1)]
+            )
+            return value, gradient
 
-            v = objective(s, c)
-
-            return float(v)
-
-        # Prepare geometry optimization.
-        # Make initial value.
-        # cell[:] cast ase.Cell to numpy array.
+        # Prepare geometry optimization. Cell[:] casts ase.Cell to NumPy.
         c = topology.atoms.cell[:]
-        s = topology.atoms.get_scaled_positions()
+        s = topology.atoms.get_scaled_positions()[node_indices]
         x0 = np.concatenate([s.reshape(-1), c.reshape(-1)])
 
         # Bounds.
@@ -337,17 +346,18 @@ class Scaler:
         # Perform optimization.
         result = sp.optimize.minimize(
             x0=x0,
-            fun=fun,
+            fun=fun_and_jac,
+            jac=True,
             method="L-BFGS-B",
             bounds=bounds,
             options={"maxiter": 1000, "disp": False},
         )
 
-        n = topology.n_slots
         # Get output x.
         x = result.x
         c = x[-9:].reshape(3, 3)
-        s = x[:-9].reshape(n, 3)
+        s = topology.atoms.get_scaled_positions()
+        s[node_indices] = x[:-9].reshape(len(node_indices), 3)
 
         logger.info("MESSAGE: %s", result.message)
         logger.info("SUCCESS: %s", result.success)

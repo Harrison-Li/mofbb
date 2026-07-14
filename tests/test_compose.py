@@ -10,11 +10,14 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from ase import Atoms
+import numpy as np
 import pytest
 
-from mofbb.compose import Builder, BuildingBlock, Reconstructor, Topology
+import mofbb.compose.scaler as scaler_module
+from mofbb.compose import Builder, BuildingBlock, Reconstructor, Scaler, Topology
 from mofbb.compose.builder import calc_fused_bond_failures, calc_x_mig
 from mofbb.compose.cli import build_parser, main
+from mofbb.compose.scaler import _objective_value_and_gradient
 
 
 def _write_linear_topology(path: Path) -> Path:
@@ -137,6 +140,73 @@ def test_composer_builds_and_writes_framework(tmp_path: Path) -> None:
     output = tmp_path / "framework.cif"
     framework.write_cif(output)
     assert output.is_file()
+
+
+def test_scaler_analytic_gradient_matches_finite_difference() -> None:
+    rng = np.random.default_rng(9)
+    positions = rng.uniform(0.1, 0.9, size=(4, 3))
+    cell = rng.normal(size=(3, 3))
+    ij = np.array([[0, 1], [0, 2], [1, 3], [2, 3]])
+    ik = np.array([[0, 2], [0, 3], [1, 2], [2, 1]])
+    ij_image = rng.integers(-1, 2, size=(4, 3))
+    ik_image = rng.integers(-1, 2, size=(4, 3))
+    target_dots = rng.normal(size=4)
+    weights = np.array([2.0, 1.0, 1.0, 2.0])
+    x = np.concatenate([positions.reshape(-1), cell.reshape(-1)])
+
+    def evaluate(values):
+        value, position_gradient, cell_gradient = (
+            _objective_value_and_gradient(
+                values[:-9].reshape(4, 3),
+                values[-9:].reshape(3, 3),
+                ij,
+                ik,
+                ij_image,
+                ik_image,
+                target_dots,
+                weights,
+            )
+        )
+        return value, np.concatenate(
+            [position_gradient.reshape(-1), cell_gradient.reshape(-1)]
+        )
+
+    _, analytic = evaluate(x)
+    step = 1e-6
+    numerical = np.empty_like(x)
+    for index in range(len(x)):
+        offset = np.zeros_like(x)
+        offset[index] = step
+        numerical[index] = (
+            evaluate(x + offset)[0] - evaluate(x - offset)[0]
+        ) / (2.0 * step)
+
+    np.testing.assert_allclose(analytic, numerical, rtol=1e-6, atol=1e-6)
+
+
+def test_scaler_optimizes_only_node_coordinates(tmp_path: Path, monkeypatch) -> None:
+    topology = Topology(_write_linear_topology(tmp_path / "linear.cgd"))
+    block = BuildingBlock(_write_linear_block(tmp_path / "linear.xyz"))
+    real_minimize = scaler_module.sp.optimize.minimize
+    captured = {}
+
+    def capture_minimize(*args, **kwargs):
+        captured["variables"] = len(kwargs["x0"])
+        captured["jac"] = kwargs["jac"]
+        return real_minimize(*args, **kwargs)
+
+    monkeypatch.setattr(scaler_module.sp.optimize, "minimize", capture_minimize)
+    framework = Builder(scaler=Scaler()).build_by_type(
+        topology,
+        {0: block, 1: block},
+        accuracy=3,
+    )
+
+    assert captured == {
+        "variables": 3 * topology.n_nodes + 9,
+        "jac": True,
+    }
+    assert "X" not in framework.atoms.get_chemical_symbols()
 
 
 def test_composer_rejects_misaligned_x_pairs(tmp_path: Path) -> None:
