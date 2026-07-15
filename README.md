@@ -185,7 +185,7 @@ rejects an assembly when either of its default geometry checks fails:
   convention; or
 - a fused bond is longer than `1.2` times the sum of the ASE covalent radii.
 
-These thresholds can be adjusted with `--x-mig-tolerance` and
+These thresholds can be adjusted with `--x-mid-tolerance` and
 `--fused-bond-scale`. Use `--no-wrap` to keep the composed coordinates outside
 the primary unit cell.
 

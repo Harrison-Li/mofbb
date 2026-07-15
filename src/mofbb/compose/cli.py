@@ -78,7 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Orientation-search accuracy. Default: 6.",
     )
     parser.add_argument(
-        "--x-mig-tolerance",
+        "--x-mid-tolerance",
         type=float,
         default=0.3,
         metavar="ANGSTROM",
@@ -163,8 +163,8 @@ def main(argv: list[str] | None = None) -> int:
                 node_bbs,
                 edge_bbs,
                 accuracy=args.accuracy,
-                x_mig_tolerance=args.x_mig_tolerance,
-                fused_bond_scale=args.fused_bond_scale,
+                tolerance=args.x_mid_tolerance,
+                scale=args.fused_bond_scale,
                 wrap=not args.no_wrap,
             )
         args.output.parent.mkdir(parents=True, exist_ok=True)

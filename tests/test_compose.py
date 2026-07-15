@@ -12,11 +12,19 @@ from types import SimpleNamespace
 from ase import Atoms
 import numpy as np
 import pytest
+from scipy.spatial.transform import Rotation
 
 import mofbb.compose.scaler as scaler_module
-from mofbb.compose import Builder, BuildingBlock, Reconstructor, Scaler, Topology
-from mofbb.compose.builder import calc_fused_bond_failures, calc_x_mig
+from mofbb.compose import (
+    Builder,
+    BuildingBlock,
+    Locator,
+    Reconstructor,
+    Scaler,
+    Topology,
+)
 from mofbb.compose.cli import build_parser, main
+from mofbb.compose.pbc import PBC
 from mofbb.compose.scaler import _objective_value_and_gradient
 
 
@@ -73,6 +81,32 @@ def _write_long_cap_block(path: Path) -> Path:
             0 1 S
             0 2 S
             1 3 S
+            """
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_pca_edge_block(path: Path) -> Path:
+    path.write_text(
+        textwrap.dedent(
+            """\
+            7
+            5 6
+            C   0.0  0.0 -1.5
+            C   0.0  0.0  1.5
+            C   2.0  0.0 -0.7
+            N   0.8  0.4  0.2
+            O  -0.2 -0.3  0.8
+            X   0.0  0.0 -2.0
+            X   0.0  0.0  2.0
+            0 5 S
+            1 6 S
+            0 2 S
+            2 3 S
+            3 4 S
+            4 1 S
             """
         ),
         encoding="utf-8",
@@ -140,6 +174,168 @@ def test_composer_builds_and_writes_framework(tmp_path: Path) -> None:
     output = tmp_path / "framework.cif"
     framework.write_cif(output)
     assert output.is_file()
+
+
+def test_edge_frame_uses_transverse_pca(tmp_path: Path) -> None:
+    block = BuildingBlock(_write_pca_edge_block(tmp_path / "pca-edge.xyz"))
+
+    frame = block.edge_frame()
+
+    np.testing.assert_allclose(frame.axes @ frame.axes.T, np.eye(3), atol=1e-12)
+    np.testing.assert_allclose(frame.z, [0.0, 0.0, 1.0], atol=1e-12)
+    assert np.linalg.det(frame.axes) == pytest.approx(1.0)
+    assert frame.pca_gap > 0.1
+    assert not frame.torsion_degenerate
+    assert not frame.sign_degenerate
+
+
+def test_edge_frame_is_rigid_transform_equivariant(tmp_path: Path) -> None:
+    block = BuildingBlock(_write_pca_edge_block(tmp_path / "pca-edge.xyz"))
+    frame = block.edge_frame()
+
+    rotation = Rotation.from_euler("xyz", [31.0, -17.0, 73.0], degrees=True)
+    rotation_matrix = rotation.as_matrix()
+    moved = block.copy()
+    moved.atoms.set_positions(
+        rotation.apply(block.atoms.positions) + np.array([4.0, -2.0, 7.0])
+    )
+
+    moved_frame = moved.edge_frame()
+
+    np.testing.assert_allclose(
+        moved_frame.axes,
+        frame.axes @ rotation_matrix.T,
+        atol=1e-12,
+    )
+
+
+def test_edge_frame_centers_transverse_coordinates(tmp_path: Path) -> None:
+    block = BuildingBlock(_write_pca_edge_block(tmp_path / "pca-edge.xyz"))
+    frame = block.edge_frame()
+
+    shifted = block.copy()
+    real_atoms = np.asarray(shifted.atoms.get_chemical_symbols()) != "X"
+    shifted.atoms.positions[real_atoms] += np.array([2.0, -1.0, 0.0])
+
+    shifted_frame = shifted.edge_frame()
+
+    np.testing.assert_allclose(shifted_frame.x, frame.x, atol=1e-12)
+    assert shifted_frame.pca_gap == pytest.approx(frame.pca_gap)
+
+
+def test_transversely_isotropic_edge_frame_is_degenerate(
+    tmp_path: Path,
+) -> None:
+    block = BuildingBlock(_write_pca_edge_block(tmp_path / "pca-edge.xyz"))
+    root_three_over_two = np.sqrt(3.0) / 2.0
+    block.atoms.positions[2:5] = [
+        [1.0, 0.0, -0.7],
+        [-0.5, root_three_over_two, 0.2],
+        [-0.5, -root_three_over_two, 0.8],
+    ]
+
+    frame = block.edge_frame()
+
+    assert frame.pca_gap < 1e-12
+    assert frame.torsion_degenerate
+
+
+def test_complete_edge_placement_is_input_orientation_invariant(
+    tmp_path: Path,
+) -> None:
+    block = BuildingBlock(_write_pca_edge_block(tmp_path / "pca-edge.xyz"))
+    rotation = Rotation.from_euler("zyx", [23.0, 41.0, -29.0], degrees=True)
+    moved = block.copy()
+    moved.atoms.set_positions(
+        rotation.apply(block.atoms.positions) + np.array([-3.0, 5.0, 2.0])
+    )
+
+    target_points = np.array(
+        [
+            [1.0, 2.0, 3.0],
+            [1.0, 6.0, 3.0],
+        ]
+    )
+    target_transverse = np.array([1.0, 0.0, 1.0])
+    original_target_transverse = target_transverse.copy()
+    locator = Locator()
+
+    located, rmsd, _ = locator.locate_edge_with_frame(
+        target_points,
+        block,
+        permutation=[0, 1],
+        target_transverse=target_transverse,
+    )
+    located_moved, moved_rmsd, _ = locator.locate_edge_with_frame(
+        target_points,
+        moved,
+        permutation=[0, 1],
+        target_transverse=target_transverse,
+    )
+
+    np.testing.assert_allclose(
+        located_moved.atoms.positions,
+        located.atoms.positions,
+        atol=1e-12,
+    )
+    assert rmsd < 1e-12
+    assert moved_rmsd < 1e-12
+    np.testing.assert_array_equal(
+        target_transverse,
+        original_target_transverse,
+    )
+
+
+def test_complete_edge_placement_respects_endpoint_reversal(
+    tmp_path: Path,
+) -> None:
+    block = BuildingBlock(_write_pca_edge_block(tmp_path / "pca-edge.xyz"))
+    target_points = np.array(
+        [
+            [2.0, -1.0, 0.5],
+            [2.0, 3.0, 0.5],
+        ]
+    )
+
+    located, rmsd, _ = Locator().locate_edge_with_frame(
+        target_points,
+        block,
+        permutation=[1, 0],
+        target_transverse=[0.0, 0.0, 1.0],
+    )
+
+    np.testing.assert_allclose(
+        located.connection_points[[1, 0]],
+        target_points,
+        atol=1e-12,
+    )
+    assert rmsd < 1e-12
+
+
+def test_complete_edge_placement_rejects_parallel_transverse_direction(
+    tmp_path: Path,
+) -> None:
+    block = BuildingBlock(_write_pca_edge_block(tmp_path / "pca-edge.xyz"))
+
+    with pytest.raises(ValueError, match="must not be parallel"):
+        Locator().locate_edge_with_frame(
+            target_points=[[0.0, 0.0, 0.0], [0.0, 0.0, 4.0]],
+            bb=block,
+            permutation=[0, 1],
+            target_transverse=[0.0, 0.0, 1.0],
+        )
+
+
+def test_linear_edge_frame_is_torsion_degenerate(tmp_path: Path) -> None:
+    block = BuildingBlock(_write_linear_block(tmp_path / "linear.xyz"))
+
+    frame = block.edge_frame()
+
+    np.testing.assert_allclose(frame.axes @ frame.axes.T, np.eye(3), atol=1e-12)
+    assert np.linalg.det(frame.axes) == pytest.approx(1.0)
+    assert frame.pca_gap == 0.0
+    assert frame.torsion_degenerate
+    assert frame.sign_degenerate
 
 
 def test_scaler_analytic_gradient_matches_finite_difference() -> None:
@@ -228,11 +424,11 @@ def test_composer_rejects_misaligned_x_pairs(tmp_path: Path) -> None:
         topology,
         {0: block, 1: block},
         accuracy=3,
-        x_mig_tolerance=10.0,
-        fused_bond_scale=10.0,
+        tolerance=10.0,
+        scale=10.0,
     )
     assert "X" not in framework.atoms.get_chemical_symbols()
-    assert framework.info["x_mig_tolerance"] == 10.0
+    assert framework.info["tolerance"] == 10.0
 
 
 def test_fused_bond_gate_uses_scaled_covalent_radii() -> None:
@@ -256,9 +452,9 @@ def test_fused_bond_gate_uses_scaled_covalent_radii() -> None:
         x_pairs = [(2, 3)]
         x_neighbors = {2: 0, 3: 1}
 
-        assert calc_x_mig(atoms, x_pairs) == []
+        assert PBC.calc_x_mid(atoms, x_pairs) == []
         assert bool(
-            calc_fused_bond_failures(atoms, x_pairs, x_neighbors)
+            PBC.calc_fail_connection(atoms, x_pairs, x_neighbors)
         ) is should_fail
 
 
@@ -275,8 +471,8 @@ def test_fused_bond_gate_uses_minimum_image_distance() -> None:
         pbc=True,
     )
 
-    assert calc_x_mig(atoms, [(2, 3)], tolerance=0.2) == []
-    assert calc_fused_bond_failures(
+    assert PBC.calc_x_mid(atoms, [(2, 3)], tolerance=0.2) == []
+    assert PBC.calc_fail_connection(
         atoms,
         [(2, 3)],
         {2: 0, 3: 1},

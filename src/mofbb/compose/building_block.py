@@ -2,6 +2,7 @@
 Adapted from https://github.com/Sangwon91/PORMAKE/blob/main/src/pormake/building_block.py
 """
 import copy
+from dataclasses import dataclass
 
 import ase
 import ase.visualize
@@ -19,6 +20,84 @@ from .utils import (  # covalent_neighbor_list,
     read_budiling_block_xyz,
     write_molecule_cif,
 )
+
+
+_FRAME_EPSILON = 1e-12
+_PCA_SIGN_TOLERANCE = 1e-8
+
+
+@dataclass(frozen=True)
+class EdgeFrame:
+    """Right-handed intrinsic frame of a two-connected linker.
+
+    ``axes`` stores the unit vectors ``x``, ``y`` and ``z`` as rows.
+    ``z`` points from connection point X0 to X1 and ``x`` is the leading
+    transverse principal component. A degenerate torsion means that the
+    molecular geometry does not determine a stable transverse direction.
+    """
+
+    axes: np.ndarray
+    pca_gap: float
+    torsion_degenerate: bool
+    sign_degenerate: bool
+
+    @property
+    def x(self):
+        return self.axes[0]
+
+    @property
+    def y(self):
+        return self.axes[1]
+
+    @property
+    def z(self):
+        return self.axes[2]
+
+
+def _unit_vector(vector, name):
+    """Return ``vector`` normalized to unit length."""
+
+    vector = np.asarray(vector, dtype=float)
+    length = np.linalg.norm(vector)
+    if length < _FRAME_EPSILON:
+        raise ValueError(f"Cannot define {name} from a near-zero vector.")
+    return vector / length
+
+
+def _orient_pca_axis(axis, transverse_positions, longitudinal_positions):
+    """Choose the sign of a PCA axis from the full atomic distribution.
+
+    PCA defines an undirected axis: ``axis`` and ``-axis`` are equivalent.
+    Rotation-covariant moments of the complete atomic cloud choose between
+    them without selecting a marker atom. If every score vanishes, the sign is
+    left unresolved by these PCA moments.
+    """
+
+    transverse_projection = transverse_positions @ axis
+    transverse_scale = np.max(np.abs(transverse_projection))
+    if transverse_scale < _FRAME_EPSILON:
+        return axis, True
+
+    p = transverse_projection / transverse_scale
+    longitudinal_scale = np.max(np.abs(longitudinal_positions))
+    if longitudinal_scale < _FRAME_EPSILON:
+        longitudinal = np.zeros_like(longitudinal_positions)
+    else:
+        longitudinal = longitudinal_positions / longitudinal_scale
+
+    scores = (
+        np.mean(p * longitudinal),
+        np.mean(p**3),
+        np.mean(p * longitudinal**2),
+        np.mean(p**3 * longitudinal),
+        np.mean(p**5),
+    )
+    for score in scores:
+        score = float(score)
+        if abs(score) >= _PCA_SIGN_TOLERANCE:
+            return (axis if score > 0.0 else -axis), False
+
+    return axis, True
 
 
 class BuildingBlock:
@@ -190,6 +269,126 @@ class BuildingBlock:
             Positions of the connection-point atoms.
         """
         return self.atoms[self.connection_point_indices].positions
+
+    def edge_frame(
+        self,
+        radial_tolerance=0.1,
+        pca_gap_tolerance=0.1,
+    ):
+        """Construct a PCA-only intrinsic frame for an edge linker.
+
+        The ordered connection points define ``z`` from X0 to X1. Real-atom
+        offsets are projected onto the plane normal to ``z``, centered, and
+        their leading principal component defines ``x``. Finally,
+        ``y = cross(z, x)`` completes a right-handed frame.
+
+        No marker atom is used. The sign of the principal component is chosen
+        from rotation-covariant moments of the complete atom distribution.
+        Linear, nearly linear, or transversely isotropic linkers are reported
+        as torsion-degenerate; an unresolved PCA sign is reported separately.
+
+        Parameters
+        ----------
+        radial_tolerance : float, optional
+            Maximum transverse extent, in angstrom, below which a linker is
+            considered nearly linear.
+        pca_gap_tolerance : float, optional
+            Minimum relative separation between the two transverse principal
+            values required for a stable principal direction.
+
+        Returns
+        -------
+        EdgeFrame
+            Intrinsic orthonormal frame and PCA degeneracy diagnostics.
+        """
+
+        if not self.is_edge:
+            raise ValueError(
+                f"{self.name!r} has {self.n_connection_points} connection "
+                "points; an edge frame requires exactly two."
+            )
+        if radial_tolerance < 0.0:
+            raise ValueError("radial_tolerance must be non-negative.")
+        if pca_gap_tolerance < 0.0:
+            raise ValueError("pca_gap_tolerance must be non-negative.")
+
+        x0, x1 = np.asarray(self.connection_points, dtype=float)
+        edge_center = 0.5 * (x0 + x1)
+        z = _unit_vector(x1 - x0, "the X0-to-X1 axis")
+
+        symbols = np.asarray(self.atoms.get_chemical_symbols())
+        real_positions = self.atoms.positions[symbols != "X"]
+        if len(real_positions) == 0:
+            raise ValueError(f"{self.name!r} contains no real atoms.")
+
+        offsets = real_positions - edge_center
+        longitudinal_positions = offsets @ z
+        transverse_positions = offsets - np.outer(longitudinal_positions, z)
+        radial_extent = float(
+            np.max(np.linalg.norm(transverse_positions, axis=1))
+        )
+
+        pca_positions = transverse_positions - np.mean(
+            transverse_positions, axis=0
+        )
+        covariance = pca_positions.T @ pca_positions / len(pca_positions)
+        eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+
+        if eigenvalues[-1] < _FRAME_EPSILON:
+            mean_transverse = np.mean(transverse_positions, axis=0)
+            sign_degenerate = np.linalg.norm(mean_transverse) < _FRAME_EPSILON
+            if sign_degenerate:
+                x = self._arbitrary_transverse_axis(z)
+            else:
+                x = _unit_vector(mean_transverse, "the mean transverse axis")
+            x -= np.dot(x, z) * z
+            x = _unit_vector(x, "the mean transverse axis")
+            y = _unit_vector(np.cross(z, x), "the edge-frame y axis")
+            x = _unit_vector(np.cross(y, z), "the edge-frame x axis")
+            return EdgeFrame(
+                axes=np.stack([x, y, z]),
+                pca_gap=0.0,
+                torsion_degenerate=True,
+                sign_degenerate=sign_degenerate,
+            )
+
+        x = eigenvectors[:, -1]
+        x -= np.dot(x, z) * z
+        x = _unit_vector(x, "the transverse PCA axis")
+        centered_longitudinal = longitudinal_positions - np.mean(
+            longitudinal_positions
+        )
+        x, sign_degenerate = _orient_pca_axis(
+            x,
+            pca_positions,
+            centered_longitudinal,
+        )
+
+        leading_value = max(float(eigenvalues[-1]), _FRAME_EPSILON)
+        pca_gap = float(
+            (eigenvalues[-1] - eigenvalues[-2]) / leading_value
+        )
+        pca_degenerate = pca_gap < pca_gap_tolerance
+        nearly_linear = radial_extent < radial_tolerance
+
+        y = _unit_vector(np.cross(z, x), "the edge-frame y axis")
+        x = _unit_vector(np.cross(y, z), "the edge-frame x axis")
+
+        return EdgeFrame(
+            axes=np.stack([x, y, z]),
+            pca_gap=pca_gap,
+            torsion_degenerate=nearly_linear or pca_degenerate,
+            sign_degenerate=sign_degenerate,
+        )
+
+    @staticmethod
+    def _arbitrary_transverse_axis(z):
+        """Return a stable gauge axis for a geometrically linear linker."""
+
+        cartesian_axes = np.eye(3)
+        seed = cartesian_axes[np.argmin(np.abs(cartesian_axes @ z))]
+        transverse = seed - np.dot(seed, z) * z
+        return _unit_vector(transverse, "a transverse gauge axis")
 
     @property
     def connection_point_anchor_indices(self):
