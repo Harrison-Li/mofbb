@@ -6,9 +6,8 @@ from collections import defaultdict
 
 import numpy as np
 
-from .edge_orientation import symmetry_edge_orientation_targets
+from .edge import Edge
 from .framework import Framework
-from .local_structure import LocalStructure
 from .locator import Locator
 from .log import logger
 from .pbc import PBC
@@ -183,13 +182,6 @@ class Builder:
             ``scale`` : float
                 Maximum fused-bond distance as a multiplier of the two
                 atoms' summed ASE covalent radii; default ``1.2``.
-            ``edge_frame_mode`` : {"two_point", "pca_symmetry"}
-                Linker orientation strategy. The default ``"two_point"``
-                preserves the historical Kabsch placement. The opt-in PCA
-                mode fixes linker torsion with its intrinsic edge frame and
-                propagates target transverse directions by crystallographic
-                edge symmetry.
-
         Returns
         -------
         Framework
@@ -216,7 +208,6 @@ class Builder:
 
         tolerance = kwargs.get("tolerance", PBC.tolerance)
         scale = kwargs.get("scale", PBC.scale)
-        edge_frame_mode = kwargs.get("edge_frame_mode", "two_point")
 
         # Empty dictionary.
         if permutations is None:
@@ -435,14 +426,11 @@ class Builder:
             perms=permutations,
             return_result=True,
         )
-        if edge_frame_mode == "pca_symmetry":
-            edge_targets = symmetry_edge_orientation_targets(
-                original_topology,
-                topology,
-                permutations,
-            )
-        else:
-            edge_targets = {}
+        edge_targets = Edge(
+            original_topology,
+            topology,
+            permutations,
+        ).build()
         edge_frame_diagnostics = []
 
         rmsd_values = []
@@ -546,32 +534,26 @@ class Builder:
             perm = permutations[e]
 
             target_points = np.array([r1, r1 + d])
-            if edge_frame_mode == "pca_symmetry":
-                edge_target = edge_targets[e]
-                located_edge, rmsd, source_frame = locator.locate_edge_with_frame(
-                    target_points,
-                    edge_bb,
-                    perm,
-                    edge_target.transverse,
-                )
-                edge_frame_diagnostics.append(
-                    {
-                        "edge_index": int(e),
-                        "symmetry_edge_type": edge_target.symmetry_edge_type,
-                        "representative_edge": edge_target.representative_edge,
-                        "operation_index": edge_target.operation_index,
-                        "endpoint_reversed": edge_target.endpoint_reversed,
-                        "representative_gauge": edge_target.representative_gauge,
-                        "pca_gap": source_frame.pca_gap,
-                        "torsion_degenerate": source_frame.torsion_degenerate,
-                        "sign_degenerate": source_frame.sign_degenerate,
-                    }
-                )
-            else:
-                target = LocalStructure(target_points, [i1, i2])
-                located_edge, rmsd = locator.locate_with_permutation(
-                    target, edge_bb, perm
-                )
+            edge_target = edge_targets[e]
+            located_edge, rmsd, source_frame = locator.locate_edge_with_frame(
+                target_points,
+                edge_bb,
+                perm,
+                edge_target.transverse,
+            )
+            edge_frame_diagnostics.append(
+                {
+                    "edge_index": int(e),
+                    "symmetry_edge_type": edge_target.symmetry_edge_type,
+                    "representative_edge": edge_target.representative_edge,
+                    "operation_index": edge_target.operation_index,
+                    "endpoint_reversed": edge_target.endpoint_reversed,
+                    "representative_gauge": edge_target.representative_gauge,
+                    "pca_gap": source_frame.pca_gap,
+                    "torsion_degenerate": source_frame.torsion_degenerate,
+                    "sign_degenerate": source_frame.sign_degenerate,
+                }
+            )
 
             located_edge.set_centroid(centroid)
             located_bbs[e] = located_edge
@@ -738,7 +720,6 @@ class Builder:
             "mean_rmsd": np.mean(rmsd_values),
             "tolerance": tolerance,
             "scale": scale,
-            "edge_frame_mode": edge_frame_mode,
             "edge_frame_diagnostics": edge_frame_diagnostics,
         }
 
