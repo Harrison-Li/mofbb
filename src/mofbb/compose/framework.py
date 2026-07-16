@@ -44,8 +44,8 @@ class Framework:
         ``relax_obj`` value, and the ``max_rmsd``/``mean_rmsd`` of the
         node placements. Used when writing CIF comments.
     wrap : bool, optional
-        If ``True`` (default), fold atoms into the unit cell and nudge
-        them off the cell boundary via :meth:`wrap` on construction.
+        If ``True`` (default), fold atoms into the unit cell by exact lattice
+        translations via :meth:`wrap` on construction.
 
     Attributes
     ----------
@@ -71,37 +71,16 @@ class Framework:
             self.wrap()
 
     def wrap(self):
-        """Fold atoms into the cell and off its boundary.
+        """Fold atoms into ``[0, 1)`` using only lattice translations.
 
-        Exists to keep every atom inside the unit cell and, critically,
-        to avoid fractional coordinates that sit exactly on a cell
-        boundary (0 or 1). Building blocks placed by the builder can land
-        slightly outside the cell or precisely on a face; many CIF
-        parsers and visualizers either reject or double-count atoms whose
-        fractional coordinates equal 0 or 1. This routine repeatedly
-        shifts coordinates back into the ``[0, 1)`` range and then nudges
-        any value within ``1e-3`` of a boundary inward (to ``0.0001`` or
-        ``0.9999``) so the emitted structure is numerically safe
-        downstream. Modifies ``self.atoms`` in place.
+        Fractional coordinates are reduced by their integer floor. Unlike
+        boundary nudging, this leaves exact special positions unchanged and
+        therefore cannot lower crystallographic symmetry. Modifies
+        ``self.atoms`` in place.
         """
-        # Cleanup errors.
-        s = self.atoms.get_scaled_positions()
-        while (s >= 1.0).any() and (s < 0.0).any():
-            s = np.where(
-                s < 0.0,
-                s + np.ones_like(s),
-                s,
-            )
-            s = np.where(
-                s >= 1.0,
-                s - np.ones_like(s),
-                s,
-            )
 
-        s[np.abs(s - 1) < 1e-3] = 0.9999
-        s[np.abs(s) < 1e-3] = 0.0001
-
-        self.atoms.set_scaled_positions(s)
+        scaled = self.atoms.get_scaled_positions(wrap=False)
+        self.atoms.set_scaled_positions(scaled - np.floor(scaled))
 
     def write_cif(self, filename):
         """Write the framework to a CIF file.

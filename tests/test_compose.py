@@ -399,7 +399,7 @@ def test_scaler_optimizes_only_node_coordinates(tmp_path: Path, monkeypatch) -> 
     )
 
     assert captured == {
-        "variables": 3 * topology.n_nodes + 9,
+        "variables": 3 * topology.n_nodes + 6,
         "jac": True,
     }
     assert "X" not in framework.atoms.get_chemical_symbols()

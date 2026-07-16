@@ -12,6 +12,7 @@ from .locator import Locator
 from .log import logger
 from .pbc import PBC
 from .scaler import Scaler
+from .symmetry_placement import SymmetryPlacement
 
 
 # bb: building block.
@@ -142,18 +143,17 @@ class Builder:
     def build(self, topology, bbs, permutations=None, **kwargs):
         """Assemble a framework from a per-slot list of building blocks.
 
-        Runs the full assembly pipeline. For each node slot it finds the
-        best orientation and connection-point permutation via the
-        locator, comparing the achieved RMSD against a cached minimum for
-        the (node type, building block) pair and retrying with higher
-        accuracy and, if needed, a chiral copy of the block when the fit
-        is more than 1% above that minimum. Edge slots are recorded with
-        a trivial permutation. The topology cell is then scaled to the
-        real block sizes, nodes are relocated and translated onto the
-        scaled positions, and edge linkers are laid along the scaled
-        edges. Finally all intra- and inter-block bonds are collected,
-        the "X" connection-point atoms are removed while the bonds they
-        implied are fused, and the result is returned as a Framework.
+        Runs the full assembly pipeline. It locates one representative
+        building block per crystallographic node and edge orbit, derives
+        member port permutations from the declared space-group operations,
+        and creates compatible remaining placements by transforming the
+        representative. Site-stabilizer incompatibilities are reported in
+        the framework metadata and fall back to independent placement rather
+        than rejecting the structure. The topology cell is scaled to the real
+        block sizes before the final placements are generated. Finally all
+        intra- and inter-block bonds are collected, the "X" connection-point
+        atoms are removed while the bonds they implied are fused, and the
+        result is returned as a Framework.
 
         Parameters
         ----------
@@ -182,6 +182,10 @@ class Builder:
             ``scale`` : float
                 Maximum fused-bond distance as a multiplier of the two
                 atoms' summed ASE covalent radii; default ``1.2``.
+            ``symmetry_tolerance`` : float
+                Cartesian tolerance, in Å, used only to diagnose whether a
+                representative building block obeys its site stabilizer;
+                default ``0.1``. A failed check does not reject the build.
         Returns
         -------
         Framework
@@ -208,6 +212,9 @@ class Builder:
 
         tolerance = kwargs.get("tolerance", PBC.tolerance)
         scale = kwargs.get("scale", PBC.scale)
+        symmetry_tolerance = float(kwargs.get("symmetry_tolerance", 0.1))
+        if symmetry_tolerance <= 0.0:
+            raise ValueError("symmetry_tolerance must be positive.")
 
         # Empty dictionary.
         if permutations is None:
@@ -218,14 +225,28 @@ class Builder:
         # locator for bb locations.
         locator = self.locator
         pbc = PBC()
+        symmetry = SymmetryPlacement(topology)
 
         # Locate nodes and edges.
         located_bbs = [None for _ in range(topology.n_slots)]
 
+        provided_permutations = {
+            int(index): np.asarray(permutation, dtype=int)
+            for index, permutation in permutations.items()
+        }
         _permutations = [None for _ in range(topology.n_slots)]
-        for i, perm in permutations.items():
-            _permutations[i] = np.array(perm)
+        for i, perm in provided_permutations.items():
+            _permutations[i] = perm.copy()
         permutations = _permutations
+
+        symmetry_diagnostics = {
+            "mapping_tolerance": symmetry.mapping_tolerance,
+            "stabilizer_tolerance": symmetry_tolerance,
+            "nodes": [],
+            "edges": [],
+        }
+        covariant_node_orbits = set()
+        covariant_edge_orbits = set()
 
         slot_min_rmsd = defaultdict(lambda: -1.0)
 
@@ -234,16 +255,76 @@ class Builder:
                 return 1.0 if value < 1e-12 else np.inf
             return value / minimum
 
-        # Locate nodes.
-        for i in topology.node_indices:
-            # Get bb.
+        def blocks_share_template(left, right):
+            if left is None or right is None:
+                return left is right
+            if left.name != right.name:
+                return False
+            if left.atoms.get_chemical_symbols() != right.atoms.get_chemical_symbols():
+                return False
+            if not np.array_equal(
+                left.connection_point_indices,
+                right.connection_point_indices,
+            ):
+                return False
+            left_positions = left.atoms.positions - left.centroid
+            right_positions = right.atoms.positions - right.centroid
+            if not np.allclose(left_positions, right_positions, atol=1e-12):
+                return False
+            if not np.allclose(
+                left.atoms.get_initial_charges(),
+                right.atoms.get_initial_charges(),
+                atol=1e-12,
+            ):
+                return False
+            if not np.array_equal(left.bonds, right.bonds):
+                return False
+            return left.bond_types == right.bond_types
+
+        def orbit_has_one_template(orbit):
+            representative_block = bbs[orbit.representative]
+            return all(
+                blocks_share_template(representative_block, bbs[int(member)])
+                for member in orbit.member_indices
+            )
+
+        def pulled_representative_permutation(orbit):
+            supplied = [
+                int(member)
+                for member in orbit.member_indices
+                if int(member) in provided_permutations
+            ]
+            if not supplied:
+                return None
+
+            source = min(supplied)
+            representative_permutation = symmetry.representative_permutation(
+                orbit,
+                source,
+                provided_permutations[source],
+            )
+            for member in supplied:
+                expected = symmetry.member_permutation(
+                    orbit,
+                    member,
+                    representative_permutation,
+                )
+                if not np.array_equal(expected, provided_permutations[member]):
+                    logger.warning(
+                        "Provided permutation for slot %d is inconsistent "
+                        "with representative slot %d; using the "
+                        "operation-derived permutation.",
+                        member,
+                        orbit.representative,
+                    )
+            return representative_permutation
+
+        def locate_node(i, forced_permutation=None):
             node_bb = bbs[i]
-            # Get target.
             target = topology.local_structure(i)
 
-            if permutations[i] is not None:
-                perm = permutations[i]
-
+            if forced_permutation is not None:
+                perm = np.asarray(forced_permutation, dtype=int)
                 logger.info(
                     "Use given permutation for node slot index %d"
                     ", permutation: %s",
@@ -260,13 +341,9 @@ class Builder:
                     i,
                     rmsd,
                 )
-
-                located_bbs[i] = located_node
-
-                continue
+                return located_node, perm, rmsd
 
             t = topology.get_node_type(i)
-            # Calculate minimum RMSD of the slot.
             key = (t, node_bb.name)
             if slot_min_rmsd[key] < 0.0:
                 rmsd = locator.calculate_rmsd(
@@ -281,8 +358,6 @@ class Builder:
                     *key,
                     slot_min_rmsd[key],
                 )
-            # Only orientation.
-            # Translations are applied after topology relexation.
             located_node, perm, rmsd = locator.locate(target, node_bb)
             logger.info(
                 "Pre-location at node slot %d"
@@ -323,7 +398,6 @@ class Builder:
                     rmsd,
                 )
 
-            # Critical error.
             if (ratio < 0.99) and (slot_min_rmsd[key] > 1e-3):
                 message = (
                     "MIN_RMSD is not correct. "
@@ -335,43 +409,162 @@ class Builder:
                 logger.error(message)
                 raise Exception(message)
 
-            located_bbs[i] = located_node
-            # This information used in scaling of topology.
-            permutations[i] = perm
+            return located_node, np.asarray(perm, dtype=int), rmsd
 
-        # Just append edges to the buidiling block slots.
-        # There is no location in this stage.
-        # This information is used in the scaling of topology.
-        # All permutations are set to [0, 1] because the edges does not need
-        # any permutation estimations for the locations.
-        for e in topology.edge_indices:
-            edge_bb = bbs[e]
-
-            if edge_bb is None:
-                continue
-
-            if permutations[e] is not None:
-                logger.info(
-                    "Use given permutation for edge slot %d"
-                    ", permutation: %s",
-                    e,
-                    permutations[e],
+        # Locate only one node per crystallographic orbit, then transform it
+        # to the remaining members. Distinct explicitly assigned templates
+        # cannot share one representative and retain the legacy behavior.
+        original_cell = np.asarray(topology.atoms.cell, dtype=float)
+        for orbit in symmetry.node_orbits:
+            representative = orbit.representative
+            if not orbit_has_one_template(orbit):
+                logger.warning(
+                    "Node orbit tag %d contains different building blocks; "
+                    "placing its members independently.",
+                    orbit.tag,
                 )
-                located_bbs[e] = edge_bb
+                symmetry_diagnostics["nodes"].append(
+                    {
+                        "tag": orbit.tag,
+                        "representative": representative,
+                        "orbit_size": len(orbit.member_indices),
+                        "covariant": False,
+                        "reason": "different_building_blocks",
+                    }
+                )
+                for raw_member in orbit.member_indices:
+                    member = int(raw_member)
+                    located, permutation, _ = locate_node(
+                        member,
+                        permutations[member],
+                    )
+                    located_bbs[member] = located
+                    permutations[member] = permutation
                 continue
 
-            n1, n2 = topology.neighbor_list[e]
+            representative_permutation = pulled_representative_permutation(orbit)
+            representative_block, representative_permutation, _ = locate_node(
+                representative,
+                representative_permutation,
+            )
+            representative_block.set_centroid(
+                topology.atoms.positions[representative]
+            )
+            initial_diagnostic = symmetry.stabilizer_diagnostic(
+                orbit,
+                representative_block,
+                representative_permutation,
+                original_cell,
+                symmetry_tolerance,
+            )
+            if not initial_diagnostic["compatible"]:
+                initial_diagnostic.update(
+                    {
+                        "kind": "node",
+                        "covariant": False,
+                        "reason": "stabilizer_incompatible",
+                    }
+                )
+                symmetry_diagnostics["nodes"].append(initial_diagnostic)
+                logger.warning(
+                    "Node orbit tag %d is not compatible with the site "
+                    "stabilizer at %.3f Å; placing its members "
+                    "independently without rejection.",
+                    orbit.tag,
+                    symmetry_tolerance,
+                )
+                located_bbs[representative] = representative_block
+                permutations[representative] = representative_permutation
+                for raw_member in orbit.member_indices:
+                    member = int(raw_member)
+                    if member == representative:
+                        continue
+                    located, permutation, _ = locate_node(
+                        member,
+                        permutations[member],
+                    )
+                    located.set_centroid(topology.atoms.positions[member])
+                    located_bbs[member] = located
+                    permutations[member] = permutation
+                continue
 
-            i1 = n1.index
-            i2 = n2.index
+            for raw_member in orbit.member_indices:
+                member = int(raw_member)
+                permutation = symmetry.member_permutation(
+                    orbit,
+                    member,
+                    representative_permutation,
+                )
+                operation_index = symmetry.operation_for_member(orbit, member)
+                if member == representative:
+                    located = representative_block
+                else:
+                    located = symmetry.transform_building_block(
+                        representative_block,
+                        operation_index,
+                        topology.atoms.positions[member],
+                        original_cell,
+                    )
+                located_bbs[member] = located
+                permutations[member] = permutation
+            covariant_node_orbits.add(representative)
 
-            if topology.node_types[i1] <= topology.node_types[i2]:
-                perm = [0, 1]
-            else:
-                perm = [1, 0]
+        def default_edge_permutation(edge_index):
+            neighbor_i, neighbor_j = topology.neighbor_list[edge_index]
+            if topology.node_types[neighbor_i.index] <= topology.node_types[
+                neighbor_j.index
+            ]:
+                return np.array([0, 1])
+            return np.array([1, 0])
 
-            located_bbs[e] = edge_bb
-            permutations[e] = np.array(perm)
+        # Edge orientation is applied after scaling, but its endpoint
+        # permutation is already derived orbit-wise for the scaler and port
+        # matching stages.
+        for orbit in symmetry.edge_orbits:
+            representative = orbit.representative
+            if all(bbs[int(member)] is None for member in orbit.member_indices):
+                continue
+
+            if not orbit_has_one_template(orbit):
+                logger.warning(
+                    "Edge orbit tag %d has mixed occupancy or different "
+                    "building blocks; placing occupied members independently.",
+                    orbit.tag,
+                )
+                symmetry_diagnostics["edges"].append(
+                    {
+                        "tag": orbit.tag,
+                        "representative": representative,
+                        "orbit_size": len(orbit.member_indices),
+                        "covariant": False,
+                        "reason": "different_building_blocks_or_occupancy",
+                    }
+                )
+                for raw_member in orbit.member_indices:
+                    member = int(raw_member)
+                    edge_block = bbs[member]
+                    if edge_block is None:
+                        continue
+                    if permutations[member] is None:
+                        permutations[member] = default_edge_permutation(member)
+                    located_bbs[member] = edge_block
+                continue
+
+            representative_permutation = pulled_representative_permutation(orbit)
+            if representative_permutation is None:
+                representative_permutation = default_edge_permutation(
+                    representative
+                )
+            representative_block = bbs[representative]
+            for raw_member in orbit.member_indices:
+                member = int(raw_member)
+                permutations[member] = symmetry.member_permutation(
+                    orbit,
+                    member,
+                    representative_permutation,
+                )
+                located_bbs[member] = representative_block.copy()
+            covariant_edge_orbits.add(representative)
 
         for building_block in located_bbs:
             if building_block is not None:
@@ -434,35 +627,91 @@ class Builder:
         edge_frame_diagnostics = []
 
         rmsd_values = []
-        # Relocate and translate node building blocks.
-        for i in topology.node_indices:
-            perm = permutations[i]
-            node_bb = located_bbs[i]
-            # Get target.
-            target = topology.local_structure(i)
-            # Orientation.
-            located_node, rmsd = locator.locate_with_permutation(
-                target, node_bb, perm
+        scaled_cell = np.asarray(topology.atoms.cell, dtype=float)
+        for orbit in symmetry.node_orbits:
+            representative = orbit.representative
+            if representative not in covariant_node_orbits:
+                for raw_member in orbit.member_indices:
+                    member = int(raw_member)
+                    permutation = permutations[member]
+                    node_block = located_bbs[member]
+                    located_node, rmsd = locator.locate_with_permutation(
+                        topology.local_structure(member),
+                        node_block,
+                        permutation,
+                    )
+                    located_node.set_centroid(topology.atoms.positions[member])
+                    located_bbs[member] = located_node
+                    rmsd_values.append(rmsd)
+                continue
+
+            representative_block = located_bbs[representative]
+            representative_permutation = permutations[representative]
+            located_representative, rmsd = locator.locate_with_permutation(
+                topology.local_structure(representative),
+                representative_block,
+                representative_permutation,
             )
-            # Translation.
-            centroid = topology.atoms.positions[i]
-            located_node.set_centroid(centroid)
-
-            # Update.
-            located_bbs[i] = located_node
-
-            t = topology.node_types[i]
-            logger.info(
-                "Location at node slot %d"
-                ", (node type: %s, node bb: %s)"
-                ", RMSD: %.2E",
-                i,
-                t,
-                node_bb.name,
-                rmsd,
+            located_representative.set_centroid(
+                topology.atoms.positions[representative]
             )
+            diagnostic = symmetry.stabilizer_diagnostic(
+                orbit,
+                located_representative,
+                representative_permutation,
+                scaled_cell,
+                symmetry_tolerance,
+            )
+            diagnostic.update({"kind": "node", "covariant": True})
+            symmetry_diagnostics["nodes"].append(diagnostic)
+            if not diagnostic["compatible"]:
+                diagnostic["covariant"] = False
+                diagnostic["reason"] = "final_stabilizer_incompatible"
+                logger.warning(
+                    "Node orbit tag %d is not compatible with the site "
+                    "stabilizer at %.3f Å (atom %.3f Å, port %.3f Å); "
+                    "placing its members independently without rejection.",
+                    orbit.tag,
+                    symmetry_tolerance,
+                    diagnostic["max_atom_residual"],
+                    diagnostic["max_port_residual"],
+                )
+                for raw_member in orbit.member_indices:
+                    member = int(raw_member)
+                    located_node, member_rmsd = (
+                        locator.locate_with_permutation(
+                            topology.local_structure(member),
+                            located_bbs[member],
+                            permutations[member],
+                        )
+                    )
+                    located_node.set_centroid(topology.atoms.positions[member])
+                    located_bbs[member] = located_node
+                    rmsd_values.append(member_rmsd)
+                continue
 
-            rmsd_values.append(rmsd)
+            for raw_member in orbit.member_indices:
+                member = int(raw_member)
+                operation_index = symmetry.operation_for_member(orbit, member)
+                if member == representative:
+                    located_node = located_representative
+                else:
+                    located_node = symmetry.transform_building_block(
+                        located_representative,
+                        operation_index,
+                        topology.atoms.positions[member],
+                        scaled_cell,
+                    )
+                located_bbs[member] = located_node
+                rmsd_values.append(rmsd)
+                logger.info(
+                    "Symmetry-covariant node placement at slot %d from "
+                    "representative %d with operation %d, RMSD: %.2E",
+                    member,
+                    representative,
+                    operation_index,
+                    rmsd,
+                )
         rmsd_values = np.array(rmsd_values)
 
         def calc_image(ni, nj, invc):
@@ -503,47 +752,40 @@ class Builder:
 
         # Locate edges.
         logger.info("Start placing edges.")
-        c = topology.atoms.cell
-        invc = np.linalg.inv(topology.atoms.cell)
-        for e in topology.edge_indices:
-            edge_bb = located_bbs[e]
-            # Neglect no edge cases.
-            if edge_bb is None:
-                continue
+        c = scaled_cell
+        invc = np.linalg.inv(c)
 
-            n1, n2 = topology.neighbor_list[e]
-
-            i1 = n1.index
-            i2 = n2.index
-
-            bb1 = located_bbs[i1]
-            bb2 = located_bbs[i2]
-
+        def edge_geometry(edge_index):
+            neighbor_i, neighbor_j = topology.neighbor_list[edge_index]
+            block_i = located_bbs[neighbor_i.index]
+            block_j = located_bbs[neighbor_j.index]
             a1, a2 = pbc._find_matched_x_sites(
-                original_topology, located_bbs, permutations, e
+                original_topology,
+                located_bbs,
+                permutations,
+                edge_index,
             )
-
-            r1 = bb1.atoms.positions[a1]
-            r2 = bb2.atoms.positions[a2]
-
-            image = calc_image(n1, n2, invc)
+            r1 = block_i.atoms.positions[a1]
+            r2 = block_j.atoms.positions[a2]
+            image = calc_image(neighbor_i, neighbor_j, invc)
             d = r2 - r1 + image @ c
-
-            # This may outside of the unit cell. Should be changed.
-            centroid = r1 + 0.5 * d
-            perm = permutations[e]
-
             target_points = np.array([r1, r1 + d])
-            edge_target = edge_targets[e]
+            return target_points, r1 + 0.5 * d
+
+        def place_edge_independently(edge_index):
+            edge_block = located_bbs[edge_index]
+            target_points, centroid = edge_geometry(edge_index)
+            edge_target = edge_targets[edge_index]
             located_edge, rmsd, source_frame = locator.locate_edge_with_frame(
                 target_points,
-                edge_bb,
-                perm,
+                edge_block,
+                permutations[edge_index],
                 edge_target.transverse,
             )
+            located_edge.set_centroid(centroid)
             edge_frame_diagnostics.append(
                 {
-                    "edge_index": int(e),
+                    "edge_index": int(edge_index),
                     "symmetry_edge_type": edge_target.symmetry_edge_type,
                     "representative_edge": edge_target.representative_edge,
                     "operation_index": edge_target.operation_index,
@@ -554,11 +796,152 @@ class Builder:
                     "sign_degenerate": source_frame.sign_degenerate,
                 }
             )
+            located_bbs[edge_index] = located_edge
+            logger.debug("Edge %d, RMSD: %.2E", edge_index, rmsd)
 
-            located_edge.set_centroid(centroid)
-            located_bbs[e] = located_edge
+        for orbit in symmetry.edge_orbits:
+            representative = orbit.representative
+            occupied_members = [
+                int(member)
+                for member in orbit.member_indices
+                if located_bbs[int(member)] is not None
+            ]
+            if not occupied_members:
+                continue
+            if representative not in covariant_edge_orbits:
+                for member in occupied_members:
+                    place_edge_independently(member)
+                continue
 
-            logger.debug(f"Edge {e}, RMSD: {rmsd:.2E}")
+            representative_target_points, representative_centroid = (
+                edge_geometry(representative)
+            )
+            representative_target = edge_targets[representative]
+            representative_edge, rmsd, source_frame = (
+                locator.locate_edge_with_frame(
+                    representative_target_points,
+                    located_bbs[representative],
+                    permutations[representative],
+                    representative_target.transverse,
+                )
+            )
+            representative_edge.set_centroid(representative_centroid)
+            representative_edge, diagnostic = (
+                symmetry.optimize_edge_stabilizer_torsion(
+                    orbit,
+                    representative_edge,
+                    permutations[representative],
+                    scaled_cell,
+                    symmetry_tolerance,
+                )
+            )
+            diagnostic.update({"kind": "edge", "covariant": True})
+            symmetry_diagnostics["edges"].append(diagnostic)
+            if not diagnostic["compatible"]:
+                diagnostic["covariant"] = False
+                diagnostic["reason"] = "stabilizer_incompatible"
+                logger.warning(
+                    "Edge orbit tag %d is not compatible with the site "
+                    "stabilizer at %.3f Å (atom %.3f Å, port %.3f Å); "
+                    "placing its members independently without rejection.",
+                    orbit.tag,
+                    symmetry_tolerance,
+                    diagnostic["max_atom_residual"],
+                    diagnostic["max_port_residual"],
+                )
+                located_bbs[representative] = representative_edge
+                edge_frame_diagnostics.append(
+                    {
+                        "edge_index": representative,
+                        "symmetry_edge_type": orbit.tag,
+                        "representative_edge": representative,
+                        "operation_index": symmetry.operation_for_member(
+                            orbit,
+                            representative,
+                        ),
+                        "endpoint_reversed": False,
+                        "representative_gauge": (
+                            representative_target.representative_gauge
+                        ),
+                        "pca_gap": source_frame.pca_gap,
+                        "torsion_degenerate": source_frame.torsion_degenerate,
+                        "sign_degenerate": source_frame.sign_degenerate,
+                    }
+                )
+                for member in occupied_members:
+                    if member == representative:
+                        continue
+                    place_edge_independently(member)
+                continue
+
+            fallback_members = []
+            for member in occupied_members:
+                operation_index = symmetry.operation_for_member(orbit, member)
+                member_target_points, member_centroid = edge_geometry(member)
+                if member == representative:
+                    located_edge = representative_edge
+                else:
+                    located_edge = symmetry.transform_building_block(
+                        representative_edge,
+                        operation_index,
+                        member_centroid,
+                        scaled_cell,
+                    )
+                port_residual = float(
+                    np.max(
+                        np.linalg.norm(
+                            located_edge.connection_points[
+                                permutations[member]
+                            ]
+                            - member_target_points,
+                            axis=1,
+                        )
+                    )
+                )
+                if member != representative and port_residual > tolerance:
+                    fallback_members.append(member)
+                    logger.warning(
+                        "Propagated edge slot %d misses its node ports by "
+                        "%.3f Å; placing this member independently without "
+                        "rejecting the framework.",
+                        member,
+                        port_residual,
+                    )
+                    place_edge_independently(member)
+                    continue
+                located_bbs[member] = located_edge
+                endpoint_map = symmetry.neighbor_offset_map(
+                    representative,
+                    member,
+                    operation_index,
+                )
+                edge_frame_diagnostics.append(
+                    {
+                        "edge_index": member,
+                        "symmetry_edge_type": orbit.tag,
+                        "representative_edge": representative,
+                        "operation_index": operation_index,
+                        "endpoint_reversed": bool(endpoint_map[0] == 1),
+                        "representative_gauge": (
+                            representative_target.representative_gauge
+                        ),
+                        "pca_gap": source_frame.pca_gap,
+                        "torsion_degenerate": source_frame.torsion_degenerate,
+                        "sign_degenerate": source_frame.sign_degenerate,
+                    }
+                )
+                logger.debug(
+                    "Symmetry-covariant edge %d from representative %d with "
+                    "operation %d, RMSD: %.2E",
+                    member,
+                    representative,
+                    operation_index,
+                    rmsd,
+                )
+            if fallback_members:
+                diagnostic["covariant"] = False
+                diagnostic["reason"] = "propagated_port_mismatch"
+                diagnostic["fallback_members"] = fallback_members
 
         logger.info("Start finding bonds in generated framework.")
         logger.info("Start finding bonds in building blocks.")
@@ -711,6 +1094,12 @@ class Builder:
 
         del framework_atoms[[a.symbol == "X" for a in framework_atoms]]
 
+        symmetry_diagnostics["nodes"].sort(
+            key=lambda item: item["representative"]
+        )
+        symmetry_diagnostics["edges"].sort(
+            key=lambda item: item["representative"]
+        )
         info = {
             "topology": topology,
             "located_bbs": located_bbs,
@@ -721,6 +1110,7 @@ class Builder:
             "tolerance": tolerance,
             "scale": scale,
             "edge_frame_diagnostics": edge_frame_diagnostics,
+            "symmetry_placement_diagnostics": symmetry_diagnostics,
         }
 
         if "wrap" not in kwargs:
