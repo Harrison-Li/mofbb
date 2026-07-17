@@ -216,3 +216,4 @@ notebook/
 /docs
 /.worktrees/
 .DS_store
+/tests
