@@ -285,26 +285,26 @@ class Builder:
             representative_block = bbs[orbit.representative]
             return all(
                 blocks_share_template(representative_block, bbs[int(member)])
-                for member in orbit.member_indices
+                for member in orbit.members
             )
 
         def pulled_representative_permutation(orbit):
             supplied = [
                 int(member)
-                for member in orbit.member_indices
+                for member in orbit.members
                 if int(member) in provided_permutations
             ]
             if not supplied:
                 return None
 
             source = min(supplied)
-            representative_permutation = symmetry.representative_permutation(
+            representative_permutation = symmetry.to_representative(
                 orbit,
                 source,
                 provided_permutations[source],
             )
             for member in supplied:
-                expected = symmetry.member_permutation(
+                expected = symmetry.to_member(
                     orbit,
                     member,
                     representative_permutation,
@@ -427,12 +427,12 @@ class Builder:
                     {
                         "tag": orbit.tag,
                         "representative": representative,
-                        "orbit_size": len(orbit.member_indices),
+                        "orbit_size": len(orbit.members),
                         "covariant": False,
                         "reason": "different_building_blocks",
                     }
                 )
-                for raw_member in orbit.member_indices:
+                for raw_member in orbit.members:
                     member = int(raw_member)
                     located, permutation, _ = locate_node(
                         member,
@@ -450,7 +450,7 @@ class Builder:
             representative_block.set_centroid(
                 topology.atoms.positions[representative]
             )
-            initial_diagnostic = symmetry.stabilizer_diagnostic(
+            initial_diagnostic = symmetry.diagnose(
                 orbit,
                 representative_block,
                 representative_permutation,
@@ -475,7 +475,7 @@ class Builder:
                 )
                 located_bbs[representative] = representative_block
                 permutations[representative] = representative_permutation
-                for raw_member in orbit.member_indices:
+                for raw_member in orbit.members:
                     member = int(raw_member)
                     if member == representative:
                         continue
@@ -488,18 +488,18 @@ class Builder:
                     permutations[member] = permutation
                 continue
 
-            for raw_member in orbit.member_indices:
+            for raw_member in orbit.members:
                 member = int(raw_member)
-                permutation = symmetry.member_permutation(
+                permutation = symmetry.to_member(
                     orbit,
                     member,
                     representative_permutation,
                 )
-                operation_index = symmetry.operation_for_member(orbit, member)
+                operation_index = symmetry.operation(orbit, member)
                 if member == representative:
                     located = representative_block
                 else:
-                    located = symmetry.transform_building_block(
+                    located = symmetry.place(
                         representative_block,
                         operation_index,
                         topology.atoms.positions[member],
@@ -522,7 +522,7 @@ class Builder:
         # matching stages.
         for orbit in symmetry.edge_orbits:
             representative = orbit.representative
-            if all(bbs[int(member)] is None for member in orbit.member_indices):
+            if all(bbs[int(member)] is None for member in orbit.members):
                 continue
 
             if not orbit_has_one_template(orbit):
@@ -535,12 +535,12 @@ class Builder:
                     {
                         "tag": orbit.tag,
                         "representative": representative,
-                        "orbit_size": len(orbit.member_indices),
+                        "orbit_size": len(orbit.members),
                         "covariant": False,
                         "reason": "different_building_blocks_or_occupancy",
                     }
                 )
-                for raw_member in orbit.member_indices:
+                for raw_member in orbit.members:
                     member = int(raw_member)
                     edge_block = bbs[member]
                     if edge_block is None:
@@ -556,9 +556,9 @@ class Builder:
                     representative
                 )
             representative_block = bbs[representative]
-            for raw_member in orbit.member_indices:
+            for raw_member in orbit.members:
                 member = int(raw_member)
-                permutations[member] = symmetry.member_permutation(
+                permutations[member] = symmetry.to_member(
                     orbit,
                     member,
                     representative_permutation,
@@ -631,7 +631,7 @@ class Builder:
         for orbit in symmetry.node_orbits:
             representative = orbit.representative
             if representative not in covariant_node_orbits:
-                for raw_member in orbit.member_indices:
+                for raw_member in orbit.members:
                     member = int(raw_member)
                     permutation = permutations[member]
                     node_block = located_bbs[member]
@@ -655,7 +655,7 @@ class Builder:
             located_representative.set_centroid(
                 topology.atoms.positions[representative]
             )
-            diagnostic = symmetry.stabilizer_diagnostic(
+            diagnostic = symmetry.diagnose(
                 orbit,
                 located_representative,
                 representative_permutation,
@@ -676,7 +676,7 @@ class Builder:
                     diagnostic["max_atom_residual"],
                     diagnostic["max_port_residual"],
                 )
-                for raw_member in orbit.member_indices:
+                for raw_member in orbit.members:
                     member = int(raw_member)
                     located_node, member_rmsd = (
                         locator.locate_with_permutation(
@@ -690,13 +690,13 @@ class Builder:
                     rmsd_values.append(member_rmsd)
                 continue
 
-            for raw_member in orbit.member_indices:
+            for raw_member in orbit.members:
                 member = int(raw_member)
-                operation_index = symmetry.operation_for_member(orbit, member)
+                operation_index = symmetry.operation(orbit, member)
                 if member == representative:
                     located_node = located_representative
                 else:
-                    located_node = symmetry.transform_building_block(
+                    located_node = symmetry.place(
                         located_representative,
                         operation_index,
                         topology.atoms.positions[member],
@@ -803,7 +803,7 @@ class Builder:
             representative = orbit.representative
             occupied_members = [
                 int(member)
-                for member in orbit.member_indices
+                for member in orbit.members
                 if located_bbs[int(member)] is not None
             ]
             if not occupied_members:
@@ -827,7 +827,7 @@ class Builder:
             )
             representative_edge.set_centroid(representative_centroid)
             representative_edge, diagnostic = (
-                symmetry.optimize_edge_stabilizer_torsion(
+                symmetry.fit_torsion(
                     orbit,
                     representative_edge,
                     permutations[representative],
@@ -855,7 +855,7 @@ class Builder:
                         "edge_index": representative,
                         "symmetry_edge_type": orbit.tag,
                         "representative_edge": representative,
-                        "operation_index": symmetry.operation_for_member(
+                        "operation_index": symmetry.operation(
                             orbit,
                             representative,
                         ),
@@ -876,12 +876,12 @@ class Builder:
 
             fallback_members = []
             for member in occupied_members:
-                operation_index = symmetry.operation_for_member(orbit, member)
+                operation_index = symmetry.operation(orbit, member)
                 member_target_points, member_centroid = edge_geometry(member)
                 if member == representative:
                     located_edge = representative_edge
                 else:
-                    located_edge = symmetry.transform_building_block(
+                    located_edge = symmetry.place(
                         representative_edge,
                         operation_index,
                         member_centroid,
@@ -910,7 +910,7 @@ class Builder:
                     place_edge_independently(member)
                     continue
                 located_bbs[member] = located_edge
-                endpoint_map = symmetry.neighbor_offset_map(
+                endpoint_map = symmetry.offset_map(
                     representative,
                     member,
                     operation_index,

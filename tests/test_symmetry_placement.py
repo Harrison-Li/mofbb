@@ -179,15 +179,15 @@ def test_port_permutations_follow_operation_induced_neighbors(
 
     for orbit in (*placement.node_orbits, *placement.edge_orbits):
         representative_permutation = np.array([0, 1])
-        for raw_member in orbit.member_indices:
+        for raw_member in orbit.members:
             member = int(raw_member)
-            operation_index = placement.operation_for_member(orbit, member)
-            offset_map = placement.neighbor_offset_map(
+            operation_index = placement.operation(orbit, member)
+            offset_map = placement.offset_map(
                 orbit.representative,
                 member,
                 operation_index,
             )
-            member_permutation = placement.member_permutation(
+            member_permutation = placement.to_member(
                 orbit,
                 member,
                 representative_permutation,
@@ -215,14 +215,14 @@ def test_edge_torsion_is_chosen_from_site_stabilizer(tmp_path: Path) -> None:
     permutation = np.array([0, 1])
     initial_ports = edge.connection_points.copy()
 
-    initial = placement.stabilizer_diagnostic(
+    initial = placement.diagnose(
         orbit,
         edge,
         permutation,
         topology.atoms.cell,
         1.0e-6,
     )
-    optimized, diagnostic = placement.optimize_edge_stabilizer_torsion(
+    optimized, diagnostic = placement.fit_torsion(
         orbit,
         edge,
         permutation,
@@ -279,11 +279,11 @@ def test_compatible_orbits_preserve_declared_operations(
     located_blocks = framework.info["located_bbs"]
     for orbit in (*placement.node_orbits, *placement.edge_orbits):
         representative = located_blocks[orbit.representative]
-        for raw_member in orbit.member_indices:
+        for raw_member in orbit.members:
             member = int(raw_member)
-            expected = placement.transform_building_block(
+            expected = placement.place(
                 representative,
-                placement.operation_for_member(orbit, member),
+                placement.operation(orbit, member),
                 located_blocks[member].centroid,
                 scaled_cell,
             )

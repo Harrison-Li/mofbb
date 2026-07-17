@@ -129,7 +129,7 @@ def test_site_stabilizers_determine_special_and_general_dimensions() -> None:
     rng = np.random.default_rng(4)
     for orbit in parameterization.orbits:
         displacement = orbit.basis @ rng.normal(size=orbit.dimension)
-        for operation_index in orbit.stabilizer_operation_indices:
+        for operation_index in orbit.site_symmetry_operation_indices:
             rotation = parameterization.rotations[operation_index]
             np.testing.assert_allclose(
                 rotation @ displacement,
@@ -259,8 +259,8 @@ def test_complete_reduced_gradient_matches_finite_difference() -> None:
         )
         gradient = np.concatenate(
             [
-                parameterization.position_gradient(position_gradient),
-                parameterization.cell.gradient(cell_gradient, derivatives),
+                parameterization.pos_grad(position_gradient),
+                parameterization.cell.grad(cell_gradient, derivatives),
             ]
         )
         return value, gradient

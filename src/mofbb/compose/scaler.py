@@ -340,8 +340,8 @@ class Scaler:
             )
             gradient = np.concatenate(
                 [
-                    parameterization.position_gradient(position_gradient),
-                    parameterization.cell.gradient(
+                    parameterization.pos_grad(position_gradient),
+                    parameterization.cell.grad(
                         cell_gradient,
                         cell_derivatives,
                     ),

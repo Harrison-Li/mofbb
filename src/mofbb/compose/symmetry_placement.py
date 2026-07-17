@@ -8,512 +8,336 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment, minimize_scalar
 from scipy.spatial.transform import Rotation
 
-from .symmetry_scaling import _periodic_difference, _spacegroup_operations
+from .symmetry_scaling import Symmetry
 
 
-# Expanded edge centers inherit the decimal precision of both CGD endpoints.
-# A 1e-4 fractional threshold covers the observed rounding accumulation while
-# remaining far below atomistic symmetry tolerances.
-_MAPPING_TOLERANCE = 1.0e-4
-_ORTHOGONALITY_TOLERANCE = 1.0e-8
-_TORSION_GRID_SIZE = 24
-
-
-@dataclass(frozen=True)
-class PlacementOrbit:
-    """One crystallographic orbit of topology slots."""
+@dataclass(frozen=True, slots=True)
+class SlotOrbit:
+    """One crystallographic orbit of topology node or edge slots."""
 
     tag: int
     representative: int
-    member_indices: np.ndarray
-    operation_indices: np.ndarray
-    stabilizer_operation_indices: np.ndarray
+    members: np.ndarray
+    operations: np.ndarray
+    stabilizers: np.ndarray
 
 
 class SymmetryPlacement:
-    """Map topology slots and their incident ports under a space group."""
+    """Map topology slots and their ports under a space group."""
 
-    def __init__(self, topology, mapping_tolerance=_MAPPING_TOLERANCE):
-        if mapping_tolerance <= 0.0:
+    def __init__(self, topology, mapping_tolerance=1.0e-4):
+        if mapping_tolerance <= 0:
             raise ValueError("Symmetry mapping tolerance must be positive.")
 
         self.topology = topology
         self.mapping_tolerance = float(mapping_tolerance)
-        self.operations = _spacegroup_operations(topology.spacegroup)
-        self.rotations = np.asarray(
-            [operation.rotation_matrix for operation in self.operations],
-            dtype=float,
-        )
-        self.translations = np.asarray(
-            [operation.translation_vector for operation in self.operations],
-            dtype=float,
-        )
-        self.positions = np.asarray(
-            topology.atoms.get_scaled_positions(wrap=True),
-            dtype=float,
-        )
-        self.tags = np.asarray(topology.atoms.get_tags(), dtype=int)
-        inverse_cell = np.linalg.inv(np.asarray(topology.atoms.cell, dtype=float))
-        self.neighbor_indices = tuple(
-            np.asarray(
-                [neighbor.index for neighbor in slot_neighbors],
-                dtype=int,
-            )
-            for slot_neighbors in topology.neighbor_list
-        )
-        self.neighbor_vectors = tuple(
-            np.asarray(
-                [neighbor.distance_vector for neighbor in slot_neighbors],
-                dtype=float,
-            ).reshape(-1, 3)
-            @ inverse_cell
-            for slot_neighbors in topology.neighbor_list
-        )
+        self.orthogonality_tolerance = 1.0e-8
+        self.torsion_steps = 24
+        self.tau = 2.0 * np.pi
+        self.operations = Symmetry.operations(topology.spacegroup)
+        self.rotations = np.asarray([op.rotation_matrix for op in self.operations], float)
+        self.translations = np.asarray([op.translation_vector for op in self.operations], float)
+        self.positions = np.asarray(topology.atoms.get_scaled_positions(wrap=True), float)
+        self.tags = np.asarray(topology.atoms.get_tags(), int)
+        self.neighbor_indices, self.neighbor_vectors = self.read_neighbors()
+        self.operation_mappings = self.map_slots()
+        self.identity_operation_index = self.find_identity()
+        self.check_links()
+        self.node_orbits = self.make_orbits(topology.node_indices)
+        self.edge_orbits = self.make_orbits(topology.edge_indices)
 
-        self.operation_mappings = self._build_operation_mappings()
-        self.identity_operation_index = self._find_identity_operation()
-        self._validate_connectivity_mappings()
-        self.node_orbits = self._build_orbits(topology.node_indices)
-        self.edge_orbits = self._build_orbits(topology.edge_indices)
+    def read_neighbors(self):
+        """Return neighbor indices and fractional neighbor vectors."""
 
-    def _build_operation_mappings(self):
-        mappings = []
-        for operation_index, (rotation, translation) in enumerate(
-            zip(self.rotations, self.translations)
-        ):
+        inverse = np.linalg.inv(np.asarray(self.topology.atoms.cell, float))
+        groups = self.topology.neighbor_list
+        indices = tuple(np.asarray([item.index for item in group], int) for group in groups)
+        vectors = tuple(
+            np.asarray([item.distance_vector for item in group], float).reshape(-1, 3) @ inverse
+            for group in groups
+        )
+        return indices, vectors
+
+    def map_slots(self):
+        """Map every topology slot under every symmetry operation."""
+
+        maps = []
+        same_tag = self.tags[:, None] == self.tags[None, :]
+        for op_index, (rotation, translation) in enumerate(zip(self.rotations, self.translations)):
             transformed = self.positions @ rotation.T + translation
-            mapping = np.empty(len(self.positions), dtype=int)
-            for source_index, transformed_position in enumerate(transformed):
-                candidates = np.flatnonzero(self.tags == self.tags[source_index])
-                differences = _periodic_difference(
-                    transformed_position,
-                    self.positions[candidates],
-                )
-                matches = np.all(
-                    np.abs(differences) <= self.mapping_tolerance,
-                    axis=1,
-                )
-                matched = candidates[matches]
-                if len(matched) == 0:
+            differences = Symmetry.diff(transformed[:, None], self.positions[None])
+            matches = same_tag & np.all(abs(differences) <= self.mapping_tolerance, axis=2)
+            counts = matches.sum(axis=1)
+            invalid = np.flatnonzero(counts != 1)
+            if len(invalid):
+                source = int(invalid[0])
+                targets = np.flatnonzero(matches[source])
+                if not len(targets):
                     raise ValueError(
-                        f"Declared symmetry operation {operation_index} cannot "
-                        f"map slot {source_index} with tag "
-                        f"{self.tags[source_index]} within fractional tolerance "
-                        f"{self.mapping_tolerance:.1e}."
+                        f"Operation {op_index} cannot map slot {source} with tag "
+                        f"{self.tags[source]} within tolerance {self.mapping_tolerance:.1e}."
                     )
-                if len(matched) > 1:
-                    raise ValueError(
-                        f"Declared symmetry operation {operation_index} maps "
-                        f"slot {source_index} ambiguously to slots "
-                        f"{matched.tolist()} within fractional tolerance "
-                        f"{self.mapping_tolerance:.1e}."
-                    )
-                mapping[source_index] = int(matched[0])
-
-            if len(np.unique(mapping)) != len(mapping):
                 raise ValueError(
-                    f"Declared symmetry operation {operation_index} does not "
-                    "map topology slots bijectively."
+                    f"Operation {op_index} maps slot {source} ambiguously to "
+                    f"{targets.tolist()} within tolerance {self.mapping_tolerance:.1e}."
                 )
-            mappings.append(mapping)
-        return np.asarray(mappings, dtype=int)
 
-    def _find_identity_operation(self):
-        for index, (rotation, translation) in enumerate(
-            zip(self.rotations, self.translations)
-        ):
-            if not np.array_equal(
-                np.rint(rotation).astype(int),
-                np.eye(3, dtype=int),
-            ):
-                continue
-            if np.all(
-                np.abs(_periodic_difference(translation, 0.0)) <= 1.0e-12
-            ):
+            mapping = np.argmax(matches, axis=1)
+            if len(np.unique(mapping)) != len(mapping):
+                raise ValueError(f"Operation {op_index} does not map slots bijectively.")
+            maps.append(mapping)
+        return np.asarray(maps, int)
+
+    def find_identity(self):
+        """Return the identity operation index."""
+
+        identity = np.eye(3, dtype=int)
+        for index, (rotation, translation) in enumerate(zip(self.rotations, self.translations)):
+            is_identity = np.array_equal(np.rint(rotation).astype(int), identity)
+            has_no_shift = np.all(abs(Symmetry.diff(translation, 0)) <= 1.0e-12)
+            if is_identity and has_no_shift:
                 return index
-        raise ValueError(
-            "The declared space group does not contain an identity operation."
-        )
+        raise ValueError("The space group does not contain an identity operation.")
 
-    def _validate_connectivity_mappings(self):
-        for operation_index, mapping in enumerate(self.operation_mappings):
-            for source_index in range(len(self.positions)):
-                target_index = int(mapping[source_index])
+    def check_links(self):
+        """Check that every operation preserves topology connectivity."""
+
+        for op_index, mapping in enumerate(self.operation_mappings):
+            for source, target in enumerate(mapping):
                 try:
-                    self.neighbor_offset_map(
-                        source_index,
-                        target_index,
-                        operation_index,
-                    )
+                    self.offset_map(source, int(target), op_index)
                 except ValueError as error:
                     raise ValueError(
-                        f"Declared symmetry operation {operation_index} maps "
-                        f"slot {source_index} to slot {target_index}, but does "
-                        "not preserve their topology neighbors."
+                        f"Operation {op_index} maps slot {source} to {target}, "
+                        "but does not preserve its neighbors."
                     ) from error
 
-    def _build_orbits(self, slot_indices):
-        slot_indices = np.asarray(slot_indices, dtype=int)
+    def make_orbits(self, slots):
+        """Build crystallographic orbits for topology slots."""
+
+        slots = np.asarray(slots, int)
+        tags = self.tags[slots]
         orbits = []
-        for tag in np.unique(self.tags[slot_indices]):
-            members = slot_indices[self.tags[slot_indices] == tag]
-            members = np.sort(members)
+        for tag in np.unique(tags):
+            members = np.sort(slots[tags == tag])
             representative = int(members[0])
-            reached = np.unique(
-                self.operation_mappings[:, representative]
-            )
+            reached = np.unique(self.operation_mappings[:, representative])
             if not np.array_equal(np.sort(reached), members):
                 raise ValueError(
-                    f"Slot tag {int(tag)} is not one crystallographic orbit: "
-                    f"representative slot {representative} reaches "
+                    f"Tag {int(tag)} is not one orbit: slot {representative} reaches "
                     f"{reached.tolist()}, expected {members.tolist()}."
                 )
 
-            operation_indices = []
+            operations = []
             for member in members:
                 if member == representative:
-                    operation_indices.append(self.identity_operation_index)
+                    operations.append(self.identity_operation_index)
                     continue
-                candidates = np.flatnonzero(
-                    self.operation_mappings[:, representative] == member
-                )
-                if len(candidates) == 0:
-                    raise ValueError(
-                        f"No declared operation maps representative slot "
-                        f"{representative} to slot {int(member)}."
-                    )
-                operation_indices.append(int(candidates[0]))
+                candidates = np.flatnonzero(self.operation_mappings[:, representative] == member)
+                if not len(candidates):
+                    raise ValueError(f"No operation maps slot {representative} to {int(member)}.")
+                operations.append(int(candidates[0]))
 
-            stabilizer = np.flatnonzero(
-                self.operation_mappings[:, representative] == representative
-            )
             orbits.append(
-                PlacementOrbit(
-                    tag=int(tag),
-                    representative=representative,
-                    member_indices=members,
-                    operation_indices=np.asarray(operation_indices, dtype=int),
-                    stabilizer_operation_indices=stabilizer,
+                SlotOrbit(
+                    int(tag),
+                    representative,
+                    members,
+                    np.asarray(operations, int),
+                    np.flatnonzero(self.operation_mappings[:, representative] == representative),
                 )
             )
         return tuple(orbits)
 
     @staticmethod
-    def operation_for_member(orbit, member_index):
-        matches = np.flatnonzero(orbit.member_indices == member_index)
+    def operation(orbit, member):
+        """Return the operation mapping an orbit representative to a member."""
+
+        matches = np.flatnonzero(orbit.members == member)
         if len(matches) != 1:
+            raise ValueError(f"Slot {member} is not a unique member of orbit tag {orbit.tag}.")
+        return int(orbit.operations[int(matches[0])])
+
+    def offset_map(self, source, target, op_index):
+        """Map source neighbor offsets onto target neighbor offsets."""
+
+        source_neighbors = self.neighbor_indices[source]
+        target_neighbors = self.neighbor_indices[target]
+        mapped_neighbors = self.operation_mappings[op_index, source_neighbors]
+        mapped_vectors = self.neighbor_vectors[source] @ self.rotations[op_index].T
+        target_vectors = self.neighbor_vectors[target]
+        matches = (mapped_neighbors[:, None] == target_neighbors[None]) & np.all(
+            abs(mapped_vectors[:, None] - target_vectors[None]) <= self.mapping_tolerance,
+            axis=2,
+        )
+        invalid = np.flatnonzero(matches.sum(axis=1) != 1)
+        if len(invalid):
+            offset = int(invalid[0])
             raise ValueError(
-                f"Slot {member_index} is not a unique member of orbit "
-                f"tag {orbit.tag}."
+                f"Operation {op_index} maps neighbor {offset} of slot {source} to "
+                f"slot {int(mapped_neighbors[offset])}, not a unique neighbor of {target}."
             )
-        return int(orbit.operation_indices[int(matches[0])])
 
-    def neighbor_offset_map(self, source_slot, target_slot, operation_index):
-        """Map source neighbor-list offsets onto target offsets."""
+        result = np.argmax(matches, axis=1)
+        if len(np.unique(result)) != len(result):
+            raise ValueError(f"Operation {op_index} does not map slot {source} neighbors bijectively.")
+        return result
 
-        source_neighbors = self.neighbor_indices[source_slot]
-        target_neighbors = self.neighbor_indices[target_slot]
-        mapped_neighbors = self.operation_mappings[
-            operation_index, source_neighbors
-        ]
-        mapped_vectors = (
-            self.neighbor_vectors[source_slot]
-            @ self.rotations[operation_index].T
-        )
-        target_vectors = self.neighbor_vectors[target_slot]
-        offset_map = np.empty(len(source_neighbors), dtype=int)
-        for source_offset, (mapped_neighbor, mapped_vector) in enumerate(
-            zip(mapped_neighbors, mapped_vectors)
-        ):
-            matches = np.flatnonzero(
-                (target_neighbors == mapped_neighbor)
-                & np.all(
-                    np.abs(target_vectors - mapped_vector)
-                    <= self.mapping_tolerance,
-                    axis=1,
-                )
-            )
-            if len(matches) != 1:
-                raise ValueError(
-                    f"Operation {operation_index} maps neighbor offset "
-                    f"{source_offset} of slot {source_slot} to slot "
-                    f"{int(mapped_neighbor)}, which is not a unique neighbor "
-                    f"of target slot {target_slot}."
-                )
-            offset_map[source_offset] = int(matches[0])
-        if len(np.unique(offset_map)) != len(offset_map):
+    def to_member(self, orbit, member, permutation):
+        """Map a representative port permutation to an orbit member."""
+
+        permutation = np.asarray(permutation, int)
+        offsets = self.offset_map(orbit.representative, member, self.operation(orbit, member))
+        if permutation.shape != offsets.shape:
             raise ValueError(
-                f"Operation {operation_index} does not map neighbor offsets "
-                f"of slot {source_slot} bijectively onto slot {target_slot}."
+                f"Slot {orbit.representative} has {len(offsets)} neighbors, "
+                f"but permutation shape is {permutation.shape}."
             )
-        return offset_map
+        result = np.empty_like(permutation)
+        result[offsets] = permutation
+        return result
 
-    def member_permutation(self, orbit, member_index, representative_permutation):
-        """Derive a member's port permutation from its orbit operation."""
+    def to_representative(self, orbit, member, permutation):
+        """Map a member port permutation back to its representative."""
 
-        representative_permutation = np.asarray(
-            representative_permutation,
-            dtype=int,
-        )
-        operation_index = self.operation_for_member(orbit, member_index)
-        offset_map = self.neighbor_offset_map(
-            orbit.representative,
-            member_index,
-            operation_index,
-        )
-        if representative_permutation.shape != offset_map.shape:
+        permutation = np.asarray(permutation, int)
+        offsets = self.offset_map(orbit.representative, member, self.operation(orbit, member))
+        if permutation.shape != offsets.shape:
             raise ValueError(
-                f"Representative slot {orbit.representative} has "
-                f"{len(offset_map)} neighbors but permutation shape "
-                f"{representative_permutation.shape}."
+                f"Slot {member} has {len(offsets)} neighbors, "
+                f"but permutation shape is {permutation.shape}."
             )
-        member_permutation = np.empty_like(representative_permutation)
-        member_permutation[offset_map] = representative_permutation
-        return member_permutation
+        return permutation[offsets]
 
-    def representative_permutation(self, orbit, member_index, member_permutation):
-        """Pull a user-provided member permutation back to the representative."""
+    def transform(self, op_index, cell):
+        """Return the row-vector Cartesian transform for an operation."""
 
-        member_permutation = np.asarray(member_permutation, dtype=int)
-        operation_index = self.operation_for_member(orbit, member_index)
-        offset_map = self.neighbor_offset_map(
-            orbit.representative,
-            member_index,
-            operation_index,
-        )
-        if member_permutation.shape != offset_map.shape:
-            raise ValueError(
-                f"Member slot {member_index} has {len(offset_map)} neighbors "
-                f"but permutation shape {member_permutation.shape}."
-            )
-        return member_permutation[offset_map]
-
-    def cartesian_transform(self, operation_index, cell):
-        """Return the row-vector Cartesian transform for one operation."""
-
-        cell = np.asarray(cell, dtype=float)
-        transform = (
-            np.linalg.inv(cell)
-            @ self.rotations[operation_index].T
-            @ cell
-        )
-        residual = float(
-            np.max(np.abs(transform @ transform.T - np.eye(3)))
-        )
-        if residual > _ORTHOGONALITY_TOLERANCE:
-            raise ValueError(
-                f"Operation {operation_index} is not orthogonal in the "
-                f"placement cell: residual {residual:.3e}."
-            )
+        cell = np.asarray(cell, float)
+        transform = np.linalg.inv(cell) @ self.rotations[op_index].T @ cell
+        residual = float(np.max(abs(transform @ transform.T - np.eye(3))))
+        if residual > self.orthogonality_tolerance:
+            raise ValueError(f"Operation {op_index} is not orthogonal: residual {residual:.3e}.")
         return transform
 
-    def transform_building_block(
-        self,
-        representative_block,
-        operation_index,
-        target_centroid,
-        cell,
-    ):
-        """Create one orbit member by transforming a representative block."""
+    def place(self, block, op_index, centroid, cell):
+        """Create an orbit member from a representative building block."""
 
-        transform = self.cartesian_transform(operation_index, cell)
-        member = representative_block.copy()
-        centered = (
-            representative_block.atoms.positions
-            - representative_block.centroid
-        )
-        member.atoms.set_positions(
-            centered @ transform + np.asarray(target_centroid, dtype=float)
-        )
+        member = block.copy()
+        centered = block.atoms.positions - block.centroid
+        member.atoms.set_positions(centered @ self.transform(op_index, cell) + np.asarray(centroid, float))
         return member
 
-    def stabilizer_diagnostic(
-        self,
-        orbit,
-        representative_block,
-        representative_permutation,
-        cell,
-        tolerance,
-    ):
-        """Measure motif compatibility with a representative's stabilizer."""
+    def diagnose(self, orbit, block, permutation, cell, tolerance):
+        """Measure motif compatibility with an orbit stabilizer."""
 
-        if tolerance <= 0.0:
+        if tolerance <= 0:
             raise ValueError("Stabilizer tolerance must be positive.")
 
-        positions = (
-            representative_block.atoms.positions
-            - representative_block.centroid
-        )
-        symbols = np.asarray(
-            representative_block.atoms.get_chemical_symbols()
-        )
-        connection_indices = np.asarray(
-            representative_block.connection_point_indices,
-            dtype=int,
-        )
-        permutation = np.asarray(representative_permutation, dtype=int)
+        positions = block.atoms.positions - block.centroid
+        symbols = np.asarray(block.atoms.get_chemical_symbols())
+        connections = np.asarray(block.connection_point_indices, int)
+        permutation = np.asarray(permutation, int)
+        atom_residual = port_residual = 0.0
 
-        maximum_atom_residual = 0.0
-        maximum_port_residual = 0.0
-        for operation_index in orbit.stabilizer_operation_indices:
-            transform = self.cartesian_transform(operation_index, cell)
-            transformed = positions @ transform
-            maximum_atom_residual = max(
-                maximum_atom_residual,
-                self._species_assignment_residual(
-                    transformed,
-                    positions,
-                    symbols,
-                ),
-            )
-
-            offset_map = self.neighbor_offset_map(
-                orbit.representative,
-                orbit.representative,
-                int(operation_index),
-            )
-            if permutation.shape != offset_map.shape:
+        for op_index in orbit.stabilizers:
+            op_index = int(op_index)
+            transformed = positions @ self.transform(op_index, cell)
+            atom_residual = max(atom_residual, self.species_residual(transformed, positions, symbols))
+            offsets = self.offset_map(orbit.representative, orbit.representative, op_index)
+            if permutation.shape != offsets.shape:
                 raise ValueError(
-                    f"Representative slot {orbit.representative} has "
-                    f"{len(offset_map)} neighbors but permutation shape "
-                    f"{permutation.shape}."
+                    f"Slot {orbit.representative} has {len(offsets)} neighbors, "
+                    f"but permutation shape is {permutation.shape}."
                 )
-            source_atoms = connection_indices[permutation]
-            target_atoms = connection_indices[permutation[offset_map]]
-            port_residuals = np.linalg.norm(
-                transformed[source_atoms] - positions[target_atoms],
-                axis=1,
-            )
-            maximum_port_residual = max(
-                maximum_port_residual,
-                float(np.max(port_residuals, initial=0.0)),
-            )
+            source_atoms = connections[permutation]
+            target_atoms = connections[permutation[offsets]]
+            residuals = np.linalg.norm(transformed[source_atoms] - positions[target_atoms], axis=1)
+            port_residual = max(port_residual, float(np.max(residuals, initial=0)))
 
-        maximum_residual = max(
-            maximum_atom_residual,
-            maximum_port_residual,
-        )
+        maximum = max(atom_residual, port_residual)
         return {
             "tag": int(orbit.tag),
             "representative": int(orbit.representative),
-            "orbit_size": int(len(orbit.member_indices)),
-            "stabilizer_order": int(
-                len(orbit.stabilizer_operation_indices)
-            ),
+            "orbit_size": int(len(orbit.members)),
+            "stabilizer_order": int(len(orbit.stabilizers)),
             "tolerance": float(tolerance),
-            "max_atom_residual": float(maximum_atom_residual),
-            "max_port_residual": float(maximum_port_residual),
-            "compatible": bool(maximum_residual <= tolerance),
+            "max_atom_residual": float(atom_residual),
+            "max_port_residual": float(port_residual),
+            "compatible": maximum <= tolerance,
         }
 
-    def optimize_edge_stabilizer_torsion(
-        self,
-        orbit,
-        representative_block,
-        representative_permutation,
-        cell,
-        tolerance,
-    ):
-        """Use the free linker-axis torsion to satisfy a site stabilizer."""
+    def fit_torsion(self, orbit, block, permutation, cell, tolerance):
+        """Fit the free linker-axis torsion to an edge-slot stabilizer."""
 
-        if not representative_block.is_edge:
+        if not block.is_edge:
             raise ValueError("Stabilizer torsion optimization requires an edge.")
 
-        initial = self.stabilizer_diagnostic(
-            orbit,
-            representative_block,
-            representative_permutation,
-            cell,
-            tolerance,
-        )
-        initial_residual = max(
-            initial["max_atom_residual"],
-            initial["max_port_residual"],
-        )
+        initial = self.diagnose(orbit, block, permutation, cell, tolerance)
+        residual = max(initial["max_atom_residual"], initial["max_port_residual"])
         initial.update(
-            {
-                "torsion_optimized": False,
-                "torsion_angle_degrees": 0.0,
-                "best_torsion_residual": float(initial_residual),
-            }
+            torsion_optimized=False,
+            torsion_angle_degrees=0.0,
+            best_torsion_residual=float(residual),
         )
-        if (
-            initial["compatible"]
-            or len(orbit.stabilizer_operation_indices) == 1
-        ):
-            return representative_block, initial
+        if initial["compatible"] or len(orbit.stabilizers) == 1:
+            return block, initial
 
-        permutation = np.asarray(representative_permutation, dtype=int)
-        ports = representative_block.connection_points[permutation]
+        permutation = np.asarray(permutation, int)
+        ports = block.connection_points[permutation]
         axis = ports[1] - ports[0]
         axis /= np.linalg.norm(axis)
-        centroid = representative_block.centroid
-        centered = representative_block.atoms.positions - centroid
-        candidate = representative_block.copy()
+        centroid = block.centroid
+        centered = block.atoms.positions - centroid
+        candidate = block.copy()
 
         def evaluate(angle):
-            wrapped_angle = float(angle % (2.0 * np.pi))
-            rotation = Rotation.from_rotvec(wrapped_angle * axis)
-            positions = rotation.apply(centered) + centroid
+            angle = float(angle % self.tau)
+            positions = Rotation.from_rotvec(angle * axis).apply(centered) + centroid
             candidate.atoms.set_positions(positions)
-            diagnostic = self.stabilizer_diagnostic(
-                orbit,
-                candidate,
-                permutation,
-                cell,
-                tolerance,
-            )
-            residual = max(
-                diagnostic["max_atom_residual"],
-                diagnostic["max_port_residual"],
-            )
-            return float(residual), positions.copy(), diagnostic, wrapped_angle
+            report = self.diagnose(orbit, candidate, permutation, cell, tolerance)
+            residual = max(report["max_atom_residual"], report["max_port_residual"])
+            return float(residual), positions, report, angle
 
-        step = 2.0 * np.pi / _TORSION_GRID_SIZE
-        grid_results = [
-            evaluate(index * step) for index in range(_TORSION_GRID_SIZE)
-        ]
-        best = min(grid_results, key=lambda result: result[0])
+        step = self.tau / self.torsion_steps
+        best = min(
+            (evaluate(i * step) for i in range(self.torsion_steps)),
+            key=lambda item: item[0],
+        )
         if best[0] > tolerance:
-            local = minimize_scalar(
+            result = minimize_scalar(
                 lambda angle: evaluate(angle)[0],
                 bounds=(best[3] - step, best[3] + step),
                 method="bounded",
                 options={"xatol": 1.0e-5, "maxiter": 24},
             )
-            refined = evaluate(local.x)
-            if refined[0] < best[0]:
-                best = refined
+            refined = evaluate(result.x)
+            best = min(best, refined, key=lambda item: item[0])
 
         initial["best_torsion_residual"] = best[0]
         if best[0] > tolerance:
-            return representative_block, initial
+            return block, initial
 
-        optimized = representative_block.copy()
+        optimized = block.copy()
         optimized.atoms.set_positions(best[1])
-        diagnostic = best[2]
-        diagnostic.update(
-            {
-                "torsion_optimized": True,
-                "torsion_angle_degrees": float(np.degrees(best[3])),
-                "best_torsion_residual": best[0],
-            }
+        report = best[2]
+        report.update(
+            torsion_optimized=True,
+            torsion_angle_degrees=float(np.degrees(best[3])),
+            best_torsion_residual=best[0],
         )
-        return optimized, diagnostic
+        return optimized, report
 
     @staticmethod
-    def _species_assignment_residual(transformed, reference, symbols):
+    def species_residual(transformed, reference, symbols):
+        """Return the largest optimal same-species assignment distance."""
+
         maximum = 0.0
         for symbol in np.unique(symbols):
             indices = np.flatnonzero(symbols == symbol)
             distances = np.linalg.norm(
-                transformed[indices, np.newaxis, :]
-                - reference[np.newaxis, indices, :],
+                transformed[indices, None] - reference[None, indices],
                 axis=2,
             )
             rows, columns = linear_sum_assignment(distances)
-            maximum = max(
-                maximum,
-                float(np.max(distances[rows, columns], initial=0.0)),
-            )
+            maximum = max(maximum, float(np.max(distances[rows, columns], initial=0)))
         return maximum
