@@ -6,7 +6,6 @@ from collections import defaultdict
 from dataclasses import dataclass
 
 import numpy as np
-from pymatgen.symmetry.groups import SpaceGroup
 
 
 EPSILON = 1e-12
@@ -32,6 +31,7 @@ class Edge:
         original_topology,
         scaled_topology,
         permutations,
+        symmetry,
         tolerance=2e-3,
     ):
         if tolerance <= 0:
@@ -40,6 +40,7 @@ class Edge:
         self.original = original_topology
         self.scaled = scaled_topology
         self.permutations = permutations
+        self.symmetry = symmetry
         self.tolerance = tolerance
 
         self.original_cell = np.asarray(self.original.atoms.cell, dtype=float)
@@ -50,8 +51,6 @@ class Edge:
         self.original_centers = (
             self.original.atoms.positions @ self.original_cell_inverse
         )
-        self.operations = list(SpaceGroup(self.original.spacegroup).symmetry_ops)
-
         self.edges_by_type = defaultdict(list)
         self.endpoint_order = {}
         self.original_endpoints = {}
@@ -81,15 +80,14 @@ class Edge:
                 if edge_index == representative:
                     continue
 
-                operation_index, operation, endpoint_reversed = (
-                    self._match_operation(representative, edge_index)
+                operation_index, endpoint_reversed = self._operation_for_edge(
+                    representative,
+                    edge_index,
                 )
 
-                # Pymatgen acts on fractional column vectors. Coordinates here
-                # are row vectors, so the fractional rotation is transposed.
                 cartesian_transform = (
                     self.scaled_cell_inverse
-                    @ np.asarray(operation.rotation_matrix, dtype=float).T
+                    @ self.symmetry.rotations[operation_index].T
                     @ self.scaled_cell
                 )
 
@@ -188,21 +186,33 @@ class Edge:
             "least_parallel_cartesian_fallback",
         )
 
-    def _match_operation(self, representative, edge_index):
-        """Find the symmetry operation mapping one edge onto another."""
+    def _operation_for_edge(self, representative, edge_index):
+        """Choose a cached operation and its ordered-endpoint direction."""
 
         representative_center = self.original_centers[representative]
         representative_points = self.original_endpoints[representative]
         target_center = self.original_centers[edge_index]
         target_points = self.original_endpoints[edge_index]
+        mapped_candidates = set(
+            int(index)
+            for index in self.symmetry.operations_between(
+                representative,
+                edge_index,
+            )
+        )
+        candidates = []
+        for raw_index, (operation, operation_index) in enumerate(
+            zip(
+                self.symmetry.raw_operations,
+                self.symmetry.raw_operation_indices,
+            )
+        ):
+            if operation_index not in mapped_candidates:
+                continue
 
-        best_key = None
-        best_operation = None
-        best_operation_index = None
-        best_endpoint_reversed = False
-
-        for operation_index, operation in enumerate(self.operations):
-            center_difference = operation.operate(representative_center) - target_center
+            center_difference = (
+                operation.operate(representative_center) - target_center
+            )
             center_difference -= np.round(center_difference)
             center_error = float(np.linalg.norm(center_difference))
             if center_error >= self.tolerance:
@@ -211,45 +221,41 @@ class Edge:
             transformed_points = np.array(
                 [operation.operate(point) for point in representative_points]
             )
-
             direct_difference = transformed_points - target_points
             direct_difference -= np.round(direct_difference)
             direct_error = float(
                 np.max(np.linalg.norm(direct_difference, axis=1))
             )
-
             reversed_difference = transformed_points - target_points[::-1]
             reversed_difference -= np.round(reversed_difference)
             reversed_error = float(
                 np.max(np.linalg.norm(reversed_difference, axis=1))
             )
-
             endpoint_reversed = reversed_error < direct_error
             endpoint_error = min(direct_error, reversed_error)
             key = (
                 endpoint_error,
                 endpoint_reversed,
                 center_error,
-                operation_index,
+                raw_index,
+            )
+            candidates.append(
+                (key, int(operation_index), endpoint_reversed)
             )
 
-            if best_key is None or key < best_key:
-                best_key = key
-                best_operation = operation
-                best_operation_index = operation_index
-                best_endpoint_reversed = endpoint_reversed
-
-        if best_key is None or best_key[0] >= self.tolerance:
+        if not candidates:
             raise ValueError(
                 "Could not map a representative topology edge to its "
                 "symmetry-equivalent edge."
             )
-
-        return (
-            best_operation_index,
-            best_operation,
-            best_endpoint_reversed,
-        )
+        best = min(candidates)
+        if best[0][0] >= self.tolerance:
+            raise ValueError(
+                "Could not map a representative topology edge to its "
+                "symmetry-equivalent edge."
+            )
+        _, operation_index, endpoint_reversed = best
+        return operation_index, endpoint_reversed
 
     @staticmethod
     def _perpendicular(vector, axis):

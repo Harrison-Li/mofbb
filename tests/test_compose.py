@@ -18,6 +18,7 @@ import mofbb.compose.scaler as scaler_module
 from mofbb.compose import (
     Builder,
     BuildingBlock,
+    Framework,
     Locator,
     Reconstructor,
     Scaler,
@@ -26,6 +27,7 @@ from mofbb.compose import (
 from mofbb.compose.cli import build_parser, main
 from mofbb.compose.pbc import PBC
 from mofbb.compose.scaler import _objective_value_and_gradient
+from mofbb.decompose.bonding import read_bonded_structure
 
 
 def _write_linear_topology(path: Path) -> Path:
@@ -174,6 +176,45 @@ def test_composer_builds_and_writes_framework(tmp_path: Path) -> None:
     output = tmp_path / "framework.cif"
     framework.write_cif(output)
     assert output.is_file()
+
+
+@pytest.mark.filterwarnings(
+    "ignore:crystal system 'triclinic' is not interpreted.*"
+)
+def test_framework_cif_bond_images_match_serialized_coordinates(
+    tmp_path: Path,
+) -> None:
+    atoms = Atoms(
+        symbols=["O", "O", "C"],
+        scaled_positions=[
+            [0.06959, 0.58473, 0.63876],
+            [0.93041, 0.58519, 0.63800],
+            # Floating-point noise at a crystallographic x=0 plane.
+            [-1.0e-16, 0.61162, 0.68180],
+        ],
+        cell=np.diag([16.028, 16.028, 9.840]),
+        pbc=True,
+    )
+    pairs = ((0, 2), (1, 2))
+    expected_distances = {
+        pair: float(atoms.get_distance(*pair, mic=True))
+        for pair in pairs
+    }
+    framework = Framework(
+        atoms,
+        bonds=np.asarray(pairs, dtype=int),
+        bond_types=["S", "S"],
+        info={},
+    )
+
+    output = tmp_path / "boundary-bonds.cif"
+    framework.write_cif(output)
+    _, written_bonds = read_bonded_structure(output)
+
+    assert set(written_bonds.pairs) == set(pairs)
+    for pair, expected in expected_distances.items():
+        actual = float(np.linalg.norm(written_bonds.vector(*pair)))
+        assert actual == pytest.approx(expected, abs=2.0e-3)
 
 
 def test_edge_frame_uses_transverse_pca(tmp_path: Path) -> None:
@@ -399,7 +440,7 @@ def test_scaler_optimizes_only_node_coordinates(tmp_path: Path, monkeypatch) -> 
     )
 
     assert captured == {
-        "variables": 3 * topology.n_nodes + 9,
+        "variables": 3 * topology.n_nodes + 6,
         "jac": True,
     }
     assert "X" not in framework.atoms.get_chemical_symbols()

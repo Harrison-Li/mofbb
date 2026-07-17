@@ -323,7 +323,7 @@ The source tree is organized by workflow:
 
 ```text
 src/mofbb/
-├── cli.py                   # Compatibility decomposition entry point
+├── cli.py                   
 ├── compose/
 │   ├── cli.py               # Composition CLI
 │   ├── reconstructor.py     # Exact reconstruction

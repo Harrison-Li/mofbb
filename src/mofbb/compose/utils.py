@@ -232,7 +232,7 @@ def read_cgd(filename, node_symbol="C", edge_center_symbol="O"):
     spacegroup = lines[1].split()[1]
 
     # Get cell paremeters and expand cell lengths by 10.
-    cellpar = np.array(lines[2].split()[1:], dtype=np.float32)
+    cellpar = np.array(lines[2].split()[1:], dtype=float)
 
     # Parse node information.
     node_positions = []

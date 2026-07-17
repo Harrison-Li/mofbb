@@ -6,13 +6,12 @@ https://github.com/Sangwon91/PORMAKE/blob/main/src/pormake/framework.py
 import copy
 import os
 import traceback
-from collections import defaultdict
 from pathlib import Path
 
 import ase
-import ase.neighborlist
 import ase.visualize
 import numpy as np
+from ase.geometry import find_mic
 
 from .log import logger
 
@@ -44,8 +43,8 @@ class Framework:
         ``relax_obj`` value, and the ``max_rmsd``/``mean_rmsd`` of the
         node placements. Used when writing CIF comments.
     wrap : bool, optional
-        If ``True`` (default), fold atoms into the unit cell and nudge
-        them off the cell boundary via :meth:`wrap` on construction.
+        If ``True`` (default), fold atoms into the unit cell by exact lattice
+        translations via :meth:`wrap` on construction.
 
     Attributes
     ----------
@@ -71,37 +70,16 @@ class Framework:
             self.wrap()
 
     def wrap(self):
-        """Fold atoms into the cell and off its boundary.
+        """Fold atoms into ``[0, 1)`` using only lattice translations.
 
-        Exists to keep every atom inside the unit cell and, critically,
-        to avoid fractional coordinates that sit exactly on a cell
-        boundary (0 or 1). Building blocks placed by the builder can land
-        slightly outside the cell or precisely on a face; many CIF
-        parsers and visualizers either reject or double-count atoms whose
-        fractional coordinates equal 0 or 1. This routine repeatedly
-        shifts coordinates back into the ``[0, 1)`` range and then nudges
-        any value within ``1e-3`` of a boundary inward (to ``0.0001`` or
-        ``0.9999``) so the emitted structure is numerically safe
-        downstream. Modifies ``self.atoms`` in place.
+        Fractional coordinates are reduced by their integer floor. Unlike
+        boundary nudging, this leaves exact special positions unchanged and
+        therefore cannot lower crystallographic symmetry. Modifies
+        ``self.atoms`` in place.
         """
-        # Cleanup errors.
-        s = self.atoms.get_scaled_positions()
-        while (s >= 1.0).any() and (s < 0.0).any():
-            s = np.where(
-                s < 0.0,
-                s + np.ones_like(s),
-                s,
-            )
-            s = np.where(
-                s >= 1.0,
-                s - np.ones_like(s),
-                s,
-            )
 
-        s[np.abs(s - 1) < 1e-3] = 0.9999
-        s[np.abs(s) < 1e-3] = 0.0001
-
-        self.atoms.set_scaled_positions(s)
+        scaled = self.atoms.get_scaled_positions(wrap=False)
+        self.atoms.set_scaled_positions(scaled - np.floor(scaled))
 
     def write_cif(self, filename):
         """Write the framework to a CIF file.
@@ -215,7 +193,19 @@ class Framework:
 
             symbols = self.atoms.symbols
             charges = self.atoms.get_initial_charges()
-            frac_coords = self.atoms.get_scaled_positions()
+
+            # Build one canonical coordinate representation for the CIF.
+            # Rounding must happen before bond-image calculation because these
+            # are the exact five-decimal coordinates emitted below. The second
+            # modulo maps a rounded 1.00000 back to the canonical 0.00000.
+            frac_coords = np.mod(
+                self.atoms.get_scaled_positions(wrap=False),
+                1.0,
+            )
+            frac_coords = np.mod(
+                np.round(frac_coords, decimals=5),
+                1.0,
+            )
             for i, (sym, pos, charge) in enumerate(zip(symbols, frac_coords, charges)):
                 label = "{}{}".format(sym, i)
                 f.write(
@@ -229,37 +219,36 @@ class Framework:
             f.write("_geom_bond_site_symmetry_2\n")
             f.write("_ccdc_geom_bond_type\n")  # ?????????
 
-            # Make bond type dict.
-            bond_type_dict = {}
-            for (i, j), t in zip(self.bonds, self.bond_types):
-                bond_type_dict[(i, j)] = t
-
-            # Get images and distances.
-            I, J, S, D = ase.neighborlist.neighbor_list(
-                "ijSd", self.atoms, cutoff=6.0
-            )
-            image_dict = {}
-            distance_dict = defaultdict(lambda: 1e30)
+            # Calculate every explicit bond from the same fractional
+            # coordinates written above. find_mic handles triclinic cells.
+            cell = np.asarray(self.atoms.cell, dtype=float)
+            inverse_cell = np.linalg.inv(cell)
             origin = np.array([5, 5, 5])
-            for i, j, s, d in zip(I, J, S, D):
-                # Take minimum image only.
-                if d < distance_dict[(i, j)]:
-                    image_dict[(i, j)] = origin + s
-                    distance_dict[(i, j)] = d
 
-            for bond in self.bonds:
-                i, j = bond
+            for (i, j), bond_type in zip(
+                self.bonds,
+                self.bond_types,
+                strict=True,
+            ):
+                direct_vector = (frac_coords[j] - frac_coords[i]) @ cell
+                mic_vector, distance = find_mic(
+                    direct_vector,
+                    cell,
+                    pbc=self.atoms.pbc,
+                )
+
+                # ASE gives the Cartesian minimum-image vector. Convert its
+                # difference from the direct vector back to a lattice shift.
+                image = np.rint(
+                    (mic_vector - direct_vector) @ inverse_cell
+                ).astype(int)
+                image += origin
 
                 sym = self.atoms.symbols[i]
                 label_i = "{}{}".format(sym, i)
 
                 sym = self.atoms.symbols[j]
                 label_j = "{}{}".format(sym, j)
-
-                distance = distance_dict[(i, j)]
-                bond_type = bond_type_dict[(i, j)]
-
-                image = image_dict[(i, j)]
 
                 if (image == origin).all():
                     f.write(

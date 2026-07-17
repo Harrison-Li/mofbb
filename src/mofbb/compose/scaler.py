@@ -15,7 +15,17 @@ import scipy as sp
 import scipy.optimize
 
 from .log import logger
-from .utils import bound_values
+from .symmetry_scaling import SymmetryReducedParameterization
+
+
+def _wrap_fractional(values):
+    """Return a canonical periodic representative without nudging boundaries."""
+
+    wrapped = np.mod(values, 1.0)
+    on_boundary = (np.abs(wrapped) < 1.0e-12) | (
+        np.abs(wrapped - 1.0) < 1.0e-12
+    )
+    return np.where(on_boundary, 0.0, wrapped)
 
 
 def _objective_value_and_gradient(
@@ -79,8 +89,8 @@ class Scaler:
     Internally, :meth:`scale` derives a set of target dot products
     between connection-point vectors (encoding both bond lengths and
     angles) from the building blocks, then runs an L-BFGS-B geometry
-    optimization over the scaled atomic positions and the 3x3 cell matrix
-    to match those targets. It
+    optimization over crystallographically independent node displacements
+    and point-group-invariant cell strains to match those targets. It
     finishes by rebuilding the topology's neighbor list with the
     rescaled edge geometry.
 
@@ -305,11 +315,17 @@ class Scaler:
         ij = slot_to_node[ij]
         ik = slot_to_node[ik]
 
-        # Analytic NumPy gradient: edge centers are reconstructed below, so
-        # only node coordinates and the cell belong in the optimization.
+        parameterization = SymmetryReducedParameterization(topology)
+
+        # Edge centers are reconstructed below. The objective still evaluates
+        # full node positions and a full cell, while the optimizer sees only
+        # independent orbit amplitudes and invariant cell strains.
         def fun_and_jac(x):
-            s = np.reshape(x[:-9], (len(node_indices), 3))
-            c = np.reshape(x[-9:], (3, 3))
+            node_parameters, cell_parameters = parameterization.split(x)
+            s = parameterization.positions(node_parameters)
+            c, cell_derivatives = (
+                parameterization.cell.cell_and_derivatives(cell_parameters)
+            )
             value, position_gradient, cell_gradient = (
                 _objective_value_and_gradient(
                     s,
@@ -323,26 +339,25 @@ class Scaler:
                 )
             )
             gradient = np.concatenate(
-                [position_gradient.reshape(-1), cell_gradient.reshape(-1)]
+                [
+                    parameterization.pos_grad(position_gradient),
+                    parameterization.cell.grad(
+                        cell_gradient,
+                        cell_derivatives,
+                    ),
+                ]
             )
             return value, gradient
 
-        # Prepare geometry optimization. Cell[:] casts ase.Cell to NumPy.
-        c = topology.atoms.cell[:]
-        s = topology.atoms.get_scaled_positions()[node_indices]
-        x0 = np.concatenate([s.reshape(-1), c.reshape(-1)])
+        x0 = np.zeros(parameterization.n_parameters, dtype=float)
+        bounds = list(parameterization.position_bounds)
+        bounds.extend([(None, None)] * parameterization.n_cell_parameters)
 
-        # Bounds.
-        zeros = np.zeros(shape=s.size)
-        ones = np.ones(shape=s.size)
-
-        # Constaints for scaled positions.
-        bounds = np.stack([zeros, ones], axis=1).tolist()
-        # No constraints on cell matrix values.
-        for i in range(9):
-            bounds.append([None, None])
-
-        logger.info("Topology optimization starts.")
+        logger.info(
+            "Topology optimization starts with %d node and %d cell variables.",
+            parameterization.n_node_parameters,
+            parameterization.n_cell_parameters,
+        )
         # Perform optimization.
         result = sp.optimize.minimize(
             x0=x0,
@@ -353,11 +368,10 @@ class Scaler:
             options={"maxiter": 1000, "disp": False},
         )
 
-        # Get output x.
-        x = result.x
-        c = x[-9:].reshape(3, 3)
-        s = topology.atoms.get_scaled_positions()
-        s[node_indices] = x[:-9].reshape(len(node_indices), 3)
+        node_parameters, cell_parameters = parameterization.split(result.x)
+        c, _ = parameterization.cell.cell_and_derivatives(cell_parameters)
+        s = topology.atoms.get_scaled_positions(wrap=False)
+        s[node_indices] = parameterization.positions(node_parameters)
 
         logger.info("MESSAGE: %s", result.message)
         logger.info("SUCCESS: %s", result.success)
@@ -394,10 +408,8 @@ class Scaler:
             # Select center position wrapped by unit cell.
             rc = ri + 0.5 * d
             sc = np.dot(rc, invc)
-            # Boundary wrap
-            sc = bound_values(sc)
-            if (sc < 0).any() or (sc > 1).any():
-                rc = np.around(rj - 0.5 * d, decimals=3)
+            sc = _wrap_fractional(sc)
+            rc = np.dot(sc, c)
             r[e] = rc
 
             # Save in proper order.
@@ -423,7 +435,7 @@ class Scaler:
 
         # Make scaled topology.
         s = np.dot(r, invc)
-        s = bound_values(s)
+        s = _wrap_fractional(s)
         r = np.dot(s, c)
 
         scaled_topology = topology.copy()
