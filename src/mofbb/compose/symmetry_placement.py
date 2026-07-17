@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from threading import RLock
+from weakref import WeakKeyDictionary
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment, minimize_scalar
@@ -25,32 +27,97 @@ class SlotOrbit:
 class SymmetryPlacement:
     """Map topology slots and their ports under a space group."""
 
+    _cache = WeakKeyDictionary()
+    _cache_lock = RLock()
+
+    @staticmethod
+    def topology_signature(topology):
+        """Return the topology state that determines symmetry mappings."""
+
+        groups = tuple(topology.neighbor_list)
+        counts = np.asarray([len(group) for group in groups], dtype=np.int64)
+        indices = np.asarray(
+            [neighbor.index for group in groups for neighbor in group],
+            dtype=np.int64,
+        )
+        vectors = np.asarray(
+            [neighbor.distance_vector for group in groups for neighbor in group],
+            dtype=float,
+        ).reshape(-1, 3)
+
+        def array_signature(values, dtype):
+            array = np.ascontiguousarray(values, dtype=dtype)
+            return array.shape, array.tobytes()
+
+        return (
+            str(topology.spacegroup),
+            array_signature(topology.atoms.cell, float),
+            array_signature(topology.atoms.positions, float),
+            array_signature(topology.atoms.get_tags(), np.int64),
+            array_signature(counts, np.int64),
+            array_signature(indices, np.int64),
+            array_signature(vectors, float),
+        )
+
+    @classmethod
+    def cached(cls, topology, mapping_tolerance=1.0e-4):
+        """Return a validated placement cache entry for the topology state."""
+
+        key = (
+            cls,
+            float(mapping_tolerance),
+            cls.topology_signature(topology),
+        )
+        with cls._cache_lock:
+            cached = cls._cache.get(topology)
+            if cached is not None and cached[0] == key:
+                return cached[1]
+
+        placement = cls(topology, mapping_tolerance=mapping_tolerance)
+        with cls._cache_lock:
+            cached = cls._cache.get(topology)
+            if cached is not None and cached[0] == key:
+                return cached[1]
+            cls._cache[topology] = (key, placement)
+        return placement
+
+    @classmethod
+    def clear_cache(cls):
+        """Clear cached topology placements, primarily for controlled tests."""
+
+        with cls._cache_lock:
+            cls._cache.clear()
+
     def __init__(self, topology, mapping_tolerance=1.0e-4):
         if mapping_tolerance <= 0:
             raise ValueError("Symmetry mapping tolerance must be positive.")
 
-        self.topology = topology
         self.mapping_tolerance = float(mapping_tolerance)
         self.orthogonality_tolerance = 1.0e-8
         self.torsion_steps = 24
         self.tau = 2.0 * np.pi
         self.operations = Symmetry.operations(topology.spacegroup)
+        self.raw_operations = Symmetry.raw_operations(topology.spacegroup)
+        self.raw_operation_indices = Symmetry.raw_operation_indices(
+            topology.spacegroup
+        )
         self.rotations = np.asarray([op.rotation_matrix for op in self.operations], float)
         self.translations = np.asarray([op.translation_vector for op in self.operations], float)
         self.positions = np.asarray(topology.atoms.get_scaled_positions(wrap=True), float)
         self.tags = np.asarray(topology.atoms.get_tags(), int)
-        self.neighbor_indices, self.neighbor_vectors = self.read_neighbors()
+        self.neighbor_indices, self.neighbor_vectors = self.read_neighbors(topology)
         self.operation_mappings = self.map_slots()
         self.identity_operation_index = self.find_identity()
         self.check_links()
         self.node_orbits = self.make_orbits(topology.node_indices)
         self.edge_orbits = self.make_orbits(topology.edge_indices)
 
-    def read_neighbors(self):
+    @staticmethod
+    def read_neighbors(topology):
         """Return neighbor indices and fractional neighbor vectors."""
 
-        inverse = np.linalg.inv(np.asarray(self.topology.atoms.cell, float))
-        groups = self.topology.neighbor_list
+        inverse = np.linalg.inv(np.asarray(topology.atoms.cell, float))
+        groups = topology.neighbor_list
         indices = tuple(np.asarray([item.index for item in group], int) for group in groups)
         vectors = tuple(
             np.asarray([item.distance_vector for item in group], float).reshape(-1, 3) @ inverse
@@ -157,6 +224,14 @@ class SymmetryPlacement:
         if len(matches) != 1:
             raise ValueError(f"Slot {member} is not a unique member of orbit tag {orbit.tag}.")
         return int(orbit.operations[int(matches[0])])
+
+    def operations_between(self, source, target):
+        """Return operation indices that map one slot onto another."""
+
+        matches = np.flatnonzero(self.operation_mappings[:, source] == target)
+        if not len(matches):
+            raise ValueError(f"No operation maps slot {source} to slot {target}.")
+        return matches
 
     def offset_map(self, source, target, op_index):
         """Map source neighbor offsets onto target neighbor offsets."""

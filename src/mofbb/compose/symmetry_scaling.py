@@ -27,8 +27,29 @@ class Symmetry:
 
     @staticmethod
     @lru_cache(maxsize=None)
+    def operation_data(symbol):
+        raw = tuple(SpaceGroup(symbol).symmetry_ops)
+        ordered = tuple(sorted(raw, key=Symmetry.key))
+        ordered_indices = {
+            Symmetry.key(operation): index
+            for index, operation in enumerate(ordered)
+        }
+        raw_to_ordered = tuple(
+            ordered_indices[Symmetry.key(operation)] for operation in raw
+        )
+        return raw, ordered, raw_to_ordered
+
+    @staticmethod
     def operations(symbol):
-        return tuple(sorted(SpaceGroup(symbol).symmetry_ops, key=Symmetry.key))
+        return Symmetry.operation_data(symbol)[1]
+
+    @staticmethod
+    def raw_operations(symbol):
+        return Symmetry.operation_data(symbol)[0]
+
+    @staticmethod
+    def raw_operation_indices(symbol):
+        return Symmetry.operation_data(symbol)[2]
 
     @staticmethod
     def null_space(constraints, columns, null_tol=1.0e-10):

@@ -225,7 +225,7 @@ class Builder:
         # locator for bb locations.
         locator = self.locator
         pbc = PBC()
-        symmetry = SymmetryPlacement(topology)
+        symmetry = SymmetryPlacement.cached(topology)
 
         # Locate nodes and edges.
         located_bbs = [None for _ in range(topology.n_slots)]
@@ -619,11 +619,19 @@ class Builder:
             perms=permutations,
             return_result=True,
         )
-        edge_targets = Edge(
-            original_topology,
-            topology,
-            permutations,
-        ).build()
+        has_edge_blocks = any(
+            located_bbs[int(edge_index)] is not None
+            for edge_index in topology.edge_indices
+        )
+        if has_edge_blocks:
+            edge_targets = Edge(
+                original_topology,
+                topology,
+                permutations,
+                symmetry,
+            ).build()
+        else:
+            edge_targets = {}
         edge_frame_diagnostics = []
 
         rmsd_values = []

@@ -24,6 +24,7 @@ from pymatgen.symmetry.analyzer import PointGroupAnalyzer
 
 from mofbb.compose import Builder, BuildingBlock, Topology
 from mofbb.compose.log import logger
+from mofbb.decompose.bonding import read_bonded_structure
 
 
 MOF_BUILDER_ROOT = Path(__file__).resolve().parents[1]
@@ -421,6 +422,44 @@ def build_and_validate(
     written = Counter(site.specie.symbol for site in structure)
     if len(structure) != len(framework.atoms) or written != expected:
         raise ValueError("MOFBB CIF changed atom count or composition")
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="crystal system 'triclinic' is not interpreted.*",
+        )
+        _, written_bonds = read_bonded_structure(cif_path)
+
+    expected_pairs = {
+        tuple(sorted((int(i), int(j))))
+        for i, j in framework.bonds
+    }
+    written_pairs = set(written_bonds.pairs)
+    if written_pairs != expected_pairs:
+        raise ValueError(
+            "MOFBB CIF changed bond connectivity: "
+            f"expected {len(expected_pairs)} unique bonds, "
+            f"found {len(written_pairs)}"
+        )
+
+    for i, j in sorted(expected_pairs):
+        expected_distance = float(
+            framework.atoms.get_distance(i, j, mic=True)
+        )
+        written_distance = float(
+            np.linalg.norm(written_bonds.vector(i, j))
+        )
+        if not np.isclose(
+            written_distance,
+            expected_distance,
+            atol=0.01,
+            rtol=0.0,
+        ):
+            raise ValueError(
+                f"MOFBB CIF changed bond {i}-{j} from "
+                f"{expected_distance:.3f} A to "
+                f"{written_distance:.3f} A during serialization"
+            )
 
     return {
         "num_atoms": len(structure),

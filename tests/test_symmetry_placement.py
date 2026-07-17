@@ -8,7 +8,9 @@ from pymatgen.symmetry.groups import SpaceGroup
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial.transform import Rotation
 
+import mofbb.compose.builder as builder_module
 from mofbb.compose import Builder, BuildingBlock, Framework, Locator, Topology
+from mofbb.compose.edge import Edge
 from mofbb.compose.symmetry_placement import SymmetryPlacement
 
 
@@ -196,6 +198,103 @@ def test_port_permutations_follow_operation_induced_neighbors(
                 member_permutation[offset_map],
                 representative_permutation,
             )
+
+
+def test_cached_placement_invalidates_after_topology_mutation(
+    tmp_path: Path,
+) -> None:
+    topology = Topology(
+        _write_p4mm_cycle_topology(tmp_path / "p4mm-cycle.cgd")
+    )
+    SymmetryPlacement.clear_cache()
+
+    first = SymmetryPlacement.cached(topology)
+    assert SymmetryPlacement.cached(topology) is first
+
+    topology.atoms.positions += np.asarray(topology.atoms.cell)[0]
+    replacement = SymmetryPlacement.cached(topology)
+    assert replacement is not first
+    np.testing.assert_array_equal(
+        replacement.operation_mappings,
+        first.operation_mappings,
+    )
+    SymmetryPlacement.clear_cache()
+
+
+def test_builder_skips_edge_orientation_without_edge_blocks(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    topology = Topology(
+        _write_p4mm_cycle_topology(tmp_path / "p4mm-cycle.cgd")
+    )
+    node = BuildingBlock(_write_linear_node(tmp_path / "linear-node.xyz"))
+
+    class UnexpectedEdge:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("Edge orientation should not be constructed")
+
+    monkeypatch.setattr(builder_module, "Edge", UnexpectedEdge)
+    framework = Builder().build_by_type(
+        topology,
+        {0: node},
+        accuracy=3,
+        tolerance=1.0,
+        scale=2.0,
+    )
+
+    assert len(framework.atoms) > 0
+    assert framework.info["edge_frame_diagnostics"] == []
+
+
+def test_edge_targets_use_cached_slot_operations(tmp_path: Path) -> None:
+    topology = Topology(
+        _write_p4mm_cycle_topology(tmp_path / "p4mm-cycle.cgd")
+    )
+    node = BuildingBlock(_write_linear_node(tmp_path / "linear-node.xyz"))
+    edge = BuildingBlock(_write_linear_node(tmp_path / "linear-edge.xyz"))
+    edge_type = tuple(topology.unique_edge_types[0])
+    framework = Builder().build_by_type(
+        topology,
+        {0: node},
+        {edge_type: edge},
+        accuracy=3,
+        tolerance=1.0,
+        scale=2.0,
+    )
+
+    placement = SymmetryPlacement.cached(topology)
+    permutations = framework.info["permutations"]
+    targets = Edge(
+        topology,
+        framework.info["topology"],
+        permutations,
+        placement,
+    ).build()
+    for edge_index, target in targets.items():
+        if edge_index == target.representative_edge:
+            assert target.operation_index == -1
+            continue
+
+        assert (
+            placement.operation_mappings[
+                target.operation_index,
+                target.representative_edge,
+            ]
+            == edge_index
+        )
+        offsets = placement.offset_map(
+            target.representative_edge,
+            edge_index,
+            target.operation_index,
+        )
+        source_order = np.argsort(permutations[target.representative_edge])
+        target_order = np.argsort(permutations[edge_index])
+        expected_reversed = np.array_equal(
+            offsets[source_order],
+            target_order[::-1],
+        )
+        assert target.endpoint_reversed == expected_reversed
 
 
 def test_edge_torsion_is_chosen_from_site_stabilizer(tmp_path: Path) -> None:

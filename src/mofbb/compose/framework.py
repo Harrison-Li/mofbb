@@ -6,13 +6,12 @@ https://github.com/Sangwon91/PORMAKE/blob/main/src/pormake/framework.py
 import copy
 import os
 import traceback
-from collections import defaultdict
 from pathlib import Path
 
 import ase
-import ase.neighborlist
 import ase.visualize
 import numpy as np
+from ase.geometry import find_mic
 
 from .log import logger
 
@@ -194,7 +193,19 @@ class Framework:
 
             symbols = self.atoms.symbols
             charges = self.atoms.get_initial_charges()
-            frac_coords = self.atoms.get_scaled_positions()
+
+            # Build one canonical coordinate representation for the CIF.
+            # Rounding must happen before bond-image calculation because these
+            # are the exact five-decimal coordinates emitted below. The second
+            # modulo maps a rounded 1.00000 back to the canonical 0.00000.
+            frac_coords = np.mod(
+                self.atoms.get_scaled_positions(wrap=False),
+                1.0,
+            )
+            frac_coords = np.mod(
+                np.round(frac_coords, decimals=5),
+                1.0,
+            )
             for i, (sym, pos, charge) in enumerate(zip(symbols, frac_coords, charges)):
                 label = "{}{}".format(sym, i)
                 f.write(
@@ -208,37 +219,36 @@ class Framework:
             f.write("_geom_bond_site_symmetry_2\n")
             f.write("_ccdc_geom_bond_type\n")  # ?????????
 
-            # Make bond type dict.
-            bond_type_dict = {}
-            for (i, j), t in zip(self.bonds, self.bond_types):
-                bond_type_dict[(i, j)] = t
-
-            # Get images and distances.
-            I, J, S, D = ase.neighborlist.neighbor_list(
-                "ijSd", self.atoms, cutoff=6.0
-            )
-            image_dict = {}
-            distance_dict = defaultdict(lambda: 1e30)
+            # Calculate every explicit bond from the same fractional
+            # coordinates written above. find_mic handles triclinic cells.
+            cell = np.asarray(self.atoms.cell, dtype=float)
+            inverse_cell = np.linalg.inv(cell)
             origin = np.array([5, 5, 5])
-            for i, j, s, d in zip(I, J, S, D):
-                # Take minimum image only.
-                if d < distance_dict[(i, j)]:
-                    image_dict[(i, j)] = origin + s
-                    distance_dict[(i, j)] = d
 
-            for bond in self.bonds:
-                i, j = bond
+            for (i, j), bond_type in zip(
+                self.bonds,
+                self.bond_types,
+                strict=True,
+            ):
+                direct_vector = (frac_coords[j] - frac_coords[i]) @ cell
+                mic_vector, distance = find_mic(
+                    direct_vector,
+                    cell,
+                    pbc=self.atoms.pbc,
+                )
+
+                # ASE gives the Cartesian minimum-image vector. Convert its
+                # difference from the direct vector back to a lattice shift.
+                image = np.rint(
+                    (mic_vector - direct_vector) @ inverse_cell
+                ).astype(int)
+                image += origin
 
                 sym = self.atoms.symbols[i]
                 label_i = "{}{}".format(sym, i)
 
                 sym = self.atoms.symbols[j]
                 label_j = "{}{}".format(sym, j)
-
-                distance = distance_dict[(i, j)]
-                bond_type = bond_type_dict[(i, j)]
-
-                image = image_dict[(i, j)]
 
                 if (image == origin).all():
                     f.write(
