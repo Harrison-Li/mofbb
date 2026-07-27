@@ -182,6 +182,10 @@ class Builder:
             ``scale`` : float
                 Maximum fused-bond distance as a multiplier of the two
                 atoms' summed ASE covalent radii; default ``1.2``.
+            ``overlap_scale`` : float
+                Minimum allowed interatomic distance as a multiplier of the
+                smaller ASE covalent radius; default ``1.0``. Set to ``0`` to
+                disable the atomic-overlap gate.
             ``symmetry_tolerance`` : float
                 Cartesian tolerance, in Å, used only to diagnose whether a
                 representative building block obeys its site stabilizer;
@@ -200,8 +204,9 @@ class Builder:
             minimum RMSD was computed incorrectly.
         ValueError
             If an X site lacks exactly one real anchor or a topology
-            connection fails either geometric gate. X atoms are not removed
-            in these cases.
+            connection fails the requested chemistry gate or either geometric
+            gate, or if the assembled real atoms overlap. No invalid framework
+            is returned.
         """
 
         # Parse keyword arguments.
@@ -212,6 +217,11 @@ class Builder:
 
         tolerance = kwargs.get("tolerance", PBC.tolerance)
         scale = kwargs.get("scale", PBC.scale)
+        overlap_scale = float(
+            kwargs.get("overlap_scale", PBC.overlap_scale)
+        )
+        if overlap_scale < 0.0:
+            raise ValueError("overlap_scale cannot be negative.")
         symmetry_tolerance = float(kwargs.get("symmetry_tolerance", 0.1))
         if symmetry_tolerance <= 0.0:
             raise ValueError("symmetry_tolerance must be positive.")
@@ -570,6 +580,7 @@ class Builder:
             if building_block is not None:
                 building_block.connection_point_anchor_indices
 
+        forbidden_connections = []
         predicted_failures = []
         for edge_index in topology.edge_indices:
             node_x_i, node_x_j = pbc._find_matched_x_sites(
@@ -593,12 +604,27 @@ class Builder:
             for bb_i, x_i, bb_j, x_j in port_pairs:
                 symbol_i, _, cap_i = pbc._connection_port(bb_i, x_i)
                 symbol_j, _, cap_j = pbc._connection_port(bb_j, x_j)
+                if pbc.is_carbon_metal_pair(symbol_i, symbol_j):
+                    forbidden_connections.append(
+                        (edge_index, symbol_i, symbol_j)
+                    )
+                    continue
                 predicted = cap_i + cap_j
                 limit = pbc.max_bond_len(symbol_i, symbol_j, scale)
                 if predicted > limit:
                     predicted_failures.append(
                         (edge_index, symbol_i, symbol_j, predicted, limit)
                     )
+
+        if forbidden_connections:
+            edge_index, symbol_i, symbol_j = forbidden_connections[0]
+            raise ValueError(
+                "Forbidden fused-bond chemistry rejected assembly: "
+                f"{len(forbidden_connections)} topology connections would "
+                "directly join carbon to a metal. "
+                f"Edge {edge_index} {symbol_i}-{symbol_j}. "
+                "Resample chemically compatible building blocks or ports."
+            )
 
         if predicted_failures:
             edge_index, symbol_i, symbol_j, distance, limit = predicted_failures[0]
@@ -1102,6 +1128,23 @@ class Builder:
 
         del framework_atoms[[a.symbol == "X" for a in framework_atoms]]
 
+        overlaps = pbc.calc_atomic_overlaps(
+            framework_atoms,
+            scale=overlap_scale,
+        )
+        if overlaps:
+            atom_i, atom_j, distance, limit = overlaps[0]
+            symbols = framework_atoms.get_chemical_symbols()
+            raise ValueError(
+                "Atomic-overlap quality gate rejected assembly: "
+                f"{len(overlaps)} atom pairs are closer than "
+                f"{overlap_scale:.3f} times their smaller ASE covalent "
+                "radius. "
+                f"Atoms {atom_i}-{atom_j} ({symbols[atom_i]}-"
+                f"{symbols[atom_j]}): {distance:.3f} Å < {limit:.3f} Å. "
+                "Resample the building blocks or topology."
+            )
+
         symmetry_diagnostics["nodes"].sort(
             key=lambda item: item["representative"]
         )
@@ -1117,6 +1160,7 @@ class Builder:
             "mean_rmsd": np.mean(rmsd_values),
             "tolerance": tolerance,
             "scale": scale,
+            "overlap_scale": overlap_scale,
             "edge_frame_diagnostics": edge_frame_diagnostics,
             "symmetry_placement_diagnostics": symmetry_diagnostics,
         }

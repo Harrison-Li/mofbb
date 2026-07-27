@@ -97,6 +97,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--atomic-overlap-scale",
+        type=float,
+        default=1.0,
+        help=(
+            "Minimum allowed atom-pair distance as a multiplier of the "
+            "smaller ASE covalent radius. Use 0 to disable. Default: 1.0."
+        ),
+    )
+    parser.add_argument(
         "--no-wrap",
         action="store_true",
         help="Do not wrap composed atoms into the unit cell.",
@@ -165,6 +174,7 @@ def main(argv: list[str] | None = None) -> int:
                 accuracy=args.accuracy,
                 tolerance=args.x_mid_tolerance,
                 scale=args.fused_bond_scale,
+                overlap_scale=args.atomic_overlap_scale,
                 wrap=not args.no_wrap,
             )
         args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -1,17 +1,113 @@
 import numpy as np
 from ase.data import atomic_numbers, covalent_radii
+from ase.geometry import find_mic
+from ase.neighborlist import neighbor_list
+from pymatgen.core import Element
 
 
 class PBC:
     """
     Utilities for validating connections under periodic boundary conditions.
 
-    Distances are evaluated using ASE's minimum-image convention through
-    ``atoms.get_distance(..., mic=True)``.
+    Distances are evaluated using ASE's minimum-image convention.
     """
 
     scale = 1.2
     tolerance = 0.3
+    overlap_scale = 1.0
+
+    @staticmethod
+    def _pair_distances(
+        atoms,
+        pairs: list[tuple[int, int]],
+    ) -> np.ndarray:
+        """Return minimum-image distances for explicit atom pairs."""
+        pair_indices = np.asarray(pairs, dtype=int)
+        if pair_indices.size == 0:
+            return np.empty(0, dtype=float)
+
+        vectors = (
+            atoms.positions[pair_indices[:, 1]]
+            - atoms.positions[pair_indices[:, 0]]
+        )
+        _, distances = find_mic(vectors, atoms.cell, atoms.pbc)
+        return np.asarray(distances, dtype=float)
+
+    @classmethod
+    def calc_atomic_overlaps(
+        cls,
+        atoms,
+        scale: float | None = None,
+    ) -> list[tuple[int, int, float, float]]:
+        """Return atom pairs closer than their smaller covalent radius.
+
+        Candidate pairs are found with ASE's periodic neighbor list and then
+        filtered using the strict overlap criterion
+        ``distance < scale * min(radius_i, radius_j)``. For a pair with
+        multiple periodic images, only its shortest contact is returned.
+        """
+        if scale is None:
+            scale = cls.overlap_scale
+        scale = float(scale)
+        if scale < 0.0:
+            raise ValueError("Atomic-overlap scale cannot be negative.")
+        if not len(atoms):
+            return []
+        if scale == 0.0:
+            return []
+
+        radii = np.asarray(covalent_radii[atoms.numbers], dtype=float)
+
+        # ASE adds the two per-atom cutoffs. Half-radii therefore produce
+        # (r_i + r_j) / 2, which is always a safe candidate cutoff for
+        # min(r_i, r_j).
+        indices_i, indices_j, distances = neighbor_list(
+            "ijd",
+            atoms,
+            cutoff=0.5 * scale * radii,
+            self_interaction=False,
+        )
+
+        shortest_contacts = {}
+        for atom_i, atom_j, distance in zip(
+            indices_i,
+            indices_j,
+            distances,
+            strict=True,
+        ):
+            atom_i = int(atom_i)
+            atom_j = int(atom_j)
+            distance = float(distance)
+            limit = float(scale * min(radii[atom_i], radii[atom_j]))
+            if distance >= limit:
+                continue
+
+            pair = tuple(sorted((atom_i, atom_j)))
+            previous = shortest_contacts.get(pair)
+            if previous is None or distance < previous[2]:
+                shortest_contacts[pair] = (
+                    pair[0],
+                    pair[1],
+                    distance,
+                    limit,
+                )
+
+        return [shortest_contacts[pair] for pair in sorted(shortest_contacts)]
+
+    @staticmethod
+    def is_carbon_metal_pair(symbol_i: str, symbol_j: str) -> bool:
+        """Return whether a proposed bond directly joins carbon to a metal."""
+        if symbol_i == "C":
+            other = symbol_j
+        elif symbol_j == "C":
+            other = symbol_i
+        else:
+            return False
+
+        try:
+            return bool(Element(other).is_metal)
+        except ValueError as exc:
+            raise ValueError(f"Unknown chemical symbol: {other!r}") from exc
 
     @classmethod
     def calc_x_mid(
@@ -24,15 +120,16 @@ class PBC:
         if tolerance is None:
             tolerance = cls.tolerance
 
-        failures = []
-
-        for x_i, x_j in x_pairs:
-            distance = float(atoms.get_distance(x_i, x_j, mic=True))
-
-            if distance > tolerance:
-                failures.append((x_i, x_j, distance))
-
-        return failures
+        distances = cls._pair_distances(atoms, x_pairs)
+        return [
+            (x_i, x_j, float(distance))
+            for (x_i, x_j), distance in zip(
+                x_pairs,
+                distances,
+                strict=True,
+            )
+            if distance > tolerance
+        ]
 
     @classmethod
     def max_bond_len(
@@ -65,8 +162,7 @@ class PBC:
         if scale is None:
             scale = cls.scale
 
-        failures = []
-
+        atom_pairs = []
         for x_i, x_j in x_pairs:
             try:
                 atom_i = x_neighbors[x_i]
@@ -77,20 +173,25 @@ class PBC:
                     f"X site {exc.args[0]} does not have a mapped neighbor."
                 ) from exc
 
-            distance = float(
-                atoms.get_distance(atom_i, atom_j, mic=True)
+            atom_pairs.append((atom_i, atom_j))
+
+        pair_indices = np.asarray(atom_pairs, dtype=int).reshape(-1, 2)
+        distances = cls._pair_distances(atoms, atom_pairs)
+        radii = covalent_radii[atoms.numbers]
+        limits = scale * (
+            radii[pair_indices[:, 0]] + radii[pair_indices[:, 1]]
+        )
+
+        return [
+            (atom_i, atom_j, float(distance), float(limit))
+            for (atom_i, atom_j), distance, limit in zip(
+                atom_pairs,
+                distances,
+                limits,
+                strict=True,
             )
-
-            limit = cls.max_bond_len(
-                atoms[atom_i].symbol,
-                atoms[atom_j].symbol,
-                scale=scale,
-            )
-
-            if distance > limit:
-                failures.append((atom_i, atom_j, distance, limit))
-
-        return failures
+            if distance > limit
+        ]
 
     def _find_matched_x_sites(
         self,

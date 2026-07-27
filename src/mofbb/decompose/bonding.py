@@ -112,6 +112,12 @@ def build_bond_network_from_cif(cif: str | Path, atoms: ase.Atoms) -> BondNetwor
     label_to_index = _atom_label_to_index(loops)
     if not label_to_index:
         return None
+    if len(label_to_index) != len(atoms):
+        # ASE may expand symmetry-equivalent sites or remove duplicate sites
+        # while reading a CIF.  In either case, atom-row indices no longer map
+        # one-to-one onto the parsed Atoms object, so the raw bond loop is
+        # unsafe to use.  Let the caller fall back to distance-based bonding.
+        return None
 
     bond_loop = _geom_bond_loop(loops)
     if bond_loop is None:
