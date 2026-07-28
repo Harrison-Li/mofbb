@@ -11,7 +11,6 @@ import warnings
 
 import ase
 import ase.io
-from ase.geometry import find_mic
 import networkx as nx
 import numpy as np
 
@@ -519,22 +518,44 @@ def _reconnect_nearby_terminal_components(
         for index, component in enumerate(components)
         for atom_index in component
     }
-    candidates: list[tuple[float, int, int]] = []
-    for i, symbol_i in enumerate(symbols):
-        if not _is_terminal_carbon(i, symbols, adjacency):
+    terminal_indices = [
+        atom_index
+        for atom_index in range(len(symbols))
+        if _is_terminal_carbon(atom_index, symbols, adjacency)
+    ]
+    if len(terminal_indices) < 2:
+        return
+    terminal_atoms = atoms[terminal_indices]
+    local_i, local_j, displacement_list = neighbor_list(
+        "ijD",
+        terminal_atoms,
+        cutoff=np.nextafter(2.65, np.inf),
+        self_interaction=False,
+    )
+    candidate_by_pair: dict[
+        tuple[int, int], tuple[float, np.ndarray]
+    ] = {}
+    for left, right, displacement in zip(local_i, local_j, displacement_list):
+        i = terminal_indices[int(left)]
+        j = terminal_indices[int(right)]
+        if i == j or component_index[i] == component_index[j]:
             continue
-        for j in range(i + 1, len(symbols)):
-            if component_index[i] == component_index[j]:
-                continue
-            if not _is_terminal_carbon(j, symbols, adjacency):
-                continue
-            vector, distance = _minimum_image_vector(atoms, i, j)
-            if 1.85 <= distance <= 2.65:
-                candidates.append((distance, i, j))
+        a, b = sorted((i, j))
+        vector = np.asarray(displacement if i == a else -displacement, dtype=float)
+        distance = float(np.linalg.norm(vector))
+        if not 1.85 <= distance <= 2.65:
+            continue
+        previous = candidate_by_pair.get((a, b))
+        if previous is None or distance < previous[0]:
+            candidate_by_pair[(a, b)] = (distance, vector)
 
     added_by_component = {index: 0 for index in range(len(components))}
     used_atoms: set[int] = set()
-    for _, i, j in sorted(candidates):
+    candidates = (
+        (distance, i, j, vector)
+        for (i, j), (distance, vector) in candidate_by_pair.items()
+    )
+    for _, i, j, vector in sorted(candidates, key=lambda item: item[:3]):
         i_component = component_index[i]
         j_component = component_index[j]
         non_main_components = [
@@ -547,9 +568,7 @@ def _reconnect_nearby_terminal_components(
         if any(added_by_component[component] >= 2 for component in non_main_components):
             continue
 
-        vector, _ = _minimum_image_vector(atoms, i, j)
-        a, b = sorted((i, j))
-        vectors[(a, b)] = np.array(vector if i == a else -vector, dtype=float)
+        vectors[(i, j)] = vector
         used_atoms.update({i, j})
         for component in non_main_components:
             added_by_component[component] += 1
@@ -595,13 +614,3 @@ def _is_terminal_carbon(
         return False
     heavy_degree = sum(1 for neighbor in adjacency[atom_index] if symbols[neighbor] != "H")
     return heavy_degree <= 2
-
-
-def _minimum_image_vector(
-    atoms: ase.Atoms,
-    i: int,
-    j: int,
-) -> tuple[np.ndarray, float]:
-    raw_vector = atoms.positions[j] - atoms.positions[i]
-    vector, distance = find_mic(raw_vector, atoms.cell, atoms.pbc)
-    return np.array(vector, dtype=float), float(distance)

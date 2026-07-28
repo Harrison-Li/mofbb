@@ -9,8 +9,8 @@ import json
 from pathlib import Path
 
 from .geometry import format_float
-from .models import Fragment, TopologyEdge, TopologyVertex, XSite
-from .periodicity import PeriodicBond, PeriodicOpening
+from .object import Fragment, TopologyEdge, TopologyVertex, XSite
+from .pbc import PeriodicBond, PeriodicOpening
 from .solvent import SolventMode, SolventRemovalResult
 from .topology import validate_source_atom_ownership
 

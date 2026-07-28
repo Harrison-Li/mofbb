@@ -217,3 +217,7 @@ notebook/
 /.worktrees/
 .DS_store
 /tests
+!/tests/
+/tests/*
+!/tests/test_assembly_evaluation.py
+/experiments

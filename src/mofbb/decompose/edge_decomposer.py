@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
+from itertools import combinations
 import json
 from math import gcd
 from pathlib import Path
@@ -18,8 +19,8 @@ from .bonding import BondNetwork, read_bonded_structure
 from .decomposer import find_connecting_bonds
 from .fragments import FragmentBuilder, connected_components
 from .geometry import format_float
-from .models import Fragment, LogicalPort, TopologyEdge, TopologyVertex
-from .periodicity import (
+from .object import Fragment, LogicalPort, TopologyEdge, TopologyVertex, XSite
+from .pbc import (
     PeriodicBond,
     PeriodicOpening,
     periodic_bonds,
@@ -58,33 +59,6 @@ def classify_organic_fragment_kind(fragment: Fragment) -> OrganicFragmentKind:
         f"Organic fragment {fragment.index} has fewer than 2 connection sites "
         f"({num_connection_sites}); it cannot be classified as an edge or node."
     )
-
-
-def _partition_bound_linkers(
-    organic_fragments: list[Fragment],
-    selected_to_original: tuple[int, ...],
-    bound_solvent_indices: tuple[int, ...],
-) -> tuple[list[Fragment], list[Fragment]]:
-    """Partition FSR organics using whole-fragment original-index containment.
-
-    MOFid bound-solvent degree counts unique collapsed site connections after
-    endpoint/translation deduplication, not atom-level boundary bonds. An
-    accessory linker may therefore retain zero, one, or many X sites; its
-    preserved ``linker`` role comes from containment, never from X-site count.
-    """
-
-    bound_original = set(bound_solvent_indices)
-    accessories: list[Fragment] = []
-    splittable: list[Fragment] = []
-    for fragment in organic_fragments:
-        original_indices = {
-            selected_to_original[index] for index in fragment.source_indices
-        }
-        if bound_original and original_indices <= bound_original:
-            accessories.append(fragment)
-        else:
-            splittable.append(fragment)
-    return accessories, splittable
 
 
 def decompose_mof_with_edges(
@@ -145,7 +119,8 @@ class NodeEdgeDecomposer:
         organic_indices = set(range(len(self.atoms))) - metal_node_indices
         connecting_bonds = find_connecting_bonds(self.bonds.pairs, metal_node_indices)
         source_records = periodic_bonds(self.atoms, self.bonds)
-        periodic_cuts = []
+        periodic_cuts: list[PeriodicBond] = []
+        organic_periodic_cuts: list[PeriodicBond] = []
         periodic_openings: list[PeriodicOpening] = []
         for component in connected_components(metal_node_indices, self.bonds.pairs):
             selection = select_periodic_cuts(
@@ -156,6 +131,21 @@ class NodeEdgeDecomposer:
                 source_records,
             )
             periodic_cuts.extend(selection.cuts)
+            if selection.cuts:
+                periodic_openings.append(
+                    PeriodicOpening.from_selection(component, selection)
+                )
+        for component in connected_components(organic_indices, self.bonds.pairs):
+            selection = select_periodic_cuts(
+                self.atoms,
+                self.bonds,
+                self.symbols,
+                component,
+                source_records,
+                fast=True,
+            )
+            periodic_cuts.extend(selection.cuts)
+            organic_periodic_cuts.extend(selection.cuts)
             if selection.cuts:
                 periodic_openings.append(
                     PeriodicOpening.from_selection(component, selection)
@@ -174,6 +164,7 @@ class NodeEdgeDecomposer:
             self.bonds,
             self.symbols,
             x_symbol=self.x_symbol,
+            source_records=source_records,
         )
         raw_metal_nodes = fragment_builder.build_role_fragments(
             "node", metal_node_indices, initial_connection_records
@@ -187,10 +178,8 @@ class NodeEdgeDecomposer:
             and self.solvent is not None
             and self.selected_to_original is not None
         ):
-            bound_linker_fragments, splittable_organics = _partition_bound_linkers(
-                raw_organics,
-                self.selected_to_original,
-                self.solvent.bound_solvent_indices,
+            bound_linker_fragments, splittable_organics = self.partition_bound_linkers(
+                raw_organics
             )
         else:
             bound_linker_fragments = []
@@ -202,7 +191,18 @@ class NodeEdgeDecomposer:
             self.bonds,
             self.symbols,
             x_symbol=self.x_symbol,
-        ).split(splittable_organics, connecting_bonds)
+            source_records=source_records,
+        ).split(
+            splittable_organics,
+            tuple(
+                sorted(
+                    (
+                        *connecting_bonds,
+                        *(record.pair for record in organic_periodic_cuts),
+                    )
+                )
+            ),
+        )
         organic_pairs = set(organic_split.organic_connecting_bonds)
         organic_records = tuple(
             record for record in source_records if record.pair in organic_pairs
@@ -217,20 +217,22 @@ class NodeEdgeDecomposer:
             *organic_split.edge_fragments,
             *bound_linker_fragments,
         ]
-        assign_logical_ports(
-            self.atoms,
-            self.bonds,
-            fragments,
-            connection_records,
-        )
         validate_source_atom_ownership(range(len(self.atoms)), fragments)
 
         topology_vertices, topology_edges = NodeEdgeTopologyBuilder(
             self.atoms,
             self.bonds,
+            source_records=source_records,
         ).build(
             fragments,
             connection_records,
+        )
+        assign_logical_ports(
+            self.atoms,
+            self.bonds,
+            fragments,
+            connection_records,
+            topology_edges=topology_edges,
         )
 
         return NodeEdgeDecompositionResult(
@@ -260,8 +262,31 @@ class NodeEdgeDecomposer:
             },
         )
 
-    def _read_atoms(self) -> ase.Atoms:
-        return self.atoms
+    def partition_bound_linkers(
+        self,
+        organic_fragments: list[Fragment],
+    ) -> tuple[list[Fragment], list[Fragment]]:
+        """Separate preserved bound-solvent linkers from splittable organics."""
+
+        assert self.solvent is not None
+        assert self.selected_to_original is not None
+        bound_original = set(self.solvent.bound_solvent_indices)
+        bound_linkers: list[Fragment] = []
+        splittable: list[Fragment] = []
+
+        for fragment in organic_fragments:
+            original_indices = {
+                self.selected_to_original[index]
+                for index in fragment.source_indices
+            }
+            target = (
+                bound_linkers
+                if bound_original and original_indices <= bound_original
+                else splittable
+            )
+            target.append(fragment)
+
+        return bound_linkers, splittable
 
 
 @dataclass(frozen=True)
@@ -279,11 +304,13 @@ class OrganicLinkerSplitter:
         bonds: BondNetwork,
         symbols: list[str],
         x_symbol: str = "X",
+        source_records: tuple[PeriodicBond, ...] | None = None,
     ) -> None:
         self.atoms = atoms
         self.bonds = bonds
         self.symbols = symbols
         self.x_symbol = x_symbol
+        self.source_records = source_records
 
     def split(
         self,
@@ -294,25 +321,32 @@ class OrganicLinkerSplitter:
 
         role_components: list[_RoleComponent] = []
         organic_cut_bonds: set[tuple[int, int]] = set()
+        external_cut_set = {
+            tuple(sorted(cut_bond)) for cut_bond in metal_connecting_bonds
+        }
 
         for fragment in organic_fragments:
-            components = self._split_fragment_components(
+            components = self.split_fragment(
                 fragment,
                 metal_connecting_bonds,
             )
             role_components.extend(components)
             organic_cut_bonds.update(
-                self._cut_bonds_between_components(
-                    [set(component.atom_indices) for component in components]
+                self.cut_bonds_between_components(
+                    [set(component.atom_indices) for component in components],
+                    excluded_bonds=external_cut_set,
                 )
             )
 
-        all_cut_bonds = tuple(sorted((*metal_connecting_bonds, *organic_cut_bonds)))
+        all_cut_bonds = tuple(
+            sorted({*metal_connecting_bonds, *organic_cut_bonds})
+        )
         fragment_builder = FragmentBuilder(
             self.atoms,
             self.bonds,
             self.symbols,
             x_symbol=self.x_symbol,
+            source_records=self.source_records,
         )
 
         organic_nodes: list[Fragment] = []
@@ -337,32 +371,50 @@ class OrganicLinkerSplitter:
                     )
                 )
 
-        self._validate_split_fragments(organic_nodes, edges)
+        invalid_nodes = [
+            fragment.index for fragment in organic_nodes if len(fragment.x_sites) <= 2
+        ]
+        invalid_edges = [
+            fragment.index for fragment in edges if len(fragment.x_sites) != 2
+        ]
+        if invalid_nodes:
+            raise ValueError(
+                "Generated organic node fragments with fewer than 3 connection "
+                f"sites: {invalid_nodes}"
+            )
+        if invalid_edges:
+            raise ValueError(
+                "Generated edge fragments without exactly 2 connection sites: "
+                f"{invalid_edges}"
+            )
+
         return OrganicLinkerSplit(
             organic_node_fragments=organic_nodes,
             edge_fragments=edges,
             organic_connecting_bonds=tuple(sorted(organic_cut_bonds)),
         )
 
-    def _split_fragment_components(
+    def split_fragment(
         self,
         fragment: Fragment,
         metal_connecting_bonds: tuple[tuple[int, int], ...],
     ) -> list[_RoleComponent]:
         source_atoms = set(fragment.source_indices)
+        if fragment.num_x == 2:
+            return [_RoleComponent("edge", frozenset(source_atoms))]
+
         external_cut_bonds = tuple(
             cut_bond
             for cut_bond in metal_connecting_bonds
-            if (cut_bond[0] in source_atoms) != (cut_bond[1] in source_atoms)
+            if cut_bond[0] in source_atoms or cut_bond[1] in source_atoms
         )
         heavy_atoms = {
             atom_index
             for atom_index in source_atoms
             if self.symbols[atom_index] != "H"
         }
-        heavy_graph = self._heavy_graph(heavy_atoms)
-        node_heavy_atoms = self._candidate_node_heavy_atoms(
-            heavy_graph,
+        heavy_graph, node_heavy_atoms = self.identify_node_heavy_atoms(
+            heavy_atoms,
             external_cut_bonds,
             source_atoms,
         )
@@ -375,58 +427,68 @@ class OrganicLinkerSplitter:
                 )
             ]
 
-        heavy_components = self._classify_heavy_components(
+        heavy_components = self.classify_heavy_components(
             heavy_graph,
             heavy_atoms,
             node_heavy_atoms,
             external_cut_bonds,
             source_atoms,
         )
-        return self._attach_hydrogens(heavy_components, source_atoms)
+        return self.attach_hydrogens(heavy_components, source_atoms)
 
-    def _heavy_graph(self, heavy_atoms: set[int]) -> nx.Graph:
+    def identify_node_heavy_atoms(
+        self,
+        heavy_atoms: set[int],
+        external_cut_bonds: tuple[tuple[int, int], ...],
+        source_atoms: set[int],
+    ) -> tuple[nx.Graph, set[int]]:
+        """Build the heavy-atom graph and identify multi-port node cores."""
+
+        excluded_bonds = {
+            tuple(sorted(cut_bond)) for cut_bond in external_cut_bonds
+        }
         graph = nx.Graph()
         graph.add_nodes_from(heavy_atoms)
         for i, j in self.bonds.pairs:
-            if i in heavy_atoms and j in heavy_atoms:
+            if (
+                i in heavy_atoms
+                and j in heavy_atoms
+                and tuple(sorted((i, j))) not in excluded_bonds
+            ):
                 graph.add_edge(i, j)
-        return graph
 
-    def _candidate_node_heavy_atoms(
-        self,
-        heavy_graph: nx.Graph,
-        external_cut_bonds: tuple[tuple[int, int], ...],
-        source_atoms: set[int],
-    ) -> set[int]:
         node_atoms: set[int] = set()
-        for block in nx.biconnected_components(heavy_graph):
+        for block in nx.biconnected_components(graph):
             if len(block) < 3:
                 continue
-
-            port_count = self._external_cut_count(block, external_cut_bonds, source_atoms)
-            for atom_index in block:
-                for neighbor in heavy_graph.neighbors(atom_index):
-                    if neighbor not in block:
-                        port_count += 1
-
+            port_count = self.external_cut_count(
+                block,
+                external_cut_bonds,
+                source_atoms,
+            )
+            port_count += sum(
+                neighbor not in block
+                for atom_index in block
+                for neighbor in graph.neighbors(atom_index)
+            )
             if port_count > 2:
                 node_atoms.update(block)
-        return node_atoms
+
+        return graph, node_atoms
 
     @staticmethod
-    def _external_cut_count(
+    def external_cut_count(
         atom_indices: set[int] | frozenset[int],
         external_cut_bonds: tuple[tuple[int, int], ...],
         source_atoms: set[int],
     ) -> int:
         return sum(
-            1
+            int(i in atom_indices and i in source_atoms)
+            + int(j in atom_indices and j in source_atoms)
             for i, j in external_cut_bonds
-            if (i in atom_indices and i in source_atoms)
-            or (j in atom_indices and j in source_atoms)
         )
 
-    def _classify_heavy_components(
+    def classify_heavy_components(
         self,
         heavy_graph: nx.Graph,
         heavy_atoms: set[int],
@@ -457,19 +519,14 @@ class OrganicLinkerSplitter:
         }
 
         for component in edge_components:
-            boundary_node_indices = self._boundary_node_indices(
+            boundary_node_indices, port_count = self.component_connections(
                 component,
                 node_component_by_atom,
-            )
-            port_count = self._component_port_count(
-                component,
                 external_cut_bonds,
                 source_atoms,
-                node_component_by_atom,
             )
-            is_pendant_donor = self._is_pendant_donor_component(
+            is_pendant_donor = self.is_pendant_donor(
                 component,
-                source_atoms,
                 node_component_by_atom,
                 external_cut_bonds,
             )
@@ -492,34 +549,160 @@ class OrganicLinkerSplitter:
         for component in edge_components:
             if component & absorbed:
                 continue
-            port_count = self._component_port_count(
+            _, port_count = self.component_connections(
                 component,
+                node_component_by_atom,
                 external_cut_bonds,
                 source_atoms,
-                node_component_by_atom,
             )
             kind: OrganicFragmentKind = "edge" if port_count == 2 else "organic_node"
             role_components.append(_RoleComponent(kind, frozenset(component)))
 
-        return role_components
+        return self.repair_components(
+            role_components,
+            external_cut_bonds,
+            source_atoms,
+        )
 
-    def _boundary_node_indices(
+    def repair_components(
+        self,
+        role_components: list[_RoleComponent],
+        external_cut_bonds: tuple[tuple[int, int], ...],
+        source_atoms: set[int],
+    ) -> list[_RoleComponent]:
+        components = [
+            set(component.atom_indices) for component in role_components
+        ]
+        kinds = [component.kind for component in role_components]
+
+        while True:
+            neighbors, port_counts = self.partition_state(
+                components,
+                external_cut_bonds,
+                source_atoms,
+            )
+
+            absorbed = False
+            for component_index, port_count in enumerate(port_counts):
+                if port_count > 1 or len(neighbors[component_index]) != 1:
+                    continue
+                parent_index = next(iter(neighbors[component_index]))
+                components[parent_index].update(components[component_index])
+                del components[component_index]
+                del kinds[component_index]
+                absorbed = True
+                break
+            if absorbed:
+                continue
+
+            repaired_kinds: list[OrganicFragmentKind] = [
+                "organic_node" if port_count >= 3 else "edge"
+                for port_count in port_counts
+            ]
+            roles_changed = repaired_kinds != kinds
+            kinds = repaired_kinds
+
+            merged_edges = False
+            for component_index, adjacent_indices in enumerate(neighbors):
+                if kinds[component_index] != "edge":
+                    continue
+                adjacent_edge = next(
+                    (
+                        adjacent_index
+                        for adjacent_index in sorted(adjacent_indices)
+                        if kinds[adjacent_index] == "edge"
+                    ),
+                    None,
+                )
+                if adjacent_edge is None:
+                    continue
+                left, right = sorted((component_index, adjacent_edge))
+                components[left].update(components[right])
+                del components[right]
+                del kinds[right]
+                merged_edges = True
+                break
+            if merged_edges or roles_changed:
+                continue
+
+            return [
+                _RoleComponent(kind, frozenset(component))
+                for kind, component in zip(kinds, components)
+            ]
+
+    def partition_state(
+        self,
+        components: list[set[int]],
+        external_cut_bonds: tuple[tuple[int, int], ...],
+        source_atoms: set[int],
+    ) -> tuple[list[set[int]], list[int]]:
+        component_by_atom = {
+            atom_index: component_index
+            for component_index, component in enumerate(components)
+            for atom_index in component
+        }
+        neighbors = [set() for _ in components]
+        external_cut_set = {
+            tuple(sorted(cut_bond)) for cut_bond in external_cut_bonds
+        }
+        port_counts = [
+            self.external_cut_count(
+                component,
+                external_cut_bonds,
+                source_atoms,
+            )
+            for component in components
+        ]
+
+        for i, j in self.bonds.pairs:
+            if tuple(sorted((i, j))) in external_cut_set:
+                continue
+            i_component = component_by_atom.get(i)
+            j_component = component_by_atom.get(j)
+            if (
+                i_component is None
+                or j_component is None
+                or i_component == j_component
+            ):
+                continue
+            neighbors[i_component].add(j_component)
+            neighbors[j_component].add(i_component)
+            port_counts[i_component] += 1
+            port_counts[j_component] += 1
+
+        return neighbors, port_counts
+
+    def component_connections(
         self,
         component: set[int],
         node_component_by_atom: dict[int, int],
-    ) -> set[int]:
-        boundary_node_indices: set[int] = set()
+        external_cut_bonds: tuple[tuple[int, int], ...],
+        source_atoms: set[int],
+    ) -> tuple[set[int], int]:
+        """Return adjacent node components and total connection count."""
+
+        excluded_bonds = {
+            tuple(sorted(cut_bond)) for cut_bond in external_cut_bonds
+        }
+        boundary_nodes: set[int] = set()
+        port_count = self.external_cut_count(
+            component,
+            external_cut_bonds,
+            source_atoms,
+        )
         for atom_index in component:
             for neighbor in self.bonds.adjacency[atom_index]:
-                node_component_index = node_component_by_atom.get(neighbor)
-                if node_component_index is not None:
-                    boundary_node_indices.add(node_component_index)
-        return boundary_node_indices
+                if tuple(sorted((atom_index, neighbor))) in excluded_bonds:
+                    continue
+                node_component = node_component_by_atom.get(neighbor)
+                if node_component is not None:
+                    boundary_nodes.add(node_component)
+                    port_count += 1
+        return boundary_nodes, port_count
 
-    def _is_pendant_donor_component(
+    def is_pendant_donor(
         self,
         component: set[int],
-        source_atoms: set[int],
         node_component_by_atom: dict[int, int],
         external_cut_bonds: tuple[tuple[int, int], ...],
     ) -> bool:
@@ -532,11 +715,15 @@ class OrganicLinkerSplitter:
         ):
             return False
 
+        external_cut_set = {
+            tuple(sorted(cut_bond)) for cut_bond in external_cut_bonds
+        }
         core_boundary_bonds = [
             (atom_index, neighbor)
             for atom_index in component
             for neighbor in self.bonds.adjacency[atom_index]
             if neighbor in node_component_by_atom
+            and tuple(sorted((atom_index, neighbor))) not in external_cut_set
         ]
         boundary_node_indices = {
             node_component_by_atom[neighbor]
@@ -545,35 +732,15 @@ class OrganicLinkerSplitter:
         if len(core_boundary_bonds) != 1 or len(boundary_node_indices) != 1:
             return False
 
-        external_cut_set = {
-            tuple(sorted(cut_bond)) for cut_bond in external_cut_bonds
-        }
         return all(
             neighbor in component
             or neighbor in node_component_by_atom
-            or (
-                neighbor not in source_atoms
-                and tuple(sorted((atom_index, neighbor))) in external_cut_set
-            )
+            or tuple(sorted((atom_index, neighbor))) in external_cut_set
             for atom_index in component
             for neighbor in self.bonds.adjacency[atom_index]
         )
 
-    def _component_port_count(
-        self,
-        component: set[int],
-        external_cut_bonds: tuple[tuple[int, int], ...],
-        source_atoms: set[int],
-        node_component_by_atom: dict[int, int],
-    ) -> int:
-        port_count = self._external_cut_count(component, external_cut_bonds, source_atoms)
-        for atom_index in component:
-            for neighbor in self.bonds.adjacency[atom_index]:
-                if neighbor in node_component_by_atom:
-                    port_count += 1
-        return port_count
-
-    def _attach_hydrogens(
+    def attach_hydrogens(
         self,
         heavy_components: list[_RoleComponent],
         source_atoms: set[int],
@@ -604,9 +771,11 @@ class OrganicLinkerSplitter:
             for component, atom_indices in zip(heavy_components, expanded)
         ]
 
-    def _cut_bonds_between_components(
+    def cut_bonds_between_components(
         self,
         components: list[set[int]],
+        excluded_bonds: set[tuple[int, int]]
+        | frozenset[tuple[int, int]] = frozenset(),
     ) -> set[tuple[int, int]]:
         component_by_atom = {
             atom_index: component_index
@@ -615,6 +784,8 @@ class OrganicLinkerSplitter:
         }
         cut_bonds: set[tuple[int, int]] = set()
         for i, j in self.bonds.pairs:
+            if tuple(sorted((i, j))) in excluded_bonds:
+                continue
             i_component = component_by_atom.get(i)
             j_component = component_by_atom.get(j)
             if i_component is None or j_component is None or i_component == j_component:
@@ -622,27 +793,6 @@ class OrganicLinkerSplitter:
             cut_bonds.add(tuple(sorted((i, j))))
         return cut_bonds
 
-    @staticmethod
-    def _validate_split_fragments(
-        organic_nodes: list[Fragment],
-        edges: list[Fragment],
-    ) -> None:
-        invalid_nodes = [
-            fragment.index for fragment in organic_nodes if len(fragment.x_sites) <= 2
-        ]
-        invalid_edges = [
-            fragment.index for fragment in edges if len(fragment.x_sites) != 2
-        ]
-        if invalid_nodes:
-            raise ValueError(
-                "Generated organic node fragments with fewer than 3 connection "
-                f"sites: {invalid_nodes}"
-            )
-        if invalid_edges:
-            raise ValueError(
-                "Generated edge fragments without exactly 2 connection sites: "
-                f"{invalid_edges}"
-            )
 
 
 def relabel_fragments(fragments: list[Fragment], kind: str) -> list[Fragment]:
@@ -671,142 +821,132 @@ def relabel_fragment(fragment: Fragment, kind: str, index: int) -> Fragment:
     )
 
 
-def _rank_one_self_edge_lattice(
-    fragment_key: tuple[str, int],
-    translations: list[tuple[int, int, int]],
-) -> tuple[int, int, int]:
-    """Return the exact rank-one lattice generated by self-edge translations."""
+class LogicalPortAssigner:
+    """Group physical X sites into stable logical fragment ports."""
 
-    first = translations[0]
-    divisor = 0
-    for value in first:
-        divisor = gcd(divisor, abs(value))
-    if divisor == 0:
-        raise ValueError(
-            f"Fragment {fragment_key} has a zero self-edge translation."
-        )
+    def __init__(
+        self,
+        atoms: ase.Atoms,
+        bonds: BondNetwork,
+        fragments: list[Fragment],
+        connection_records: tuple[PeriodicBond, ...],
+        topology_edges: list[TopologyEdge] | None = None,
+    ) -> None:
+        self.atoms = atoms
+        self.bonds = bonds
+        self.fragments = fragments
+        self.connection_records = connection_records
 
-    primitive = tuple(value // divisor for value in first)
-    axis = next(index for index, value in enumerate(primitive) if value)
-    if primitive[axis] < 0:
-        primitive = tuple(-value for value in primitive)
+        self.fragment_by_key: dict[tuple[str, int], Fragment] = {}
+        self.atom_to_fragment: dict[int, tuple[str, int]] = {}
+        for fragment in fragments:
+            fragment_key = (fragment.kind, fragment.index)
+            if fragment_key in self.fragment_by_key:
+                raise ValueError(f"Duplicate physical fragment key {fragment_key}.")
+            self.fragment_by_key[fragment_key] = fragment
+            for atom_index in fragment.source_indices:
+                if not 0 <= atom_index < len(atoms):
+                    raise ValueError(
+                        f"Fragment {fragment_key} owns out-of-range source atom "
+                        f"{atom_index}."
+                    )
+                previous = self.atom_to_fragment.get(atom_index)
+                if previous is not None:
+                    raise ValueError(
+                        f"Source atom {atom_index} is owned by both {previous} and "
+                        f"{fragment_key}."
+                    )
+                self.atom_to_fragment[atom_index] = fragment_key
 
-    coefficients = []
-    for translation in translations:
-        if translation[axis] % primitive[axis] != 0:
-            raise ValueError(
-                f"Fragment {fragment_key} has unexpected independent self-edge "
-                f"translations {sorted(translations)}."
-            )
-        coefficient = translation[axis] // primitive[axis]
-        if tuple(coefficient * value for value in primitive) != translation:
-            raise ValueError(
-                f"Fragment {fragment_key} has unexpected independent self-edge "
-                f"translations {sorted(translations)}."
-            )
-        coefficients.append(coefficient)
-
-    period = 0
-    for coefficient in coefficients:
-        period = gcd(period, abs(coefficient))
-    return tuple(period * value for value in primitive)
-
-
-def _effective_slot_translation(
-    translation: tuple[int, int, int],
-    neighbor_lattice: tuple[int, int, int] | None,
-) -> tuple[int, int, int]:
-    """Return a stable representative modulo a neighbor's self-edge lattice."""
-
-    if neighbor_lattice is None:
-        return translation
-    axis = next(index for index, value in enumerate(neighbor_lattice) if value)
-    quotient = translation[axis] // neighbor_lattice[axis]
-    return tuple(
-        value - quotient * lattice_value
-        for value, lattice_value in zip(translation, neighbor_lattice)
-    )
-
-
-def assign_logical_ports(
-    atoms: ase.Atoms,
-    bonds: BondNetwork,
-    fragments: list[Fragment],
-    connection_records: tuple[PeriodicBond, ...],
-) -> None:
-    """Assign stable logical ports using exact physical slot translations."""
-
-    fragment_by_key: dict[tuple[str, int], Fragment] = {}
-    atom_to_fragment: dict[int, tuple[str, int]] = {}
-    for fragment in fragments:
-        fragment_key = (fragment.kind, fragment.index)
-        if fragment_key in fragment_by_key:
-            raise ValueError(f"Duplicate physical fragment key {fragment_key}.")
-        fragment_by_key[fragment_key] = fragment
-        for atom_index in fragment.source_indices:
-            if not 0 <= atom_index < len(atoms):
+        self.record_by_pair: dict[tuple[int, int], PeriodicBond] = {}
+        for record in connection_records:
+            if record.pair in self.record_by_pair:
                 raise ValueError(
-                    f"Fragment {fragment_key} owns out-of-range source atom "
-                    f"{atom_index}."
+                    f"Duplicate connection record for source bond {record.pair}."
                 )
-            previous = atom_to_fragment.get(atom_index)
-            if previous is not None:
+            self.record_by_pair[record.pair] = record
+
+        if topology_edges is None:
+            _, topology_edges = TopologyBuilder(atoms, bonds).build_fragments(
+                fragments,
+                connection_records,
+            )
+        self.edge_by_pair: dict[tuple[int, int], TopologyEdge] = {}
+        self_translations: dict[
+            tuple[str, int], list[tuple[int, int, int]]
+        ] = defaultdict(list)
+        for edge in topology_edges:
+            if edge.source_cut_bond is None:
+                raise ValueError("Logical-port topology edge lacks a source cut bond.")
+            if edge.source_cut_bond in self.edge_by_pair:
                 raise ValueError(
-                    f"Source atom {atom_index} is owned by both {previous} and "
-                    f"{fragment_key}."
+                    "Logical-port topology produced duplicate edges for source bond "
+                    f"{edge.source_cut_bond}."
                 )
-            atom_to_fragment[atom_index] = fragment_key
+            self.edge_by_pair[edge.source_cut_bond] = edge
+            begin_key = (edge.begin_kind, edge.begin_index)
+            end_key = (edge.end_kind, edge.end_index)
+            if begin_key == end_key:
+                self_translations[begin_key].append(edge.slot_translation)
 
-    record_by_pair: dict[tuple[int, int], PeriodicBond] = {}
-    for record in connection_records:
-        if record.pair in record_by_pair:
+        if set(self.edge_by_pair) != set(self.record_by_pair):
             raise ValueError(
-                f"Duplicate connection record for source bond {record.pair}."
+                "Logical-port topology records do not match the supplied connection "
+                f"records: topology={sorted(self.edge_by_pair)}, "
+                f"supplied={sorted(self.record_by_pair)}."
             )
-        record_by_pair[record.pair] = record
+        self.self_lattices = {
+            fragment_key: self.self_edge_lattice(fragment_key, translations)
+            for fragment_key, translations in self_translations.items()
+        }
 
-    _, topology_edges = TopologyBuilder(atoms, bonds).build_fragments(
-        fragments,
-        connection_records,
-    )
-    edge_by_pair: dict[tuple[int, int], TopologyEdge] = {}
-    for edge in topology_edges:
-        if edge.source_cut_bond is None:
-            raise ValueError("Logical-port topology edge lacks a source cut bond.")
-        if edge.source_cut_bond in edge_by_pair:
+    def assign(self) -> None:
+        """Assign logical ports and logical roles to all fragments."""
+
+        observed_sites: Counter[tuple[tuple[int, int], int, int]] = Counter()
+        ports_by_fragment: dict[tuple[str, int], tuple[LogicalPort, ...]] = {}
+
+        for fragment in self.fragments:
+            ports, observations = self.ports_for_fragment(fragment)
+            ports_by_fragment[(fragment.kind, fragment.index)] = ports
+            observed_sites.update(observations)
+
+        expected_sites: Counter[tuple[tuple[int, int], int, int]] = Counter()
+        for record in self.connection_records:
+            expected_sites[(record.pair, record.i, record.j)] += 1
+            expected_sites[(record.pair, record.j, record.i)] += 1
+        if observed_sites != expected_sites:
+            missing = sorted((expected_sites - observed_sites).elements())
+            unexpected = sorted((observed_sites - expected_sites).elements())
             raise ValueError(
-                "Logical-port topology produced duplicate edges for source bond "
-                f"{edge.source_cut_bond}."
+                "Connection records and physical X sites must match exactly once in "
+                f"each direction; missing={missing}, unexpected={unexpected}."
             )
-        edge_by_pair[edge.source_cut_bond] = edge
-    if set(edge_by_pair) != set(record_by_pair):
-        raise ValueError(
-            "Logical-port topology records do not match the supplied connection "
-            f"records: topology={sorted(edge_by_pair)}, "
-            f"supplied={sorted(record_by_pair)}."
-        )
 
-    self_translations: dict[
-        tuple[str, int], list[tuple[int, int, int]]
-    ] = defaultdict(list)
-    for edge in topology_edges:
-        begin_key = (edge.begin_kind, edge.begin_index)
-        end_key = (edge.end_kind, edge.end_index)
-        if begin_key == end_key:
-            self_translations[begin_key].append(edge.slot_translation)
-    self_lattices = {
-        fragment_key: _rank_one_self_edge_lattice(fragment_key, translations)
-        for fragment_key, translations in self_translations.items()
-    }
+        for fragment in self.fragments:
+            fragment.logical_ports = ports_by_fragment[(fragment.kind, fragment.index)]
+            fragment.logical_kind = fragment.kind
+            if fragment.kind not in {"organic_node", "edge"}:
+                continue
+            if len(fragment.logical_ports) == 2:
+                fragment.logical_kind = "edge"
+            elif len(fragment.logical_ports) > 2:
+                fragment.logical_kind = "organic_node"
 
-    observed_sites: Counter[tuple[tuple[int, int], int, int]] = Counter()
-    ports_by_fragment: dict[tuple[str, int], tuple[LogicalPort, ...]] = {}
-    for fragment in fragments:
+    def ports_for_fragment(
+        self,
+        fragment: Fragment,
+    ) -> tuple[
+        tuple[LogicalPort, ...],
+        Counter[tuple[tuple[int, int], int, int]],
+    ]:
         fragment_key = (fragment.kind, fragment.index)
         grouped_x_indices: dict[
             tuple[str, int, tuple[int, int, int]], list[int]
         ] = defaultdict(list)
+        observations: Counter[tuple[tuple[int, int], int, int]] = Counter()
         seen_x_indices: set[int] = set()
+
         for site in fragment.x_sites:
             if site.x_index in seen_x_indices:
                 raise ValueError(
@@ -818,128 +958,306 @@ def assign_logical_ports(
                     f"Fragment {fragment_key} X site {site.x_index} is out of range."
                 )
 
-            try:
-                record = record_by_pair[site.source_cut_bond]
-            except KeyError as exc:
-                raise ValueError(
-                    f"X site {site.x_index} on fragment {fragment_key} has no "
-                    "matching connection record for source bond "
-                    f"{site.source_cut_bond}."
-                ) from exc
-            internal = site.internal_source_index
-            external = site.external_source_index
-            if tuple(sorted((internal, external))) != record.pair:
-                raise ValueError(
-                    f"X site {site.x_index} on fragment {fragment_key} has "
-                    f"endpoints {(internal, external)} inconsistent with "
-                    f"connection record {record.pair}."
-                )
-            if site.source_cut_shift != record.shift:
-                raise ValueError(
-                    f"X site {site.x_index} on fragment {fragment_key} has source "
-                    f"shift {site.source_cut_shift}, expected {record.shift}."
-                )
-            expected_image_shift = record.oriented_shift(internal, external)
-            if site.external_image_shift != expected_image_shift:
-                raise ValueError(
-                    f"X site {site.x_index} on fragment {fragment_key} has external "
-                    f"image shift {site.external_image_shift}, expected "
-                    f"{expected_image_shift}."
-                )
-
-            try:
-                internal_key = atom_to_fragment[internal]
-                neighbor_key = atom_to_fragment[external]
-            except KeyError as exc:
-                raise ValueError(
-                    f"X site {site.x_index} on fragment {fragment_key} references "
-                    f"unowned source atom {exc.args[0]}."
-                ) from exc
-            if internal_key != fragment_key:
-                raise ValueError(
-                    f"X site {site.x_index} on fragment {fragment_key} uses "
-                    f"internal source atom {internal} owned by {internal_key}."
-                )
-            expected_anchor = fragment.source_indices.index(internal)
-            if site.anchor_index != expected_anchor:
-                raise ValueError(
-                    f"X site {site.x_index} on fragment {fragment_key} has anchor "
-                    f"{site.anchor_index}, expected {expected_anchor}."
-                )
-
-            edge = edge_by_pair[record.pair]
-            begin_key = (edge.begin_kind, edge.begin_index)
-            end_key = (edge.end_kind, edge.end_index)
-            if internal == record.i:
-                expected_fragment_key = begin_key
-                expected_neighbor_key = end_key
-                translation = edge.slot_translation
-            else:
-                expected_fragment_key = end_key
-                expected_neighbor_key = begin_key
-                translation = tuple(-value for value in edge.slot_translation)
-            if (
-                fragment_key != expected_fragment_key
-                or neighbor_key != expected_neighbor_key
-            ):
-                raise ValueError(
-                    f"X site {site.x_index} on fragment {fragment_key} resolves to "
-                    f"neighbor {neighbor_key}, inconsistent with topology edge "
-                    f"{begin_key}->{end_key} for record {record.pair}."
-                )
-
-            if neighbor_key != fragment_key:
-                translation = _effective_slot_translation(
-                    translation,
-                    self_lattices.get(neighbor_key),
-                )
-            group_key = (neighbor_key[0], neighbor_key[1], translation)
+            group_key, observation = self.group_key_for_site(
+                fragment,
+                site,
+                grouped_x_indices,
+            )
             grouped_x_indices[group_key].append(site.x_index)
-            observed_sites[(record.pair, internal, external)] += 1
+            observations[observation] += 1
 
-        ports_by_fragment[fragment_key] = tuple(
+        ports = tuple(
             LogicalPort(
-                logical_port_id=logical_port_id,
+                logical_port_id=port_id,
                 x_indices=tuple(sorted(grouped_x_indices[group_key])),
                 neighbor_kind=group_key[0],
                 neighbor_index=group_key[1],
                 translation=group_key[2],
             )
-            for logical_port_id, group_key in enumerate(
-                sorted(grouped_x_indices), start=0
+            for port_id, group_key in enumerate(sorted(grouped_x_indices))
+        )
+        return ports, observations
+
+    def group_key_for_site(
+        self,
+        fragment: Fragment,
+        site: XSite,
+        grouped_x_indices: dict[
+            tuple[str, int, tuple[int, int, int]], list[int]
+        ],
+    ) -> tuple[
+        tuple[str, int, tuple[int, int, int]],
+        tuple[tuple[int, int], int, int],
+    ]:
+        fragment_key = (fragment.kind, fragment.index)
+        try:
+            record = self.record_by_pair[site.source_cut_bond]
+        except KeyError as exc:
+            raise ValueError(
+                f"X site {site.x_index} on fragment {fragment_key} has no "
+                "matching connection record for source bond "
+                f"{site.source_cut_bond}."
+            ) from exc
+
+        internal = site.internal_source_index
+        external = site.external_source_index
+        if tuple(sorted((internal, external))) != record.pair:
+            raise ValueError(
+                f"X site {site.x_index} on fragment {fragment_key} has "
+                f"endpoints {(internal, external)} inconsistent with "
+                f"connection record {record.pair}."
             )
+        if site.source_cut_shift != record.shift:
+            raise ValueError(
+                f"X site {site.x_index} on fragment {fragment_key} has source "
+                f"shift {site.source_cut_shift}, expected {record.shift}."
+            )
+        expected_image_shift = record.oriented_shift(internal, external)
+        if site.external_image_shift != expected_image_shift:
+            raise ValueError(
+                f"X site {site.x_index} on fragment {fragment_key} has external "
+                f"image shift {site.external_image_shift}, expected "
+                f"{expected_image_shift}."
+            )
+
+        try:
+            internal_key = self.atom_to_fragment[internal]
+            neighbor_key = self.atom_to_fragment[external]
+        except KeyError as exc:
+            raise ValueError(
+                f"X site {site.x_index} on fragment {fragment_key} references "
+                f"unowned source atom {exc.args[0]}."
+            ) from exc
+        if internal_key != fragment_key:
+            raise ValueError(
+                f"X site {site.x_index} on fragment {fragment_key} uses "
+                f"internal source atom {internal} owned by {internal_key}."
+            )
+        expected_anchor = fragment.source_indices.index(internal)
+        if site.anchor_index != expected_anchor:
+            raise ValueError(
+                f"X site {site.x_index} on fragment {fragment_key} has anchor "
+                f"{site.anchor_index}, expected {expected_anchor}."
+            )
+
+        edge = self.edge_by_pair[record.pair]
+        begin_key = (edge.begin_kind, edge.begin_index)
+        end_key = (edge.end_kind, edge.end_index)
+        if begin_key == end_key:
+            if fragment_key != begin_key or neighbor_key != end_key:
+                raise ValueError(
+                    f"X site {site.x_index} on fragment {fragment_key} resolves "
+                    f"to neighbor {neighbor_key}, inconsistent with topology "
+                    f"edge {begin_key}->{end_key} for record {record.pair}."
+                )
+            translation = (
+                edge.slot_translation
+                if internal == record.i
+                else tuple(-value for value in edge.slot_translation)
+            )
+        elif fragment_key == begin_key and neighbor_key == end_key:
+            translation = edge.slot_translation
+        elif fragment_key == end_key and neighbor_key == begin_key:
+            translation = tuple(-value for value in edge.slot_translation)
+        else:
+            raise ValueError(
+                f"X site {site.x_index} on fragment {fragment_key} resolves to "
+                f"neighbor {neighbor_key}, inconsistent with topology edge "
+                f"{begin_key}->{end_key} for record {record.pair}."
+            )
+
+        neighbor_lattice = self.self_lattices.get(neighbor_key)
+        if neighbor_key != fragment_key and isinstance(neighbor_lattice, tuple):
+            translation = self.effective_slot_translation(
+                translation,
+                neighbor_lattice,
+            )
+
+        group_key = (neighbor_key[0], neighbor_key[1], translation)
+        if (
+            neighbor_key != fragment_key
+            and isinstance(neighbor_lattice, _MultiRankSelfEdgeLattice)
+        ):
+            equivalent_keys = [
+                existing_key
+                for existing_key in grouped_x_indices
+                if existing_key[:2] == neighbor_key
+                and neighbor_lattice.contains(
+                    tuple(
+                        existing - current
+                        for existing, current in zip(existing_key[2], translation)
+                    )
+                )
+            ]
+            canonical_translation = min(
+                (translation, *(key[2] for key in equivalent_keys))
+            )
+            group_key = (
+                neighbor_key[0],
+                neighbor_key[1],
+                canonical_translation,
+            )
+            for equivalent_key in equivalent_keys:
+                if equivalent_key != group_key:
+                    grouped_x_indices[group_key].extend(
+                        grouped_x_indices.pop(equivalent_key)
+                    )
+
+        return group_key, (record.pair, internal, external)
+
+    @classmethod
+    def self_edge_lattice(
+        cls,
+        fragment_key: tuple[str, int],
+        translations: list[tuple[int, int, int]],
+    ) -> tuple[int, int, int] | _MultiRankSelfEdgeLattice:
+        rank, _ = cls.lattice_rank_and_divisor(tuple(translations))
+        if rank > 1:
+            generators = tuple(sorted(set(translations)))
+            rank, divisor = cls.lattice_rank_and_divisor(generators)
+            return _MultiRankSelfEdgeLattice(generators, rank, divisor)
+
+        first = translations[0]
+        divisor = 0
+        for value in first:
+            divisor = gcd(divisor, abs(value))
+        if divisor == 0:
+            raise ValueError(
+                f"Fragment {fragment_key} has a zero self-edge translation."
+            )
+
+        primitive = tuple(value // divisor for value in first)
+        axis = next(index for index, value in enumerate(primitive) if value)
+        if primitive[axis] < 0:
+            primitive = tuple(-value for value in primitive)
+
+        coefficients = []
+        for translation in translations:
+            if translation[axis] % primitive[axis] != 0:
+                raise ValueError(
+                    f"Fragment {fragment_key} has unexpected independent self-edge "
+                    f"translations {sorted(translations)}."
+                )
+            coefficient = translation[axis] // primitive[axis]
+            if tuple(coefficient * value for value in primitive) != translation:
+                raise ValueError(
+                    f"Fragment {fragment_key} has unexpected independent self-edge "
+                    f"translations {sorted(translations)}."
+                )
+            coefficients.append(coefficient)
+
+        period = 0
+        for coefficient in coefficients:
+            period = gcd(period, abs(coefficient))
+        return tuple(period * value for value in primitive)
+
+    @staticmethod
+    def lattice_rank_and_divisor(
+        vectors: tuple[tuple[int, int, int], ...],
+    ) -> tuple[int, int]:
+        nonzero = tuple(vector for vector in vectors if any(vector))
+        if not nonzero:
+            return 0, 0
+
+        cross_products = [
+            (
+                left[1] * right[2] - left[2] * right[1],
+                left[2] * right[0] - left[0] * right[2],
+                left[0] * right[1] - left[1] * right[0],
+            )
+            for left, right in combinations(nonzero, 2)
+        ]
+        nonzero_cross_products = [cross for cross in cross_products if any(cross)]
+        if not nonzero_cross_products:
+            divisor = 0
+            for vector in nonzero:
+                for value in vector:
+                    divisor = gcd(divisor, abs(value))
+            return 1, divisor
+
+        determinants = [
+            sum(left[index] * cross[index] for index in range(3))
+            for left, middle, right in combinations(nonzero, 3)
+            for cross in (
+                (
+                    middle[1] * right[2] - middle[2] * right[1],
+                    middle[2] * right[0] - middle[0] * right[2],
+                    middle[0] * right[1] - middle[1] * right[0],
+                ),
+            )
+        ]
+        if not any(determinants):
+            divisor = 0
+            for cross in nonzero_cross_products:
+                for value in cross:
+                    divisor = gcd(divisor, abs(value))
+            return 2, divisor
+
+        divisor = 0
+        for determinant in determinants:
+            if determinant:
+                divisor = gcd(divisor, abs(determinant))
+        return 3, divisor
+
+    @staticmethod
+    def effective_slot_translation(
+        translation: tuple[int, int, int],
+        neighbor_lattice: tuple[int, int, int],
+    ) -> tuple[int, int, int]:
+        axis = next(index for index, value in enumerate(neighbor_lattice) if value)
+        quotient = translation[axis] // neighbor_lattice[axis]
+        return tuple(
+            value - quotient * lattice_value
+            for value, lattice_value in zip(translation, neighbor_lattice)
         )
 
-    expected_sites: Counter[tuple[tuple[int, int], int, int]] = Counter()
-    for record in connection_records:
-        expected_sites[(record.pair, record.i, record.j)] += 1
-        expected_sites[(record.pair, record.j, record.i)] += 1
-    if observed_sites != expected_sites:
-        missing = sorted((expected_sites - observed_sites).elements())
-        unexpected = sorted((observed_sites - expected_sites).elements())
-        raise ValueError(
-            "Connection records and physical X sites must match exactly once in "
-            f"each direction; missing={missing}, unexpected={unexpected}."
-        )
 
-    for fragment in fragments:
-        logical_ports = ports_by_fragment[(fragment.kind, fragment.index)]
-        fragment.logical_ports = logical_ports
-        fragment.logical_kind = fragment.kind
-        if fragment.kind not in {"organic_node", "edge"}:
-            continue
-        if len(logical_ports) == 2:
-            fragment.logical_kind = "edge"
-        elif len(logical_ports) > 2:
-            fragment.logical_kind = "organic_node"
+@dataclass(frozen=True)
+class _MultiRankSelfEdgeLattice:
+    generators: tuple[tuple[int, int, int], ...]
+    rank: int
+    determinant_divisor: int
+
+    def contains(self, translation: tuple[int, int, int]) -> bool:
+        if not any(translation):
+            return True
+        rank, divisor = LogicalPortAssigner.lattice_rank_and_divisor(
+            (*self.generators, translation)
+        )
+        return rank == self.rank and divisor == self.determinant_divisor
+
+
+def assign_logical_ports(
+    atoms: ase.Atoms,
+    bonds: BondNetwork,
+    fragments: list[Fragment],
+    connection_records: tuple[PeriodicBond, ...],
+    *,
+    topology_edges: list[TopologyEdge] | None = None,
+) -> None:
+    """Assign stable logical ports using exact physical slot translations."""
+
+    LogicalPortAssigner(
+        atoms,
+        bonds,
+        fragments,
+        connection_records,
+        topology_edges,
+    ).assign()
 
 
 class NodeEdgeTopologyBuilder:
     """Build node/edge topology through the shared exact frame path."""
 
-    def __init__(self, atoms: ase.Atoms, bonds: BondNetwork) -> None:
+    def __init__(
+        self,
+        atoms: ase.Atoms,
+        bonds: BondNetwork,
+        source_records: tuple[PeriodicBond, ...] | None = None,
+    ) -> None:
         self.atoms = atoms
         self.bonds = bonds
+        self.source_records = source_records
 
     def build(
         self,
@@ -948,7 +1266,11 @@ class NodeEdgeTopologyBuilder:
     ) -> tuple[list[TopologyVertex], list[TopologyEdge]]:
         """Return topology vertices and source cut-bond edges."""
 
-        return TopologyBuilder(self.atoms, self.bonds).build_fragments(
+        return TopologyBuilder(
+            self.atoms,
+            self.bonds,
+            source_records=self.source_records,
+        ).build_fragments(
             fragments,
             connecting_bonds,
             preferred_begin_kind="metal_node",

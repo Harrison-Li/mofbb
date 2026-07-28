@@ -179,15 +179,20 @@ node-to-node connection. Each node building block must have the same number of
 `X` connection points as the coordination number of its topology slot.
 
 The builder removes paired `X` atoms and fuses their real-atom anchors. It
-rejects an assembly when either of its default geometry checks fails:
+rejects an assembly when any of these checks fails:
 
+- a new fused bond directly joins carbon to a metal;
 - paired `X` atoms are more than `0.3 Å` apart under the minimum-image
-  convention; or
-- a fused bond is longer than `1.2` times the sum of the ASE covalent radii.
+  convention;
+- a fused bond is longer than `1.2` times the sum of the ASE covalent radii; or
+- two real atoms are closer than their smaller ASE covalent radius under the
+  minimum-image convention.
 
 These thresholds can be adjusted with `--x-mid-tolerance` and
-`--fused-bond-scale`. Use `--no-wrap` to keep the composed coordinates outside
-the primary unit cell.
+`--fused-bond-scale`, and `--atomic-overlap-scale`; setting the last option to
+zero disables only the atomic-overlap gate. The overlap gate checks all real
+atom pairs, including pairs within one building block. Use `--no-wrap` to keep
+the composed coordinates outside the primary unit cell.
 
 ## Python API
 
@@ -337,7 +342,7 @@ src/mofbb/
     ├── edge_decomposer.py   # Node-edge workflow
     ├── bonding.py           # Bond graph construction and cleanup
     ├── fragments.py         # Fragment generation and X caps
-    ├── periodicity.py       # Periodic cuts and repeat opening
+    ├── pbc.py               # Periodic cuts and repeat opening
     ├── results.py           # Output and reconstruction metadata
     └── solvent.py           # Solvent classification and export
 ```

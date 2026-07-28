@@ -18,7 +18,7 @@ from ase.geometry import cell_to_cellpar
 from .assignment import SingleNodeAtomAssigner
 from .bonding import BondNetwork, subset_bonded_structure
 from .fragments import connected_components
-from .periodicity import periodic_bonds
+from .pbc import periodic_bonds
 
 SolventMode: TypeAlias = Literal["none", "free", "all"]
 ActiveSolventMode: TypeAlias = Literal["free", "all"]

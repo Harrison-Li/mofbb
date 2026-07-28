@@ -10,7 +10,7 @@ from ase.geometry import cell_to_cellpar
 from .assignment import SingleNodeAtomAssigner
 from .bonding import read_bonded_structure
 from .fragments import FragmentBuilder, connected_components
-from .periodicity import PeriodicOpening, periodic_bonds, select_periodic_cuts
+from .pbc import PeriodicOpening, periodic_bonds, select_periodic_cuts
 from .results import DecompositionResult
 from .solvent import MofidSolventRemover, SolventMode, SolventRemovalResult
 from .topology import TopologyBuilder, validate_source_atom_ownership
@@ -93,6 +93,7 @@ class SingleNodeDecomposer:
             self.bonds,
             self.symbols,
             x_symbol=self.x_symbol,
+            source_records=source_records,
         )
         node_fragments = fragment_builder.build_role_fragments(
             "node", node_indices, connection_records
@@ -105,11 +106,11 @@ class SingleNodeDecomposer:
             [*node_fragments, *linker_fragments],
         )
 
-        topology_vertices, topology_edges = TopologyBuilder(self.atoms, self.bonds).build(
-            node_fragments,
-            linker_fragments,
-            connection_records,
-        )
+        topology_vertices, topology_edges = TopologyBuilder(
+            self.atoms,
+            self.bonds,
+            source_records=source_records,
+        ).build(node_fragments, linker_fragments, connection_records)
 
         return DecompositionResult(
             name=self.cif.stem,

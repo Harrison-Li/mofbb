@@ -1,4 +1,4 @@
-"""Data models for decomposition fragments and topology records."""
+"""Data object for decomposition fragments and topology records."""
 
 from __future__ import annotations
 

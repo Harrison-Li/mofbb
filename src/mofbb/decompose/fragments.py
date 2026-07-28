@@ -9,8 +9,8 @@ import numpy as np
 from .bonding import BondNetwork
 from .fingerprint import fragment_fingerprint
 from .geometry import center_positions
-from .models import Fragment, XSite
-from .periodicity import (
+from .object import Fragment, XSite
+from .pbc import (
     ComponentPeriodicity,
     PeriodicBond,
     analyze_component,
@@ -30,11 +30,20 @@ class FragmentBuilder:
         bonds: BondNetwork,
         symbols: list[str],
         x_symbol: str = "X",
+        source_records: tuple[PeriodicBond, ...] | None = None,
     ) -> None:
         self.atoms = atoms
         self.bonds = bonds
         self.symbols = symbols
         self.x_symbol = x_symbol
+        self.source_records = (
+            periodic_bonds(atoms, bonds)
+            if source_records is None
+            else source_records
+        )
+        self.source_by_pair = {
+            record.pair: record for record in self.source_records
+        }
 
     def build_role_fragments(
         self,
@@ -161,8 +170,6 @@ class FragmentBuilder:
         self,
         connections: tuple[ConnectionInput, ...],
     ) -> tuple[tuple[PeriodicBond, ...], tuple[PeriodicBond, ...]]:
-        source_records = periodic_bonds(self.atoms, self.bonds)
-        source_by_pair = {record.pair: record for record in source_records}
         normalized: list[PeriodicBond] = []
         seen: set[PeriodicBond] = set()
 
@@ -175,7 +182,7 @@ class FragmentBuilder:
                 supplied = None
 
             try:
-                source = source_by_pair[pair]
+                source = self.source_by_pair[pair]
             except KeyError as exc:
                 raise ValueError(
                     f"Connection {pair} is not present in the source bond network."
@@ -189,7 +196,7 @@ class FragmentBuilder:
                 normalized.append(source)
                 seen.add(source)
 
-        return source_records, tuple(normalized)
+        return self.source_records, tuple(normalized)
 
     @staticmethod
     def _materialization_frame(

@@ -9,8 +9,8 @@ import ase
 import numpy as np
 
 from .bonding import BondNetwork
-from .models import Fragment, TopologyEdge, TopologyVertex
-from .periodicity import (
+from .object import Fragment, TopologyEdge, TopologyVertex
+from .pbc import (
     ComponentPeriodicity,
     PeriodicBond,
     analyze_component,
@@ -59,9 +59,22 @@ def validate_source_atom_ownership(
 class TopologyBuilder:
     """Build P1 CGD vertices and edges from exact periodic fragment frames."""
 
-    def __init__(self, atoms: ase.Atoms, bonds: BondNetwork) -> None:
+    def __init__(
+        self,
+        atoms: ase.Atoms,
+        bonds: BondNetwork,
+        source_records: tuple[PeriodicBond, ...] | None = None,
+    ) -> None:
         self.atoms = atoms
         self.bonds = bonds
+        self.source_records = (
+            periodic_bonds(atoms, bonds)
+            if source_records is None
+            else source_records
+        )
+        self.source_by_pair = {
+            record.pair: record for record in self.source_records
+        }
 
     def build(
         self,
@@ -118,8 +131,6 @@ class TopologyBuilder:
         self,
         connections: tuple[ConnectionInput, ...],
     ) -> tuple[tuple[PeriodicBond, ...], tuple[PeriodicBond, ...]]:
-        source_records = periodic_bonds(self.atoms, self.bonds)
-        source_by_pair = {record.pair: record for record in source_records}
         normalized = []
         seen = set()
         for connection in connections:
@@ -130,7 +141,7 @@ class TopologyBuilder:
                 supplied = None
                 pair = tuple(sorted(connection))
             try:
-                source = source_by_pair[pair]
+                source = self.source_by_pair[pair]
             except KeyError as exc:
                 raise ValueError(
                     f"Topology connection {pair} is not present in the source "
@@ -145,7 +156,7 @@ class TopologyBuilder:
             if source not in seen:
                 normalized.append(source)
                 seen.add(source)
-        return source_records, tuple(normalized)
+        return self.source_records, tuple(normalized)
 
     @staticmethod
     def _atom_to_vertex(fragments: list[Fragment]) -> dict[int, FragmentKey]:
