@@ -60,7 +60,11 @@ class SingleNodeDecomposer:
     def decompose(self) -> DecompositionResult:
         """Run decomposition and return fragments plus topology metadata."""
 
-        assignment = SingleNodeAtomAssigner(self.symbols, self.bonds).assign()
+        assignment = SingleNodeAtomAssigner(
+            self.symbols,
+            self.bonds,
+            absorb_one_port_regions=True,
+        ).assign()
         node_indices = set(assignment.node_indices)
         linker_indices = set(range(len(self.atoms))) - node_indices
         connecting_bonds = find_connecting_bonds(self.bonds.pairs, node_indices)

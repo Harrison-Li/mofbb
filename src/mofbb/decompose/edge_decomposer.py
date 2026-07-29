@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, deque
 from dataclasses import dataclass, field
 from itertools import combinations
 import json
@@ -114,7 +114,11 @@ class NodeEdgeDecomposer:
     def decompose(self) -> NodeEdgeDecompositionResult:
         """Run the node/edge decomposition workflow."""
 
-        assignment = SingleNodeAtomAssigner(self.symbols, self.bonds).assign()
+        assignment = SingleNodeAtomAssigner(
+            self.symbols,
+            self.bonds,
+            absorb_one_port_regions=self.solvent_mode != "free",
+        ).assign()
         metal_node_indices = set(assignment.node_indices)
         organic_indices = set(range(len(self.atoms))) - metal_node_indices
         connecting_bonds = find_connecting_bonds(self.bonds.pairs, metal_node_indices)
@@ -457,8 +461,9 @@ class OrganicLinkerSplitter:
             ):
                 graph.add_edge(i, j)
 
+        blocks = [set(block) for block in nx.biconnected_components(graph)]
         node_atoms: set[int] = set()
-        for block in nx.biconnected_components(graph):
+        for block in blocks:
             if len(block) < 3:
                 continue
             port_count = self.external_cut_count(
@@ -474,7 +479,126 @@ class OrganicLinkerSplitter:
             if port_count > 2:
                 node_atoms.update(block)
 
+        if (
+            not node_atoms
+            and self.external_cut_count(
+                heavy_atoms,
+                external_cut_bonds,
+                source_atoms,
+            )
+            > 2
+        ):
+            node_atoms = self.identify_acyclic_node_atoms(
+                graph,
+                blocks,
+                external_cut_bonds,
+                source_atoms,
+            )
+
         return graph, node_atoms
+
+    def identify_acyclic_node_atoms(
+        self,
+        graph: nx.Graph,
+        blocks: list[set[int]],
+        external_cut_bonds: tuple[tuple[int, int], ...],
+        source_atoms: set[int],
+    ) -> set[int]:
+        """Find a multi-port junction between cyclic two-port regions."""
+
+        bridges = {tuple(sorted(edge)) for edge in nx.bridges(graph)}
+        bridge_free_graph = graph.copy()
+        bridge_free_graph.remove_edges_from(bridges)
+        regions = [
+            set(component)
+            for component in nx.connected_components(bridge_free_graph)
+        ]
+        region_by_atom = {
+            atom: region_index
+            for region_index, region in enumerate(regions)
+            for atom in region
+        }
+
+        bridge_tree = nx.Graph()
+        bridge_tree.add_nodes_from(range(len(regions)))
+        bridge_tree.add_edges_from(
+            (region_by_atom[i], region_by_atom[j]) for i, j in bridges
+        )
+        port_count: dict[int, int] = defaultdict(int)
+        for i, j in external_cut_bonds:
+            if i in source_atoms and i in region_by_atom:
+                port_count[region_by_atom[i]] += 1
+            if j in source_atoms and j in region_by_atom:
+                port_count[region_by_atom[j]] += 1
+
+        active_regions = set(bridge_tree)
+        active_degree = dict(bridge_tree.degree)
+        queue = deque(
+            region
+            for region in bridge_tree
+            if active_degree[region] <= 1 and port_count[region] == 0
+        )
+        while queue:
+            region = queue.popleft()
+            if region not in active_regions or port_count[region] != 0:
+                continue
+            active_regions.remove(region)
+            for neighbor in bridge_tree[region]:
+                if neighbor not in active_regions:
+                    continue
+                active_degree[neighbor] -= 1
+                if active_degree[neighbor] <= 1 and port_count[neighbor] == 0:
+                    queue.append(neighbor)
+
+        seed_regions = {
+            region
+            for region in active_regions
+            if sum(
+                neighbor in active_regions for neighbor in bridge_tree[region]
+            )
+            + port_count[region]
+            >= 3
+        }
+        if not seed_regions:
+            return set()
+
+        seed_atoms = {
+            atom for region in seed_regions for atom in regions[region]
+        }
+        active_atoms = {
+            atom for region in active_regions for atom in regions[region]
+        }
+        cyclic_atoms = {
+            atom
+            for block in blocks
+            if len(block) >= 3
+            for atom in block
+            if atom in active_atoms and atom not in seed_atoms
+        }
+        if not cyclic_atoms:
+            return set()
+
+        def graph_distances(sources: set[int]) -> dict[int, int]:
+            distances = {source: 0 for source in sources}
+            pending = deque(sources)
+            while pending:
+                atom = pending.popleft()
+                for neighbor in graph[atom]:
+                    if neighbor in distances:
+                        continue
+                    distances[neighbor] = distances[atom] + 1
+                    pending.append(neighbor)
+            return distances
+
+        node_distances = graph_distances(seed_atoms)
+        cycle_distances = graph_distances(cyclic_atoms)
+        return {
+            atom
+            for atom in active_atoms
+            if atom in node_distances
+            and atom in cycle_distances
+            and node_distances[atom] <= cycle_distances[atom]
+        }
 
     @staticmethod
     def external_cut_count(

@@ -27,9 +27,17 @@ class AtomAssignment:
 class SingleNodeAtomAssigner:
     """Classify source atoms using MOFid SingleNode-inspired rules."""
 
-    def __init__(self, symbols: list[str], bonds: BondNetwork) -> None:
+    def __init__(
+        self,
+        symbols: list[str],
+        bonds: BondNetwork,
+        *,
+        absorb_one_port_regions: bool = False,
+    ) -> None:
         self.symbols = symbols
         self.bonds = bonds
+        self.absorb_one_port_regions = absorb_one_port_regions
+        self.node_core_by_atom: dict[int, int] = {}
 
     def assign(self) -> AtomAssignment:
         """Return node atoms and points of extension for the source structure."""
@@ -37,20 +45,37 @@ class SingleNodeAtomAssigner:
         nodes = self._seed_node_atoms()
         points_of_extension: set[int] = set()
         visited_bridges: set[int] = set()
+        seed_atoms = tuple(sorted(nodes))
 
-        for atom_index in list(nodes):
-            if atom_index in visited_bridges:
+        for atom_index in seed_atoms:
+            if atom_index in visited_bridges or self.symbols[atom_index] != "O":
                 continue
+            self._classify_oxygen_neighbor(
+                atom_index, nodes, points_of_extension, visited_bridges
+            )
 
-            symbol = self.symbols[atom_index]
-            if symbol == "O":
-                self._classify_oxygen_neighbor(
-                    atom_index, nodes, points_of_extension, visited_bridges
-                )
-            elif symbol == "N":
-                self._classify_nitrogen_neighbor(
-                    atom_index, nodes, points_of_extension, visited_bridges
-                )
+        for atom_index in seed_atoms:
+            if (
+                self.symbols[atom_index] == "N"
+                and self._paired_node_nitrogen(atom_index, nodes) is None
+            ):
+                nodes.discard(atom_index)
+
+        self._index_node_cores(nodes)
+
+        for atom_index in seed_atoms:
+            if (
+                atom_index not in nodes
+                or atom_index in visited_bridges
+                or self.symbols[atom_index] != "N"
+            ):
+                continue
+            self._classify_nitrogen_neighbor(
+                atom_index, nodes, points_of_extension, visited_bridges
+            )
+
+        if self.absorb_one_port_regions:
+            self._absorb_one_port_regions(nodes)
 
         return AtomAssignment(
             node_indices=frozenset(nodes),
@@ -64,6 +89,43 @@ class SingleNodeAtomAssigner:
         for metal in list(nodes):
             nodes.update(self.bonds.adjacency[metal])
         return nodes
+
+    def _index_node_cores(self, nodes: set[int]) -> None:
+        """Index metal clusters together with their retained coordination shell."""
+
+        node_graph = nx.Graph()
+        node_graph.add_nodes_from(nodes)
+        node_graph.add_edges_from(
+            (i, j) for i, j in self.bonds.pairs if i in nodes and j in nodes
+        )
+        self.node_core_by_atom = {
+            atom: core
+            for core, component in enumerate(nx.connected_components(node_graph))
+            for atom in component
+        }
+
+    def _absorb_one_port_regions(self, nodes: set[int]) -> None:
+        """Absorb non-node regions attached through exactly one source bond."""
+
+        remaining = set(range(len(self.symbols))) - nodes
+        while remaining:
+            start = remaining.pop()
+            component = {start}
+            boundary_count = 0
+            queue: deque[int] = deque([start])
+
+            while queue:
+                atom = queue.popleft()
+                for neighbor in self.bonds.adjacency[atom]:
+                    if neighbor in nodes:
+                        boundary_count += 1
+                    elif neighbor in remaining:
+                        remaining.remove(neighbor)
+                        component.add(neighbor)
+                        queue.append(neighbor)
+
+            if boundary_count == 1:
+                nodes.update(component)
 
     def _classify_oxygen_neighbor(
         self,
@@ -210,33 +272,50 @@ class SingleNodeAtomAssigner:
         ring.add(a)
         ring.add(b)
         ring_poe: set[int] = set()
+        node_core = self.node_core_by_atom.get(a)
 
         for atom in list(ring):
+            substituents: set[int] = set()
+            reaches_other_core = False
             for neighbor in self.bonds.adjacency[atom]:
-                if neighbor in ring or is_mofid_metal(self.symbols[neighbor]):
+                if neighbor in ring:
                     continue
-                substituent = self._nonmetal_substituent(neighbor, blocked=ring)
-                if len(substituent) == 1:
-                    ring_poe.add(atom)
-                else:
-                    ring.update(substituent)
+                substituent, reaches_other_core = self._trace_external_region(
+                    neighbor, blocked=ring, node_core=node_core
+                )
+                substituents.update(substituent)
+                if reaches_other_core:
+                    break
+            if reaches_other_core:
+                ring_poe.add(atom)
+            else:
+                ring.update(substituents)
 
         return ring, ring_poe
 
-    def _nonmetal_substituent(self, start: int, blocked: set[int]) -> set[int]:
+    def _trace_external_region(
+        self, start: int, blocked: set[int], node_core: int | None
+    ) -> tuple[set[int], bool]:
         substituent: set[int] = set()
+        visited: set[int] = set()
         queue: deque[int] = deque([start])
 
         while queue:
             current = queue.popleft()
-            if current in substituent or current in blocked:
+            if current in visited:
                 continue
-            if is_mofid_metal(self.symbols[current]):
+            visited.add(current)
+            if current in blocked:
+                continue
+            reached_core = self.node_core_by_atom.get(current)
+            if reached_core is not None:
+                if reached_core != node_core:
+                    return substituent, True
                 continue
 
             substituent.add(current)
             for neighbor in self.bonds.adjacency[current]:
-                if neighbor not in substituent and neighbor not in blocked:
+                if neighbor not in visited:
                     queue.append(neighbor)
 
-        return substituent
+        return substituent, False
