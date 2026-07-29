@@ -24,7 +24,9 @@ dev = [
 ]
 
 [project.scripts]
-mofbb = "mofbb.decompose.cli:main"
+# Previous decomposition entry point, retained for reference:
+# mofbb = "mofbb.decompose.cli:main"
+mofbb-decompose = "mofbb.decompose.cli:main"
 mofbb-compose = "mofbb.compose.cli:main"
 
 [tool.hatch.build.targets.wheel]

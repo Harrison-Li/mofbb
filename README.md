@@ -46,27 +46,21 @@ Install the test and lint dependencies for development:
 python -m pip install -e '.[dev]'
 ```
 
-The installed commands are `mofbb` for decomposition and `mofbb-compose` for
-composition.
+The installed commands are `mofbb-decompose` for decomposition and
+`mofbb-compose` for composition.
 
 ## Quick start
 
-Decompose a CIF using the default single-node workflow:
+Decompose a CIF using the default node-edge workflow:
 
 ```bash
-mofbb path/to/structure.cif --output-dir outputs/structure
-```
-
-Reconstruct a CIF from the generated directory:
-
-```bash
-mofbb-compose outputs/structure --output outputs/reconstructed.cif
+mofbb-decompose path/to/structure.cif --output-dir outputs/structure
 ```
 
 Print command-specific options with:
 
 ```bash
-mofbb --help
+mofbb-decompose --help
 mofbb-compose --help
 ```
 
@@ -83,13 +77,13 @@ python -m mofbb.compose --help
 
 | Mode | Command | Building-block roles |
 | --- | --- | --- |
-| Single-node (default) | `--decomposition single-node` | Metal-containing `node` fragments and organic `linker` fragments |
-| Node-edge | `--decomposition node-edge` | `metal_node`, `organic_node`, and two-connected `edge` fragments |
+| Single-node | `--decomposition single-node` | Metal-containing `node` fragments and organic `linker` fragments |
+| Node-edge (default) | `--decomposition node-edge` | `metal_node`, `organic_node`, and two-connected `edge` fragments |
 
 Single-node decomposition preserves each organic linker as one fragment:
 
 ```bash
-mofbb structure.cif \
+mofbb-decompose structure.cif \
   --decomposition single-node \
   --output-dir outputs/single-node
 ```
@@ -100,7 +94,7 @@ fragments, while paths with exactly two connection sites become `edge`
 fragments:
 
 ```bash
-mofbb structure.cif \
+mofbb-decompose structure.cif \
   --decomposition node-edge \
   --output-dir outputs/node-edge
 ```
@@ -113,10 +107,11 @@ Common options include:
 | `--x-symbol SYMBOL` | `X` | Dummy atom used to cap cut bonds |
 | `--solvent-mode {none,free,all}` | `none` | Solvent treatment before decomposition |
 | `--no-cleanup` | off | Keep all connected components in legacy `none` solvent mode |
-| `--json` | off | Print the full decomposition summary to standard output |
+| `--json` | off | Print the reduced CLI output summary to standard output |
 
 Keep the default `X` symbol when the output will be passed to
-`mofbb-compose`, whose connection-point handling is based on `X` atoms.
+`mofbb-compose` as a topology assignment, whose connection-point handling is
+based on `X` atoms.
 
 ### Solvent handling
 
@@ -131,15 +126,14 @@ MOFBB provides three solvent modes:
 For example:
 
 ```bash
-mofbb structure.cif \
+mofbb-decompose structure.cif \
   --solvent-mode all \
   --output-dir outputs/desolvated
 ```
 
-When `free` or `all` is selected, the output also contains
-`free_solvent.cif`, `bound_solvent.cif`, `mof_fsr.cif`, and `mof_asr.cif`, and
-the atom mapping back to the original input is recorded in
-`decomposition_summary.json`.
+The selected FSR or ASR structure is used for decomposition. The reduced CLI
+output still preserves the byte-identical input under `original_mof_cif/`;
+auxiliary solvent files and decomposition metadata are not published.
 
 ## Composition
 
@@ -147,14 +141,18 @@ MOFBB exposes two distinct composition paths.
 
 ### Exact reconstruction
 
-Pass a decomposition output directory to restore its per-instance fragments,
-remove the `X` caps, and reconnect the cut bonds described by
-`reconstruction_map.json`:
+Pass a full Python-API decomposition output directory (or one of the prepared
+example directories) to restore its per-instance fragments, remove the `X`
+caps, and reconnect the cut bonds described by `reconstruction_map.json`:
 
 ```bash
-mofbb-compose outputs/structure \
+mofbb-compose examples/singlenode-decomposed/UiO-67 \
   --output outputs/reconstructed.cif
 ```
+
+The reduced `mofbb-decompose` directory intentionally omits per-instance
+fragments and `reconstruction_map.json`, so it is intended for reusable BB
+collection and topology-driven assembly rather than exact reconstruction.
 
 Building-block assignments cannot be supplied in this mode. Exact
 reconstruction uses each slot's `exact_instance_path`, not the grouped
@@ -255,7 +253,22 @@ framework.write_cif("outputs/composed.cif")
 
 ## Output files
 
-A single-node decomposition has the following layout:
+The `mofbb-decompose` CLI publishes only deduplicated BB representatives, the
+original input CIF, and the decomposition topology:
+
+```text
+outputs/structure/
+├── bbs/
+│   ├── edge/
+│   └── nodes/
+├── original_mof_cif/
+│   └── structure.cif
+└── topology/
+    └── structure.cgd
+```
+
+The Python `result.write()` API retains the complete reconstruction-oriented
+layout. A full single-node decomposition has the following files:
 
 ```text
 outputs/structure/
