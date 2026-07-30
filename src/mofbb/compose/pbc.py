@@ -254,10 +254,5 @@ class PBC:
             bb.connection_point_anchor_indices[port_index]
         )
 
-        return (
-            bb.atoms[anchor_index].symbol,
-            anchor_index,
-            float(
-                bb.connection_point_anchor_lengths[port_index]
-            ),
-        )
+        symbol, cap_length = bb.port_descriptors[port_index]
+        return symbol, anchor_index, float(cap_length)

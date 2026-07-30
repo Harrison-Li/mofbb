@@ -14,6 +14,7 @@ Metal-Organic Framework.
 """
 
 from pathlib import Path
+import re
 
 import ase
 import ase.io
@@ -201,9 +202,11 @@ def read_cgd(filename, node_symbol="C", edge_center_symbol="O"):
     and returns the result as an :class:`ase.Atoms` object that the rest
     of PORMAKE treats as the topology skeleton.
 
-    Nodes are tagged with non-negative ``type`` values and edge centers
-    with negative ones, and each site carries its coordination number
-    ``cn`` so building blocks can later be matched by connectivity.
+    The one-based identifier in each ``NODE`` record becomes its zero-based
+    non-negative type tag, so repeated identifiers share one building-block
+    type. Edge centers use negative tags, and every site carries its
+    coordination number ``cn`` for connectivity matching. Decomposer-written
+    ``# EXPANDED`` files retain their explicit sites and embedded operations.
 
     Parameters
     ----------
@@ -223,8 +226,37 @@ def read_cgd(filename, node_symbol="C", edge_center_symbol="O"):
     """
     with open(filename, "r") as f:
         # Neglect "CRYSTAL" and "END"
-        lines = f.readlines()[1:-1]
-    lines = [line for line in lines if not line.startswith("#")]
+        raw_lines = f.readlines()[1:-1]
+
+    expanded = False
+    symmetry_operations = []
+    declared_edge_types = {}
+    for line in raw_lines:
+        stripped = line.strip()
+        if not stripped.startswith("#"):
+            continue
+        tokens = stripped[1:].split()
+        if tokens == ["EXPANDED"]:
+            expanded = True
+        elif tokens[:1] == ["SYMOP"]:
+            if len(tokens) != 13:
+                raise ValueError("A CGD SYMOP comment must contain 12 numbers.")
+            values = np.asarray(tokens[1:], dtype=float)
+            symmetry_operations.append(
+                {
+                    "rotation": values[:9].reshape(3, 3).tolist(),
+                    "translation": values[9:].tolist(),
+                }
+            )
+        elif tokens[:1] == ["EDGE_TYPE"]:
+            if len(tokens) != 3:
+                raise ValueError("A CGD EDGE_TYPE comment requires edge and type IDs.")
+            edge_index, edge_type = (int(value) for value in tokens[1:])
+            if edge_index < 1 or edge_type < 1:
+                raise ValueError("CGD EDGE_TYPE IDs must be positive.")
+            declared_edge_types[edge_index - 1] = edge_type
+
+    lines = [line for line in raw_lines if not line.lstrip().startswith("#")]
 
     # Get topology name.
     name = lines[0].split()[1]
@@ -236,6 +268,7 @@ def read_cgd(filename, node_symbol="C", edge_center_symbol="O"):
 
     # Parse node information.
     node_positions = []
+    node_labels = []
     coordination_numbers = []
     for line in lines[3:]:
         tokens = line.split()
@@ -245,6 +278,7 @@ def read_cgd(filename, node_symbol="C", edge_center_symbol="O"):
 
         coordination_number = int(tokens[2])
         pos = [float(r) for r in tokens[3:]]
+        node_labels.append(tokens[1])
         node_positions.append(pos)
         coordination_numbers.append(coordination_number)
 
@@ -291,15 +325,50 @@ def read_cgd(filename, node_symbol="C", edge_center_symbol="O"):
 
     # Pymatget can handle : indicator in spacegroup.
     # Mark symmetrically equivalent sites.
-    node_types = [i for i, _ in enumerate(node_positions)]
-    edge_types = [-(i + 1) for i, _ in enumerate(edge_center_positions)]
+    numeric_types = {}
+    used_types = set()
+    for label in node_labels:
+        match = re.fullmatch(r"[Vv]?([0-9]+)", label)
+        if match:
+            node_id = int(match.group(1))
+            if node_id < 1:
+                raise ValueError("CGD NODE IDs must be positive.")
+            numeric_types[label] = node_id - 1
+            used_types.add(node_id - 1)
+    named_types = {}
+    node_types = []
+    for label in node_labels:
+        if label in numeric_types:
+            node_types.append(numeric_types[label])
+            continue
+        if label not in named_types:
+            candidate = 0
+            while candidate in used_types:
+                candidate += 1
+            named_types[label] = candidate
+            used_types.add(candidate)
+        node_types.append(named_types[label])
+
+    cn_by_type = {}
+    for node_type, coordination_number in zip(node_types, coordination_numbers):
+        previous = cn_by_type.setdefault(node_type, coordination_number)
+        if previous != coordination_number:
+            raise ValueError(
+                f"CGD NODE type {node_type} declares both CN {previous} "
+                f"and CN {coordination_number}."
+            )
+
+    edge_types = [
+        -declared_edge_types.get(index, index + 1)
+        for index in range(len(edge_center_positions))
+    ]
     site_properties = {
         "type": node_types + edge_types,
         "cn": coordination_numbers + [2 for _ in edge_center_positions],
     }
 
     normalized_spacegroup = spacegroup.replace(" ", "")
-    if normalized_spacegroup == "P1":
+    if normalized_spacegroup == "P1" or expanded:
         explicit_edge_endpoints = [
             [
                 [float(value) for value in line.split()[1:4]],
@@ -309,10 +378,12 @@ def read_cgd(filename, node_symbol="C", edge_center_symbol="O"):
             if line.split()[0] == "EDGE"
         ]
         info = {
-            "spacegroup": "P1",
+            "spacegroup": spacegroup,
             "name": name,
             "cn": site_properties["cn"],
         }
+        if symmetry_operations:
+            info["symmetry_operations"] = symmetry_operations
         if len(explicit_edge_endpoints) == n_edges:
             info["edge_endpoints"] = explicit_edge_endpoints
         return ase.Atoms(

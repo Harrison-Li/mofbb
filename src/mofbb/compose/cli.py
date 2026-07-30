@@ -78,6 +78,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Orientation-search accuracy. Default: 6.",
     )
     parser.add_argument(
+        "--top-k",
+        type=int,
+        default=4,
+        help="Port permutations tried after a chemistry failure. Default: 4.",
+    )
+    parser.add_argument(
         "--x-mid-tolerance",
         type=float,
         default=0.3,
@@ -172,6 +178,7 @@ def main(argv: list[str] | None = None) -> int:
                 node_bbs,
                 edge_bbs,
                 accuracy=args.accuracy,
+                top_k=args.top_k,
                 tolerance=args.x_mid_tolerance,
                 scale=args.fused_bond_scale,
                 overlap_scale=args.atomic_overlap_scale,

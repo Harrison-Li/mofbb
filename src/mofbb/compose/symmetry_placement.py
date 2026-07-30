@@ -51,6 +51,7 @@ class SymmetryPlacement:
 
         return (
             str(topology.spacegroup),
+            repr(topology.atoms.info.get("symmetry_operations")),
             array_signature(topology.atoms.cell, float),
             array_signature(topology.atoms.positions, float),
             array_signature(topology.atoms.get_tags(), np.int64),
@@ -96,11 +97,11 @@ class SymmetryPlacement:
         self.orthogonality_tolerance = 1.0e-8
         self.torsion_steps = 24
         self.tau = 2.0 * np.pi
-        self.operations = Symmetry.operations(topology.spacegroup)
-        self.raw_operations = Symmetry.raw_operations(topology.spacegroup)
-        self.raw_operation_indices = Symmetry.raw_operation_indices(
-            topology.spacegroup
-        )
+        (
+            self.raw_operations,
+            self.operations,
+            self.raw_operation_indices,
+        ) = Symmetry.topology_operation_data(topology)
         self.rotations = np.asarray([op.rotation_matrix for op in self.operations], float)
         self.translations = np.asarray([op.translation_vector for op in self.operations], float)
         self.positions = np.asarray(topology.atoms.get_scaled_positions(wrap=True), float)
@@ -186,34 +187,40 @@ class SymmetryPlacement:
         tags = self.tags[slots]
         orbits = []
         for tag in np.unique(tags):
-            members = np.sort(slots[tags == tag])
-            representative = int(members[0])
-            reached = np.unique(self.operation_mappings[:, representative])
-            if not np.array_equal(np.sort(reached), members):
-                raise ValueError(
-                    f"Tag {int(tag)} is not one orbit: slot {representative} reaches "
-                    f"{reached.tolist()}, expected {members.tolist()}."
+            remaining = set(slots[tags == tag])
+            while remaining:
+                representative = min(remaining)
+                members = np.sort(
+                    np.unique(self.operation_mappings[:, representative])
                 )
+                if not set(members) <= remaining:
+                    raise ValueError(
+                        f"Overlapping crystallographic orbits for slot tag {int(tag)}."
+                    )
 
-            operations = []
-            for member in members:
-                if member == representative:
-                    operations.append(self.identity_operation_index)
-                    continue
-                candidates = np.flatnonzero(self.operation_mappings[:, representative] == member)
-                if not len(candidates):
-                    raise ValueError(f"No operation maps slot {representative} to {int(member)}.")
-                operations.append(int(candidates[0]))
+                operations = []
+                for member in members:
+                    if member == representative:
+                        operations.append(self.identity_operation_index)
+                        continue
+                    candidates = np.flatnonzero(
+                        self.operation_mappings[:, representative] == member
+                    )
+                    operations.append(int(candidates[0]))
 
-            orbits.append(
-                SlotOrbit(
-                    int(tag),
-                    representative,
-                    members,
-                    np.asarray(operations, int),
-                    np.flatnonzero(self.operation_mappings[:, representative] == representative),
+                orbits.append(
+                    SlotOrbit(
+                        int(tag),
+                        representative,
+                        members,
+                        np.asarray(operations, int),
+                        np.flatnonzero(
+                            self.operation_mappings[:, representative]
+                            == representative
+                        ),
+                    )
                 )
-            )
+                remaining.difference_update(members)
         return tuple(orbits)
 
     @staticmethod

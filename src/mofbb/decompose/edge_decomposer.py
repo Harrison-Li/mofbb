@@ -18,7 +18,6 @@ from .assignment import SingleNodeAtomAssigner
 from .bonding import BondNetwork, read_bonded_structure
 from .decomposer import find_connecting_bonds
 from .fragments import FragmentBuilder, connected_components
-from .geometry import format_float
 from .object import Fragment, LogicalPort, TopologyEdge, TopologyVertex, XSite
 from .pbc import (
     PeriodicBond,
@@ -27,6 +26,7 @@ from .pbc import (
     select_periodic_cuts,
 )
 from .results import (
+    _write_topology_cgd,
     fragment_group_key,
     fragment_group_metadata,
     fragment_instance_path,
@@ -1476,7 +1476,9 @@ class NodeEdgeDecompositionResult:
         group_records, fragment_to_bb_id = self._write_group_representatives(output_dir)
 
         topology_path = output_dir / "topology.cgd"
-        topology_summary = self.write_topology_cgd(topology_path)
+        topology_summary = self.write_topology_cgd(
+            topology_path, fragment_to_bb_id
+        )
         topology_summary["path"] = str(topology_path.relative_to(output_dir))
 
         reconstruction_path = output_dir / "reconstruction_map.json"
@@ -1630,28 +1632,25 @@ class NodeEdgeDecompositionResult:
             fragment_to_bb_id=fragment_to_bb_id,
         )
 
-    def write_topology_cgd(self, path: Path) -> dict[str, int]:
-        """Write a P1 CGD topology file for the node/edge result."""
+    def write_topology_cgd(
+        self,
+        path: Path,
+        fragment_to_bb_id: dict[tuple[str, int], str] | None = None,
+    ) -> dict[str, object]:
+        """Write the colored topology with its validated graph symmetry."""
 
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("w", encoding="utf-8") as handle:
-            handle.write("CRYSTAL\n")
-            handle.write(f"  NAME {self.name}\n")
-            handle.write("  GROUP P1\n")
-            cell = " ".join(format_float(value) for value in self.cell_parameters)
-            handle.write(f"  CELL {cell}\n")
-            for vertex_number, vertex in enumerate(self.topology_vertices, start=1):
-                frac = " ".join(format_float(value) for value in vertex.frac_position)
-                handle.write(f"  NODE {vertex_number} {vertex.coordination} {frac}\n")
-            for edge in self.topology_edges:
-                begin = " ".join(format_float(value) for value in edge.begin_frac)
-                end = " ".join(format_float(value) for value in edge.end_frac)
-                handle.write(f"  EDGE  {begin}   {end}\n")
-            for edge in self.topology_edges:
-                center = " ".join(format_float(value) for value in edge.center_frac)
-                handle.write(f"  # EDGE_CENTER  {center}\n")
-            handle.write("END\n")
-        return {
-            "num_vertices": len(self.topology_vertices),
-            "num_edges": len(self.topology_edges),
-        }
+        if fragment_to_bb_id is None:
+            fragment_to_bb_id = {
+                (fragment.kind, fragment.index): repr(
+                    (fragment.kind, fragment_group_key(fragment))
+                )
+                for fragment in self.fragments
+            }
+        return _write_topology_cgd(
+            path,
+            name=self.name,
+            cell_parameters=self.cell_parameters,
+            vertices=self.topology_vertices,
+            edges=self.topology_edges,
+            fragment_to_bb_id=fragment_to_bb_id,
+        )

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 import numpy as np
+from pymatgen.core.operations import SymmOp
 from pymatgen.symmetry.groups import SpaceGroup
 from scipy.special import exprel
 
@@ -26,9 +27,7 @@ class Symmetry:
         return (*rotation.ravel(), *np.round(translation, 12))
 
     @staticmethod
-    @lru_cache(maxsize=None)
-    def operation_data(symbol):
-        raw = tuple(SpaceGroup(symbol).symmetry_ops)
+    def _ordered_operation_data(raw):
         ordered = tuple(sorted(raw, key=Symmetry.key))
         ordered_indices = {
             Symmetry.key(operation): index
@@ -38,6 +37,26 @@ class Symmetry:
             ordered_indices[Symmetry.key(operation)] for operation in raw
         )
         return raw, ordered, raw_to_ordered
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def operation_data(symbol):
+        return Symmetry._ordered_operation_data(
+            tuple(SpaceGroup(symbol).symmetry_ops)
+        )
+
+    @staticmethod
+    def topology_operation_data(topology):
+        declared = topology.atoms.info.get("symmetry_operations")
+        if not declared:
+            return Symmetry.operation_data(topology.spacegroup)
+        raw = tuple(
+            SymmOp.from_rotation_and_translation(
+                operation["rotation"], operation["translation"]
+            )
+            for operation in declared
+        )
+        return Symmetry._ordered_operation_data(raw)
 
     @staticmethod
     def operations(symbol):
@@ -237,7 +256,7 @@ class SymmetryReducedParameterization:
             raise ValueError("A topology must contain at least one node.")
 
         try:
-            self.operations = Symmetry.operations(topology.spacegroup)
+            self.operations = Symmetry.topology_operation_data(topology)[1]
         except Exception as error:
             raise ValueError(
                 f"Cannot construct declared space group {topology.spacegroup!r}."
@@ -330,14 +349,25 @@ class SymmetryReducedParameterization:
         orbits, bounds = [], []
         start = 0
         for tag in np.unique(self.tags):
-            orbit = self.make_orbit(int(tag), start)
-            orbits.append(orbit)
-            bounds.extend(orbit.bounds)
-            start = orbit.parameter_slice.stop
+            remaining = set(np.flatnonzero(self.tags == tag))
+            while remaining:
+                representative = min(remaining)
+                members = np.unique(
+                    self.operation_mappings[:, representative]
+                )
+                if not set(members) <= remaining:
+                    raise ValueError(
+                        f"Overlapping crystallographic orbits for node tag {tag}."
+                    )
+                orbit = self.make_orbit(int(tag), start, members)
+                orbits.append(orbit)
+                bounds.extend(orbit.bounds)
+                start = orbit.parameter_slice.stop
+                remaining.difference_update(members)
         return tuple(orbits), tuple(bounds)
 
-    def make_orbit(self, tag, start, zero_tol=1.0e-12):
-        members = np.flatnonzero(self.tags == tag)
+    def make_orbit(self, tag, start, members, zero_tol=1.0e-12):
+        members = np.asarray(members, dtype=int)
         members = members[np.argsort(self.node_indices[members])]
         representative = int(members[0])
         reached = np.unique(self.operation_mappings[:, representative])

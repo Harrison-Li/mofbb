@@ -25,8 +25,8 @@ It supports two complementary workflows:
 - Optionally removes free or all detected solvent before decomposition.
 - Opens infinite one-dimensional metal components into finite
   crystallographic repeats while retaining their cell translations.
-- Writes extended XYZ building blocks, a P1 CGD topology, JSON summaries, and
-  a schema-v2 reconstruction map.
+- Writes extended XYZ building blocks, a symmetry-annotated CGD topology,
+  JSON summaries, and a schema-v2 reconstruction map.
 - Reconstructs decomposition outputs without requiring JAX.
 - Performs topology scaling, building-block orientation, and geometric quality
   checks for topology-driven assembly.
@@ -175,6 +175,8 @@ Assignments use `TYPE=PATH` for nodes and `LEFT_TYPE,RIGHT_TYPE=PATH` for
 edges. Edge assignments are optional; an omitted edge type produces a direct
 node-to-node connection. Each node building block must have the same number of
 `X` connection points as the coordination number of its topology slot.
+The first field after `NODE` is a one-based type ID: repeated IDs use the same
+node assignment (internally, `NODE 1` is type `0`).
 
 The builder removes paired `X` atoms and fuses their real-atom anchors. It
 rejects an assembly when any of these checks fails:
@@ -278,7 +280,7 @@ outputs/structure/
 ├── nodes/                      # Exact per-instance node geometries
 ├── decomposition_summary.json # Counts, groups, paths, and validation data
 ├── reconstruction_map.json    # Authoritative slot/edge reconstruction data
-└── topology.cgd               # P1 topology and translated edge geometry
+└── topology.cgd               # Colored topology, symmetry, and edge geometry
 ```
 
 Node-edge output uses `metal_nodes/`, `organic_nodes/`, and `edges/`; it can
@@ -292,7 +294,8 @@ The main metadata files serve different purposes:
   groups, solvent selections, and topology counts.
 - `reconstruction_map.json` records exact slot instances, source atom indices,
   paired `X` sites, cut-bond translations, and reconstruction validation.
-- `topology.cgd` provides a P1 view of the collapsed periodic net.
+- `topology.cgd` records the collapsed colored periodic net and the symmetry
+  operations that preserve both its BB types and translated edges.
 
 ## Periodic components and geometry contract
 

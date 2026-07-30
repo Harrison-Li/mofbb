@@ -57,7 +57,7 @@ def validate_source_atom_ownership(
 
 
 class TopologyBuilder:
-    """Build P1 CGD vertices and edges from exact periodic fragment frames."""
+    """Build CGD vertices and edges from exact periodic fragment frames."""
 
     def __init__(
         self,

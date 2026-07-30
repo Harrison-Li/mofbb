@@ -8,11 +8,202 @@ from dataclasses import dataclass, field
 import json
 from pathlib import Path
 
+from ase.geometry import cellpar_to_cell
+import numpy as np
+import spglib
+
 from .geometry import format_float
 from .object import Fragment, TopologyEdge, TopologyVertex, XSite
 from .pbc import PeriodicBond, PeriodicOpening
 from .solvent import SolventMode, SolventRemovalResult
 from .topology import validate_source_atom_ownership
+
+
+def _canonical_edge(
+    begin: int,
+    end: int,
+    shift: np.ndarray,
+) -> tuple[int, int, tuple[int, int, int]]:
+    direct = (begin, end, tuple(int(value) for value in shift))
+    reverse = (end, begin, tuple(int(-value) for value in shift))
+    return min(direct, reverse)
+
+
+def _topology_symmetry(
+    cell_parameters: tuple[float, float, float, float, float, float],
+    vertices: list[TopologyVertex],
+    edges: list[TopologyEdge],
+    vertex_types: list[int],
+) -> tuple[str, np.ndarray, np.ndarray, np.ndarray]:
+    """Detect operations of the colored periodic topology graph."""
+
+    identity = (
+        "P1",
+        np.eye(3, dtype=int)[None, ...],
+        np.zeros((1, 3)),
+        np.arange(1, len(edges) + 1),
+    )
+    if not vertices:
+        return identity
+
+    positions = np.asarray([vertex.frac_position for vertex in vertices], float)
+    types = np.asarray(vertex_types, int)
+    index_by_key = {
+        (vertex.kind, vertex.index): index
+        for index, vertex in enumerate(vertices)
+    }
+    periodic_edges = []
+    for edge in edges:
+        begin = index_by_key[(edge.begin_kind, edge.begin_index)]
+        end = index_by_key[(edge.end_kind, edge.end_index)]
+        begin_image = np.rint(np.asarray(edge.begin_frac) - positions[begin])
+        end_image = np.rint(np.asarray(edge.end_frac) - positions[end])
+        periodic_edges.append(_canonical_edge(begin, end, end_image - begin_image))
+
+    pair_types = {
+        pair: int(types.max()) + offset
+        for offset, pair in enumerate(
+            sorted({tuple(sorted((types[i], types[j]))) for i, j, _ in periodic_edges}),
+            start=1,
+        )
+    }
+    decorated_positions = list(np.mod(positions, 1.0))
+    decorated_types = list(types)
+    seen = {
+        (int(site_type), *np.round(position, 8))
+        for position, site_type in zip(decorated_positions, decorated_types)
+    }
+    for begin, end, shift in periodic_edges:
+        delta = positions[end] + np.asarray(shift) - positions[begin]
+        marker_type = pair_types[tuple(sorted((types[begin], types[end])))]
+        for fraction in (1.0 / 3.0, 2.0 / 3.0):
+            marker = np.mod(positions[begin] + fraction * delta, 1.0)
+            key = (int(marker_type), *np.round(marker, 8))
+            if key not in seen:
+                seen.add(key)
+                decorated_positions.append(marker)
+                decorated_types.append(marker_type)
+
+    dataset = spglib.get_symmetry_dataset(
+        (
+            np.asarray(cellpar_to_cell(cell_parameters)),
+            np.asarray(decorated_positions),
+            np.asarray(decorated_types),
+        ),
+        symprec=0.05,
+        angle_tolerance=5.0,
+    )
+    if dataset is None:
+        return identity
+
+    rotations = np.asarray(dataset.rotations, int)
+    translations = np.asarray(dataset.translations, float)
+    same_type = types[:, None] == types[None, :]
+    node_maps, node_images = [], []
+    for rotation, translation in zip(rotations, translations):
+        transformed = positions @ rotation.T + translation
+        differences = transformed[:, None] - positions[None]
+        images = np.rint(differences)
+        matches = same_type & np.all(abs(differences - images) <= 2.0e-4, axis=2)
+        if np.any(matches.sum(axis=1) != 1):
+            return identity
+        mapping = np.argmax(matches, axis=1)
+        node_maps.append(mapping)
+        node_images.append(images[np.arange(len(vertices)), mapping].astype(int))
+
+    indices_by_edge: dict[tuple[int, int, tuple[int, int, int]], list[int]] = defaultdict(list)
+    for index, edge in enumerate(periodic_edges):
+        indices_by_edge[edge].append(index)
+    edge_rank = {
+        index: rank
+        for indices in indices_by_edge.values()
+        for rank, index in enumerate(indices)
+    }
+    edge_maps = []
+    for rotation, mapping, images in zip(rotations, node_maps, node_images):
+        mapped = []
+        for index, (begin, end, shift) in enumerate(periodic_edges):
+            target = _canonical_edge(
+                int(mapping[begin]),
+                int(mapping[end]),
+                images[end] + rotation @ np.asarray(shift) - images[begin],
+            )
+            candidates = indices_by_edge.get(target, ())
+            if edge_rank[index] >= len(candidates):
+                return identity
+            mapped.append(candidates[edge_rank[index]])
+        if len(set(mapped)) != len(edges):
+            return identity
+        edge_maps.append(mapped)
+
+    edge_types = np.zeros(len(edges), dtype=int)
+    for edge_index in range(len(edges)):
+        if edge_types[edge_index]:
+            continue
+        orbit = np.unique(np.asarray(edge_maps)[:, edge_index])
+        edge_types[orbit] = int(edge_types.max()) + 1
+    return str(dataset.international), rotations, translations, edge_types
+
+
+def _write_topology_cgd(
+    path: Path,
+    *,
+    name: str,
+    cell_parameters: tuple[float, float, float, float, float, float],
+    vertices: list[TopologyVertex],
+    edges: list[TopologyEdge],
+    fragment_to_bb_id: dict[tuple[str, int], str] | None,
+) -> dict[str, object]:
+    """Write an expanded CGD with graph-derived symmetry and BB types."""
+
+    bb_types: dict[str, int] = {}
+    vertex_types = []
+    for vertex in vertices:
+        bb_id = (
+            fragment_to_bb_id[(vertex.kind, vertex.index)]
+            if fragment_to_bb_id is not None
+            else f"{vertex.kind}:{vertex.index}"
+        )
+        vertex_types.append(bb_types.setdefault(bb_id, len(bb_types) + 1))
+    symbol, rotations, translations, edge_types = _topology_symmetry(
+        cell_parameters, vertices, edges, vertex_types
+    )
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        handle.write("CRYSTAL\n")
+        handle.write(f"  NAME {name}\n")
+        handle.write(f"  GROUP {symbol}\n")
+        cell = " ".join(format_float(value) for value in cell_parameters)
+        handle.write(f"  CELL {cell}\n")
+        handle.write("  # EXPANDED\n")
+        for rotation, translation in zip(rotations, translations):
+            values = [
+                *(str(int(value)) for value in rotation.ravel()),
+                *(format_float(value) for value in translation),
+            ]
+            handle.write(f"  # SYMOP {' '.join(values)}\n")
+        for vertex_type, vertex in zip(vertex_types, vertices):
+            frac = " ".join(format_float(value) for value in vertex.frac_position)
+            handle.write(f"  NODE {vertex_type} {vertex.coordination} {frac}\n")
+        for edge_number, (edge_type, edge) in enumerate(
+            zip(edge_types, edges), start=1
+        ):
+            handle.write(f"  # EDGE_TYPE {edge_number} {edge_type}\n")
+            begin = " ".join(format_float(value) for value in edge.begin_frac)
+            end = " ".join(format_float(value) for value in edge.end_frac)
+            handle.write(f"  EDGE  {begin}   {end}\n")
+        for edge in edges:
+            center = " ".join(format_float(value) for value in edge.center_frac)
+            handle.write(f"  # EDGE_CENTER  {center}\n")
+        handle.write("END\n")
+    return {
+        "num_vertices": len(vertices),
+        "num_edges": len(edges),
+        "num_node_types": len(bb_types),
+        "spacegroup": symbol,
+        "num_symmetry_operations": len(rotations),
+    }
 
 
 def fragment_instance_path(fragment: Fragment) -> str:
@@ -503,7 +694,9 @@ class DecompositionResult:
         group_records, fragment_to_bb_id = self._write_group_representatives(output_dir)
 
         topology_path = output_dir / "topology.cgd"
-        topology_summary = self.write_topology_cgd(topology_path)
+        topology_summary = self.write_topology_cgd(
+            topology_path, fragment_to_bb_id
+        )
         topology_summary["path"] = str(topology_path.relative_to(output_dir))
 
         reconstruction_path = output_dir / "reconstruction_map.json"
@@ -616,28 +809,25 @@ class DecompositionResult:
             fragment_to_bb_id=fragment_to_bb_id,
         )
 
-    def write_topology_cgd(self, path: Path) -> dict[str, int]:
-        """Write a MOFid-style P1 CGD topology file."""
+    def write_topology_cgd(
+        self,
+        path: Path,
+        fragment_to_bb_id: dict[tuple[str, int], str] | None = None,
+    ) -> dict[str, object]:
+        """Write the colored topology with its validated graph symmetry."""
 
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("w", encoding="utf-8") as handle:
-            handle.write("CRYSTAL\n")
-            handle.write(f"  NAME {self.name}\n")
-            handle.write("  GROUP P1\n")
-            cell = " ".join(format_float(value) for value in self.cell_parameters)
-            handle.write(f"  CELL {cell}\n")
-            for vertex_number, vertex in enumerate(self.topology_vertices, start=1):
-                frac = " ".join(format_float(value) for value in vertex.frac_position)
-                handle.write(f"  NODE {vertex_number} {vertex.coordination} {frac}\n")
-            for edge in self.topology_edges:
-                begin = " ".join(format_float(value) for value in edge.begin_frac)
-                end = " ".join(format_float(value) for value in edge.end_frac)
-                handle.write(f"  EDGE  {begin}   {end}\n")
-            for edge in self.topology_edges:
-                center = " ".join(format_float(value) for value in edge.center_frac)
-                handle.write(f"  # EDGE_CENTER  {center}\n")
-            handle.write("END\n")
-        return {
-            "num_vertices": len(self.topology_vertices),
-            "num_edges": len(self.topology_edges),
-        }
+        if fragment_to_bb_id is None:
+            fragment_to_bb_id = {
+                (fragment.kind, fragment.index): repr(
+                    (fragment.kind, fragment_group_key(fragment))
+                )
+                for fragment in self.fragments
+            }
+        return _write_topology_cgd(
+            path,
+            name=self.name,
+            cell_parameters=self.cell_parameters,
+            vertices=self.topology_vertices,
+            edges=self.topology_edges,
+            fragment_to_bb_id=fragment_to_bb_id,
+        )

@@ -38,6 +38,7 @@ class SingleNodeAtomAssigner:
         self.bonds = bonds
         self.absorb_one_port_regions = absorb_one_port_regions
         self.node_core_by_atom: dict[int, int] = {}
+        self.coordination_seed_atoms: frozenset[int] = frozenset()
 
     def assign(self) -> AtomAssignment:
         """Return node atoms and points of extension for the source structure."""
@@ -61,6 +62,7 @@ class SingleNodeAtomAssigner:
             ):
                 nodes.discard(atom_index)
 
+        self.coordination_seed_atoms = frozenset(nodes.intersection(seed_atoms))
         self._index_node_cores(nodes)
 
         for atom_index in seed_atoms:
@@ -309,7 +311,9 @@ class SingleNodeAtomAssigner:
                 continue
             reached_core = self.node_core_by_atom.get(current)
             if reached_core is not None:
-                if reached_core != node_core:
+                if reached_core != node_core or (
+                    substituent and current in self.coordination_seed_atoms
+                ):
                     return substituent, True
                 continue
 

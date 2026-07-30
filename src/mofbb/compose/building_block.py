@@ -3,6 +3,7 @@ Adapted from https://github.com/Sangwon91/PORMAKE/blob/main/src/pormake/building
 """
 import copy
 from dataclasses import dataclass
+from functools import cached_property
 
 import ase
 import ase.visualize
@@ -424,6 +425,17 @@ class BuildingBlock:
         symbols = self.atoms.get_chemical_symbols()
         return tuple(
             symbols[index] for index in self.connection_point_anchor_indices
+        )
+
+    @cached_property
+    def port_descriptors(self):
+        """Return ``(anchor element, X-anchor length)`` for each X site."""
+        return tuple(
+            zip(
+                self.connection_point_anchor_symbols,
+                self.connection_point_anchor_lengths,
+                strict=True,
+            )
         )
 
     @property

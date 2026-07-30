@@ -108,7 +108,7 @@ class NeighborList:
             raise Exception("Invalid arguments.")  # Hmm...
 
     def explicit_build(self, atoms, edge_endpoints):
-        """Build connectivity from P1 CGD edge endpoint coordinates."""
+        """Build connectivity from expanded CGD edge endpoint coordinates."""
 
         node_indices = np.flatnonzero(atoms.symbols == "C")
         edge_indices = np.flatnonzero(atoms.symbols == "O")

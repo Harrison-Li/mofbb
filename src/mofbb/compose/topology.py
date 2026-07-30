@@ -160,7 +160,7 @@ class Topology:
             cancel to within ``1e-3``, ``False`` otherwise.
         """
         eps = 1e-3
-        edge_indices = np.argwhere(self.atoms.get_tags() == -1).reshape(-1)
+        edge_indices = np.argwhere(self.atoms.get_tags() < 0).reshape(-1)
         for e in edge_indices:
             neighbors = self.neighbor_list[e]
             if len(neighbors) != 2:

@@ -17,7 +17,6 @@ MOFID_NONMETALS: frozenset[str] = frozenset(
         "S",
         "Cl",
         "Ar",
-        "Ge",
         "As",
         "Se",
         "Br",
