@@ -34,6 +34,7 @@ def _topology_symmetry(
     vertices: list[TopologyVertex],
     edges: list[TopologyEdge],
     vertex_types: list[int],
+    edge_colors: list[int] | None = None,
 ) -> tuple[str, np.ndarray, np.ndarray, np.ndarray]:
     """Detect operations of the colored periodic topology graph."""
 
@@ -48,6 +49,10 @@ def _topology_symmetry(
 
     positions = np.asarray([vertex.frac_position for vertex in vertices], float)
     types = np.asarray(vertex_types, int)
+    if edge_colors is None:
+        edge_colors = [0] * len(edges)
+    if len(edge_colors) != len(edges):
+        raise ValueError("Topology edge colors must align one-for-one with edges.")
     index_by_key = {
         (vertex.kind, vertex.index): index
         for index, vertex in enumerate(vertices)
@@ -63,7 +68,12 @@ def _topology_symmetry(
     pair_types = {
         pair: int(types.max()) + offset
         for offset, pair in enumerate(
-            sorted({tuple(sorted((types[i], types[j]))) for i, j, _ in periodic_edges}),
+            sorted(
+                {
+                    (tuple(sorted((types[i], types[j]))), edge_colors[index])
+                    for index, (i, j, _) in enumerate(periodic_edges)
+                }
+            ),
             start=1,
         )
     }
@@ -73,9 +83,11 @@ def _topology_symmetry(
         (int(site_type), *np.round(position, 8))
         for position, site_type in zip(decorated_positions, decorated_types)
     }
-    for begin, end, shift in periodic_edges:
+    for edge_index, (begin, end, shift) in enumerate(periodic_edges):
         delta = positions[end] + np.asarray(shift) - positions[begin]
-        marker_type = pair_types[tuple(sorted((types[begin], types[end])))]
+        marker_type = pair_types[
+            (tuple(sorted((types[begin], types[end]))), edge_colors[edge_index])
+        ]
         for fraction in (1.0 / 3.0, 2.0 / 3.0):
             marker = np.mod(positions[begin] + fraction * delta, 1.0)
             key = (int(marker_type), *np.round(marker, 8))
@@ -111,9 +123,11 @@ def _topology_symmetry(
         node_maps.append(mapping)
         node_images.append(images[np.arange(len(vertices)), mapping].astype(int))
 
-    indices_by_edge: dict[tuple[int, int, tuple[int, int, int]], list[int]] = defaultdict(list)
+    indices_by_edge: dict[
+        tuple[tuple[int, int, tuple[int, int, int]], int], list[int]
+    ] = defaultdict(list)
     for index, edge in enumerate(periodic_edges):
-        indices_by_edge[edge].append(index)
+        indices_by_edge[(edge, edge_colors[index])].append(index)
     edge_rank = {
         index: rank
         for indices in indices_by_edge.values()
@@ -128,7 +142,7 @@ def _topology_symmetry(
                 int(mapping[end]),
                 images[end] + rotation @ np.asarray(shift) - images[begin],
             )
-            candidates = indices_by_edge.get(target, ())
+            candidates = indices_by_edge.get((target, edge_colors[index]), ())
             if edge_rank[index] >= len(candidates):
                 return identity
             mapped.append(candidates[edge_rank[index]])
@@ -153,6 +167,7 @@ def _write_topology_cgd(
     vertices: list[TopologyVertex],
     edges: list[TopologyEdge],
     fragment_to_bb_id: dict[tuple[str, int], str] | None,
+    edge_bb_ids: dict[int, str] | None = None,
 ) -> dict[str, object]:
     """Write an expanded CGD with graph-derived symmetry and BB types."""
 
@@ -165,8 +180,16 @@ def _write_topology_cgd(
             else f"{vertex.kind}:{vertex.index}"
         )
         vertex_types.append(bb_types.setdefault(bb_id, len(bb_types) + 1))
+    edge_color_ids: dict[str | None, int] = {}
+    edge_colors = [
+        edge_color_ids.setdefault(
+            None if edge_bb_ids is None else edge_bb_ids.get(index),
+            len(edge_color_ids) + 1,
+        )
+        for index in range(len(edges))
+    ]
     symbol, rotations, translations, edge_types = _topology_symmetry(
-        cell_parameters, vertices, edges, vertex_types
+        cell_parameters, vertices, edges, vertex_types, edge_colors
     )
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -293,6 +316,8 @@ def write_reconstruction_data(
     topology_edges: list[TopologyEdge],
     group_records: list[dict[str, object]],
     fragment_to_bb_id: dict[tuple[str, int], str],
+    slot_positions: dict[tuple[str, int], tuple[float, float, float]] | None = None,
+    topology_slots: dict[tuple[str, int], tuple[str, int]] | None = None,
 ) -> dict[str, object]:
     """Write the shared schema-v2, shift-aware reconstruction map."""
 
@@ -314,26 +339,30 @@ def write_reconstruction_data(
         key = (fragment.kind, fragment.index)
         partition = logical_port_partition(fragment)
         instance_path = fragment_instance_path(fragment)
-        slots.append(
-            {
-                "slot_id": slot_id,
-                "kind": fragment.kind,
-                "cn": fragment.num_x,
-                "physical_cn": fragment.num_x,
-                "logical_cn": len(partition) if partition else fragment.num_x,
-                "logical_kind": fragment.logical_kind or fragment.kind,
-                "logical_ports": [port.as_dict() for port in fragment.logical_ports],
-                "bb_id": fragment_to_bb_id[key],
-                "debug_instance": instance_path,
-                "exact_instance_path": instance_path,
-                "source_indices": list(fragment.source_indices),
-                "source_image_offsets": [
-                    [atom_index, list(offset)]
-                    for atom_index, offset in fragment.source_image_offsets
-                ],
-                "formula": fragment.formula,
-            }
-        )
+        slot = {
+            "slot_id": slot_id,
+            "kind": fragment.kind,
+            "cn": fragment.num_x,
+            "physical_cn": fragment.num_x,
+            "logical_cn": len(partition) if partition else fragment.num_x,
+            "logical_kind": fragment.logical_kind or fragment.kind,
+            "logical_ports": [port.as_dict() for port in fragment.logical_ports],
+            "bb_id": fragment_to_bb_id[key],
+            "debug_instance": instance_path,
+            "exact_instance_path": instance_path,
+            "source_indices": list(fragment.source_indices),
+            "source_image_offsets": [
+                [atom_index, list(offset)]
+                for atom_index, offset in fragment.source_image_offsets
+            ],
+            "formula": fragment.formula,
+        }
+        if slot_positions is not None:
+            slot["exact_frac_position"] = list(slot_positions[key])
+        if topology_slots is not None:
+            slot_kind, slot_index = topology_slots[key]
+            slot["topology_slot"] = {"kind": slot_kind, "index": slot_index}
+        slots.append(slot)
 
     records = connection_records or _legacy_connection_records(connecting_bonds)
     if connection_records and tuple(record.pair for record in records) != connecting_bonds:

@@ -13,6 +13,7 @@ from typing import Literal
 import ase
 from ase.geometry import cell_to_cellpar
 import networkx as nx
+import numpy as np
 
 from .assignment import SingleNodeAtomAssigner
 from .bonding import BondNetwork, read_bonded_structure
@@ -1401,6 +1402,116 @@ class NodeEdgeTopologyBuilder:
         )
 
 
+def _contract_edge_fragments(
+    vertices: list[TopologyVertex],
+    edges: list[TopologyEdge],
+    edge_fragments: list[Fragment],
+) -> tuple[
+    list[TopologyVertex],
+    list[TopologyEdge],
+    dict[tuple[str, int], tuple[str, int]],
+]:
+    """Turn decomposed two-port fragments into composer edge slots."""
+
+    edge_keys = {(fragment.kind, fragment.index) for fragment in edge_fragments}
+    kept = [
+        vertex
+        for vertex in vertices
+        if (vertex.kind, vertex.index) not in edge_keys
+    ]
+    positions = {
+        (vertex.kind, vertex.index): np.asarray(vertex.frac_position, dtype=float)
+        for vertex in vertices
+    }
+    order = {
+        (vertex.kind, vertex.index): index
+        for index, vertex in enumerate(kept)
+    }
+    topology_slots = {
+        key: ("node", index)
+        for key, index in order.items()
+    }
+    incidents: dict[
+        tuple[str, int], list[tuple[tuple[str, int], np.ndarray]]
+    ] = defaultdict(list)
+    composition_edges: list[TopologyEdge] = []
+
+    for edge in edges:
+        begin = (edge.begin_kind, edge.begin_index)
+        end = (edge.end_kind, edge.end_index)
+        begin_is_edge = begin in edge_keys
+        end_is_edge = end in edge_keys
+        if begin_is_edge and end_is_edge:
+            raise ValueError("Adjacent decomposed edge fragments cannot be contracted.")
+        if not (begin_is_edge or end_is_edge):
+            composition_edges.append(edge)
+            continue
+
+        begin_image = np.rint(
+            np.asarray(edge.begin_frac) - positions[begin]
+        ).astype(int)
+        end_image = np.rint(
+            np.asarray(edge.end_frac) - positions[end]
+        ).astype(int)
+        shift = end_image - begin_image
+        if begin_is_edge:
+            incidents[begin].append((end, shift))
+        else:
+            incidents[end].append((begin, -shift))
+
+    for fragment in edge_fragments:
+        key = (fragment.kind, fragment.index)
+        endpoints = incidents[key]
+        if len(endpoints) != 2:
+            raise ValueError(
+                f"Decomposed edge {key} has {len(endpoints)} topology "
+                "incidences; exactly 2 are required."
+            )
+        (begin, begin_from_edge), (end, end_from_edge) = endpoints
+        shift = end_from_edge - begin_from_edge
+        if order[begin] > order[end] or (
+            begin == end and tuple(shift) > tuple(-shift)
+        ):
+            begin, end = end, begin
+            shift = -shift
+        if begin == end and not np.any(shift):
+            raise ValueError(f"Decomposed edge {key} contracts to a zero self-edge.")
+
+        begin_frac = positions[begin]
+        end_frac = positions[end] + shift
+        edge_index = len(composition_edges)
+        composition_edges.append(
+            TopologyEdge(
+                begin_kind=begin[0],
+                begin_index=begin[1],
+                end_kind=end[0],
+                end_index=end[1],
+                begin_frac=tuple(float(value) for value in begin_frac),
+                end_frac=tuple(float(value) for value in end_frac),
+                center_frac=tuple(
+                    float(value) for value in 0.5 * (begin_frac + end_frac)
+                ),
+                slot_translation=tuple(int(value) for value in shift),
+            )
+        )
+        topology_slots[key] = ("edge", edge_index)
+
+    coordination: Counter[tuple[str, int]] = Counter()
+    for edge in composition_edges:
+        coordination[(edge.begin_kind, edge.begin_index)] += 1
+        coordination[(edge.end_kind, edge.end_index)] += 1
+    kept = [
+        TopologyVertex(
+            vertex.kind,
+            vertex.index,
+            coordination[(vertex.kind, vertex.index)],
+            vertex.frac_position,
+        )
+        for vertex in kept
+    ]
+    return kept, composition_edges, topology_slots
+
+
 @dataclass
 class NodeEdgeDecompositionResult:
     """Complete decomposition into metal nodes, organic nodes, and edges."""
@@ -1617,6 +1728,15 @@ class NodeEdgeDecompositionResult:
     ) -> dict[str, object]:
         """Write group-first metadata for exact reconstruction experiments."""
 
+        _, _, topology_slots = _contract_edge_fragments(
+            self.topology_vertices,
+            self.topology_edges,
+            self.edge_fragments,
+        )
+        slot_positions = {
+            (vertex.kind, vertex.index): vertex.frac_position
+            for vertex in self.topology_vertices
+        }
         return write_reconstruction_data(
             path,
             topology_kind="node_edge_slots",
@@ -1630,6 +1750,8 @@ class NodeEdgeDecompositionResult:
             topology_edges=self.topology_edges,
             group_records=group_records,
             fragment_to_bb_id=fragment_to_bb_id,
+            slot_positions=slot_positions,
+            topology_slots=topology_slots,
         )
 
     def write_topology_cgd(
@@ -1646,11 +1768,22 @@ class NodeEdgeDecompositionResult:
                 )
                 for fragment in self.fragments
             }
+        vertices, edges, topology_slots = _contract_edge_fragments(
+            self.topology_vertices,
+            self.topology_edges,
+            self.edge_fragments,
+        )
+        edge_bb_ids = {
+            slot_index: fragment_to_bb_id[key]
+            for key, (slot_kind, slot_index) in topology_slots.items()
+            if slot_kind == "edge"
+        }
         return _write_topology_cgd(
             path,
             name=self.name,
             cell_parameters=self.cell_parameters,
-            vertices=self.topology_vertices,
-            edges=self.topology_edges,
+            vertices=vertices,
+            edges=edges,
             fragment_to_bb_id=fragment_to_bb_id,
+            edge_bb_ids=edge_bb_ids,
         )

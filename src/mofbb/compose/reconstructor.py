@@ -51,7 +51,15 @@ class Reconstructor:
         topology_path = self.decomposition_dir / data["topology"]["path"]
         cell, vertices = _read_topology_geometry(topology_path)
         slots = sorted(data["slots"], key=lambda slot: slot["slot_id"])
-        if len(slots) != len(vertices):
+        exact_vertices = [slot.get("exact_frac_position") for slot in slots]
+        if all(vertex is not None for vertex in exact_vertices):
+            vertices = [np.asarray(vertex, dtype=float) for vertex in exact_vertices]
+        elif any(vertex is not None for vertex in exact_vertices):
+            raise ValueError(
+                "Reconstruction slots must either all define "
+                "exact_frac_position or all use topology NODE positions."
+            )
+        elif len(slots) != len(vertices):
             raise ValueError(
                 f"Reconstruction map has {len(slots)} slots, but topology has "
                 f"{len(vertices)} vertices."
