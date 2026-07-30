@@ -190,9 +190,6 @@ class Builder:
                 Cartesian tolerance, in Å, used only to diagnose whether a
                 representative building block obeys its site stabilizer;
                 default ``0.1``. A failed check does not reject the build.
-            ``top_k`` : int
-                One-swap port permutations considered for independently
-                placed nodes after a chemistry failure; default ``4``.
         Returns
         -------
         Framework
@@ -228,9 +225,6 @@ class Builder:
         symmetry_tolerance = float(kwargs.get("symmetry_tolerance", 0.1))
         if symmetry_tolerance <= 0.0:
             raise ValueError("symmetry_tolerance must be positive.")
-        top_k = int(kwargs.get("top_k", 4))
-        if top_k < 1:
-            raise ValueError("top_k must be at least 1.")
 
         # Empty dictionary.
         if permutations is None:
@@ -586,122 +580,44 @@ class Builder:
             if building_block is not None:
                 building_block.connection_point_anchor_indices
 
-        def port_failures(candidate_permutations):
-            forbidden = []
-            predicted_failures = []
-            for edge_index in topology.edge_indices:
-                node_x_i, node_x_j = pbc._find_matched_x_sites(
-                    topology,
-                    located_bbs,
-                    candidate_permutations,
-                    edge_index,
+        forbidden_connections = []
+        predicted_failures = []
+        for edge_index in topology.edge_indices:
+            node_x_i, node_x_j = pbc._find_matched_x_sites(
+                topology,
+                located_bbs,
+                permutations,
+                edge_index,
+            )
+            neighbor_i, neighbor_j = topology.neighbor_list[edge_index]
+            node_i = located_bbs[neighbor_i.index]
+            node_j = located_bbs[neighbor_j.index]
+            edge = located_bbs[edge_index]
+            if edge is None:
+                port_pairs = ((node_i, node_x_i, node_j, node_x_j),)
+            else:
+                edge_x_i, edge_x_j = edge.connection_point_indices[
+                    permutations[edge_index]
+                ]
+                port_pairs = (
+                    (node_i, node_x_i, edge, int(edge_x_i)),
+                    (edge, int(edge_x_j), node_j, node_x_j),
                 )
-                neighbor_i, neighbor_j = topology.neighbor_list[edge_index]
-                node_i = located_bbs[neighbor_i.index]
-                node_j = located_bbs[neighbor_j.index]
-                edge = located_bbs[edge_index]
-                if edge is None:
-                    port_pairs = ((node_i, node_x_i, node_j, node_x_j),)
-                else:
-                    edge_x_i, edge_x_j = edge.connection_point_indices[
-                        candidate_permutations[edge_index]
-                    ]
-                    port_pairs = (
-                        (node_i, node_x_i, edge, int(edge_x_i)),
-                        (edge, int(edge_x_j), node_j, node_x_j),
+
+            for bb_i, x_i, bb_j, x_j in port_pairs:
+                symbol_i, _, cap_i = pbc._connection_port(bb_i, x_i)
+                symbol_j, _, cap_j = pbc._connection_port(bb_j, x_j)
+                if pbc.is_carbon_metal_pair(symbol_i, symbol_j):
+                    forbidden_connections.append(
+                        (edge_index, symbol_i, symbol_j)
                     )
-
-                for bb_i, x_i, bb_j, x_j in port_pairs:
-                    symbol_i, _, cap_i = pbc._connection_port(bb_i, x_i)
-                    symbol_j, _, cap_j = pbc._connection_port(bb_j, x_j)
-                    if pbc.is_carbon_metal_pair(symbol_i, symbol_j):
-                        forbidden.append((edge_index, symbol_i, symbol_j))
-                        continue
-                    predicted = cap_i + cap_j
-                    limit = pbc.max_bond_len(symbol_i, symbol_j, scale)
-                    if predicted > limit:
-                        predicted_failures.append(
-                            (edge_index, symbol_i, symbol_j, predicted, limit)
-                        )
-            return forbidden, predicted_failures
-
-        def port_score(candidate_permutations):
-            forbidden, predicted = port_failures(candidate_permutations)
-            return len(forbidden) + len(predicted), len(forbidden)
-
-        forbidden_connections, predicted_failures = port_failures(permutations)
-
-        if top_k > 1 and (forbidden_connections or predicted_failures):
-            failed_edges = {
-                int(item[0])
-                for item in (*forbidden_connections, *predicted_failures)
-            }
-            affected = {
-                int(neighbor.index)
-                for edge_index in failed_edges
-                for neighbor in topology.neighbor_list[edge_index]
-            }
-            orbit_by_node = {
-                int(member): orbit
-                for orbit in symmetry.node_orbits
-                for member in orbit.members
-            }
-            variables = [
-                node_index
-                for node_index in sorted(affected)
-                if node_index not in provided_permutations
-                and (
-                    len(orbit_by_node[node_index].members) == 1
-                    or orbit_by_node[node_index].representative
-                    not in covariant_node_orbits
-                )
-            ]
-
-            searched = [
-                None if item is None else item.copy()
-                for item in permutations
-            ]
-            score = port_score(searched)
-            for node_index in variables:
-                options = []
-                for _, candidate, rmsd in locator.locate_candidates(
-                    topology.local_structure(node_index),
-                    bbs[node_index],
-                    max_n_slices=max_n_slices,
-                    top_k=top_k,
-                ):
-                    trial = [
-                        None if item is None else item.copy()
-                        for item in searched
-                    ]
-                    trial[node_index] = candidate.copy()
-                    options.append((port_score(trial), rmsd, trial))
-                best = min(options, key=lambda item: item[:2])
-                if best[0] < score:
-                    score, _, searched = best
-
-            if score[0] == 0:
-                previous_permutations = permutations
-                permutations = searched
-                changed_nodes = {
-                    int(index)
-                    for index in topology.node_indices
-                    if not np.array_equal(
-                        previous_permutations[index],
-                        permutations[index],
+                    continue
+                predicted = cap_i + cap_j
+                limit = pbc.max_bond_len(symbol_i, symbol_j, scale)
+                if predicted > limit:
+                    predicted_failures.append(
+                        (edge_index, symbol_i, symbol_j, predicted, limit)
                     )
-                }
-                for node_index in changed_nodes:
-                    located, _ = locator.locate_with_permutation(
-                        topology.local_structure(node_index),
-                        bbs[node_index],
-                        permutations[node_index],
-                    )
-                    located.set_centroid(topology.atoms.positions[node_index])
-                    located_bbs[node_index] = located
-                forbidden_connections, predicted_failures = port_failures(
-                    permutations
-                )
 
         if forbidden_connections:
             edge_index, symbol_i, symbol_j = forbidden_connections[0]

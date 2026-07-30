@@ -290,33 +290,6 @@ class Locator:
 
         return bb, rmsd_val
 
-    def locate_candidates(self, target, bb, max_n_slices=4, top_k=4):
-        """Return the best one-swap alternatives to the normal placement."""
-        if top_k < 1:
-            raise ValueError("top_k must be at least 1.")
-
-        best = self.locate(target, bb, max_n_slices)
-        candidates = [best]
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                message="Optimal rotation is not uniquely or poorly defined",
-                category=UserWarning,
-            )
-            for left, right in itertools.combinations(range(len(best[1])), 2):
-                permutation = best[1].copy()
-                permutation[left], permutation[right] = (
-                    permutation[right],
-                    permutation[left],
-                )
-                located, rmsd = self.locate_with_permutation(
-                    target,
-                    bb,
-                    permutation,
-                )
-                candidates.append((located, permutation, rmsd))
-        return sorted(candidates, key=lambda item: item[2])[:top_k]
-
     def locate_edge_with_frame(
         self,
         target_points,
