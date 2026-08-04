@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
-from dataclasses import dataclass, field
-from pathlib import Path
 import re
 import shlex
 import warnings
+from collections.abc import Iterable, Iterator
+from dataclasses import dataclass, field
+from pathlib import Path
 
 import ase
 import ase.io
@@ -17,23 +17,15 @@ import numpy as np
 try:  # ASE has moved this helper across versions.
     from ase.neighborlist import natural_cutoffs, neighbor_list
 except ImportError:  # pragma: no cover - compatibility for unusual ASE layouts
-    from ase.utils import natural_cutoffs  # type: ignore[attr-defined]
     from ase.neighborlist import neighbor_list
+    from ase.utils import natural_cutoffs  # type: ignore[attr-defined]
 
 from .constants import is_mofid_metal
 
 
 @dataclass(frozen=True)
 class BondNetwork:
-    """Undirected minimum-image bond graph for an ASE structure.
-
-    Attributes
-    ----------
-    adjacency
-        Atom-neighbor sets indexed by source atom index.
-    vectors
-        Minimum-image vectors keyed by sorted atom-index pairs.
-    """
+    """Undirected minimum-image bond graph for an ASE structure."""
 
     adjacency: tuple[frozenset[int], ...]
     vectors: dict[tuple[int, int], np.ndarray]
@@ -59,20 +51,7 @@ class BondNetwork:
 
 
 def build_bond_network(atoms: ase.Atoms, scale: float = 1.2) -> BondNetwork:
-    """Build an undirected minimum-image bond graph from covalent cutoffs.
-
-    Parameters
-    ----------
-    atoms
-        Structure to analyze.
-    scale
-        Multiplier applied to ASE natural covalent cutoffs.
-
-    Returns
-    -------
-    BondNetwork
-        Bond adjacency and minimum-image vectors.
-    """
+    """Build a minimum-image bond graph from covalent cutoffs."""
 
     cutoffs = [scale * cutoff for cutoff in natural_cutoffs(atoms)]
     i_list, j_list, d_list = neighbor_list(
@@ -104,7 +83,10 @@ def build_bond_network(atoms: ase.Atoms, scale: float = 1.2) -> BondNetwork:
     )
 
 
-def build_bond_network_from_cif(cif: str | Path, atoms: ase.Atoms) -> BondNetwork | None:
+def build_bond_network_from_cif(
+    cif: str | Path,
+    atoms: ase.Atoms,
+) -> BondNetwork | None:
     """Build a bond graph from a CIF ``_geom_bond`` loop when present."""
 
     loops = list(_cif_loops(Path(cif)))
@@ -156,11 +138,7 @@ def build_bond_network_from_cif(cif: str | Path, atoms: ase.Atoms) -> BondNetwor
             if symmetry_index is not None and len(row) > symmetry_index
             else np.zeros(3, dtype=int)
         )
-        vector = (
-            canonical_positions[j]
-            + image @ cell
-            - canonical_positions[i]
-        )
+        vector = canonical_positions[j] + image @ cell - canonical_positions[i]
         a, b = sorted((i, j))
         pair_vector = np.array(vector if i == a else -vector, dtype=float)
         pair = (a, b)
@@ -199,25 +177,6 @@ def read_bonded_structure(
     if not cleanup:
         return atoms, bonds
     return largest_connected_component_with_bonds(atoms, bonds)
-
-
-def largest_connected_component(atoms: ase.Atoms, scale: float = 1.2) -> ase.Atoms:
-    """Return a copy containing only the largest bonded component.
-
-    Structures from databases sometimes include solvents, counterions, or other
-    disconnected species.  Keeping this helper in the bonding module makes that
-    cleanup behavior explicit and reusable.
-    """
-
-    bonds = build_bond_network(atoms, scale=scale)
-    graph = nx.Graph()
-    graph.add_nodes_from(range(len(atoms)))
-    graph.add_edges_from(bonds.pairs)
-
-    components = sorted(nx.connected_components(graph), key=len, reverse=True)
-    if len(components) <= 1:
-        return atoms
-    return atoms[sorted(components[0])]
 
 
 def subset_bonded_structure(
@@ -299,8 +258,7 @@ def _cif_loops(path: Path) -> Iterator[tuple[list[str], list[list[str]]]]:
             if (
                 not stripped
                 or stripped == "loop_"
-                or stripped.startswith("_")
-                or stripped.startswith("data_")
+                or stripped.startswith(("_", "data_"))
             ):
                 break
             if not stripped.startswith("#"):
@@ -310,7 +268,9 @@ def _cif_loops(path: Path) -> Iterator[tuple[list[str], list[list[str]]]]:
         yield headers, rows
 
 
-def _atom_label_to_index(loops: list[tuple[list[str], list[list[str]]]]) -> dict[str, int]:
+def _atom_label_to_index(
+    loops: list[tuple[list[str], list[list[str]]]],
+) -> dict[str, int]:
     for headers, rows in loops:
         if "_atom_site_label" not in headers:
             continue
@@ -399,10 +359,14 @@ def _remove_suspicious_metal_contacts(
         if metal is None or other is None:
             continue
         other_symbol = symbols[other]
-        if other_symbol == "C":
-            del vectors[pair]
-        elif other_symbol == "S" and any(
-            symbols[neighbor] == "C" for neighbor in adjacency[other] if neighbor != metal
+        if (
+            other_symbol == "C"
+            or other_symbol == "S"
+            and any(
+                symbols[neighbor] == "C"
+                for neighbor in adjacency[other]
+                if neighbor != metal
+            )
         ):
             del vectors[pair]
 
@@ -423,7 +387,8 @@ def _prune_carboxylate_extra_neighbors(
         extension_neighbors = [
             neighbor
             for neighbor in adjacency[atom_index]
-            if symbols[neighbor] not in {"H", "O"} and not is_mofid_metal(symbols[neighbor])
+            if symbols[neighbor] not in {"H", "O"}
+            and not is_mofid_metal(symbols[neighbor])
         ]
         if len(extension_neighbors) <= 1:
             continue
@@ -476,7 +441,9 @@ def _prune_coordinating_oxygen_extra_neighbors(
     for atom_index, symbol in enumerate(symbols):
         if symbol != "O":
             continue
-        if not any(is_mofid_metal(symbols[neighbor]) for neighbor in adjacency[atom_index]):
+        if not any(
+            is_mofid_metal(symbols[neighbor]) for neighbor in adjacency[atom_index]
+        ):
             continue
         carbonyl_neighbors = [
             neighbor
@@ -540,9 +507,7 @@ def _reconnect_nearby_terminal_components(
         cutoff=np.nextafter(2.65, np.inf),
         self_interaction=False,
     )
-    candidate_by_pair: dict[
-        tuple[int, int], tuple[float, np.ndarray]
-    ] = {}
+    candidate_by_pair: dict[tuple[int, int], tuple[float, np.ndarray]] = {}
     for left, right, displacement in zip(local_i, local_j, displacement_list):
         i = terminal_indices[int(left)]
         j = terminal_indices[int(right)]
@@ -620,5 +585,5 @@ def _is_terminal_carbon(
 ) -> bool:
     if symbols[atom_index] != "C":
         return False
-    heavy_degree = sum(1 for neighbor in adjacency[atom_index] if symbols[neighbor] != "H")
+    heavy_degree = sum(symbols[neighbor] != "H" for neighbor in adjacency[atom_index])
     return heavy_degree <= 2

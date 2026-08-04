@@ -113,7 +113,11 @@ class SolventRemovalResult:
                 f"({len(self.free_solvent_indices)} free atoms, "
                 f"{len(self.bound_solvent_indices)} bound atoms)."
             )
-        return subset_bonded_structure(self.original_atoms, self.original_bonds, indices)
+        return subset_bonded_structure(
+            self.original_atoms,
+            self.original_bonds,
+            indices,
+        )
 
     def validate_write_request(
         self,
@@ -292,8 +296,7 @@ def _canonical_bond_pairs(
         i, j = (int(index) for index in key)
         if i >= j:
             raise ValueError(
-                f"{label} key {key!r} must be a canonical pair (i, j) "
-                "with i < j."
+                f"{label} key {key!r} must be a canonical pair (i, j) with i < j."
             )
         if i < 0 or j >= atom_count:
             raise ValueError(
@@ -311,7 +314,7 @@ def _validate_bond_network(atom_count: int, bonds: BondNetwork) -> None:
     for atom_index, neighbors in enumerate(bonds.adjacency):
         for neighbor in neighbors:
             if not isinstance(neighbor, Integral) or isinstance(neighbor, bool):
-                raise ValueError(
+                raise ValueError(  # noqa: TRY004 - preserve public validation API
                     f"Adjacency entry {atom_index} -> {neighbor!r} must use an "
                     "integer atom index."
                 )
@@ -402,7 +405,9 @@ class MofidSolventRemover:
     def _validate_initial_ownership(self, atom_to_site: dict[int, int]) -> None:
         expected = set(range(len(self.atoms)))
         if set(atom_to_site) != expected or len(atom_to_site) != len(self.atoms):
-            raise ValueError("Initial solvent topology does not own every atom exactly once.")
+            raise ValueError(
+                "Initial solvent topology does not own every atom exactly once."
+            )
 
     def _inverse_cell_matrix(self) -> np.ndarray | None:
         if not np.any(self.atoms.pbc):

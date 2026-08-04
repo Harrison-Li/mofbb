@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable
 from hashlib import sha1
-import json
 
 import ase
 import networkx as nx
@@ -13,20 +13,7 @@ import networkx as nx
 def fragment_fingerprint(
     symbols: list[str], bonds: Iterable[tuple[int, int, str]]
 ) -> str:
-    """Return a stable connectivity-aware hash for grouping fragments.
-
-    Parameters
-    ----------
-    symbols
-        Local element symbols, including dummy ``X`` atoms when present.
-    bonds
-        Local bonded atom-index pairs with bond labels.
-
-    Returns
-    -------
-    str
-        A 16-character SHA-1 digest prefix based on formula and WL graph hash.
-    """
+    """Return a stable connectivity-aware fragment hash."""
 
     graph = nx.Graph()
     for i, symbol in enumerate(symbols):

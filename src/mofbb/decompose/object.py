@@ -67,9 +67,7 @@ class Fragment:
     bonds: tuple[tuple[int, int, str], ...]
     fingerprint: str
     x_sites: tuple[XSite, ...] = ()
-    source_image_offsets: tuple[
-        tuple[int, tuple[int, int, int]], ...
-    ] = ()
+    source_image_offsets: tuple[tuple[int, tuple[int, int, int]], ...] = ()
     logical_kind: str | None = None
     logical_ports: tuple[LogicalPort, ...] = ()
     real_atom_centroid_frac: tuple[float, float, float] | None = None

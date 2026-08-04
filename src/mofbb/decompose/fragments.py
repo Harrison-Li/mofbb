@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 import ase
 import networkx as nx
 import numpy as np
@@ -16,9 +18,9 @@ from .pbc import (
     analyze_component,
     periodic_bonds,
 )
-from .type_aliases import FragmentKind
 
 ConnectionInput = tuple[int, int] | PeriodicBond
+FragmentKind = Literal["node", "linker", "metal_node", "organic_node", "edge"]
 
 
 class FragmentBuilder:
@@ -37,13 +39,9 @@ class FragmentBuilder:
         self.symbols = symbols
         self.x_symbol = x_symbol
         self.source_records = (
-            periodic_bonds(atoms, bonds)
-            if source_records is None
-            else source_records
+            periodic_bonds(atoms, bonds) if source_records is None else source_records
         )
-        self.source_by_pair = {
-            record.pair: record for record in self.source_records
-        }
+        self.source_by_pair = {record.pair: record for record in self.source_records}
 
     def build_role_fragments(
         self,
@@ -368,5 +366,8 @@ def connected_components(
 
     return [
         set(component)
-        for component in sorted(nx.connected_components(graph), key=lambda item: min(item))
+        for component in sorted(
+            nx.connected_components(graph),
+            key=lambda item: min(item),
+        )
     ]

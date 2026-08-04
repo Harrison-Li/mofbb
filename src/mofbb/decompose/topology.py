@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from collections.abc import Iterable
+from dataclasses import dataclass
 
 import ase
 import numpy as np
@@ -30,15 +31,11 @@ def validate_source_atom_ownership(
 
     expected = set(expected_source_atoms)
     counts = Counter(
-        atom_index
-        for fragment in fragments
-        for atom_index in fragment.source_indices
+        atom_index for fragment in fragments for atom_index in fragment.source_indices
     )
     missing = sorted(expected - set(counts))
     duplicates = {
-        atom_index: count
-        for atom_index, count in sorted(counts.items())
-        if count > 1
+        atom_index: count for atom_index, count in sorted(counts.items()) if count > 1
     }
     unexpected = sorted(set(counts) - expected)
     if not (missing or duplicates or unexpected):
@@ -68,13 +65,9 @@ class TopologyBuilder:
         self.atoms = atoms
         self.bonds = bonds
         self.source_records = (
-            periodic_bonds(atoms, bonds)
-            if source_records is None
-            else source_records
+            periodic_bonds(atoms, bonds) if source_records is None else source_records
         )
-        self.source_by_pair = {
-            record.pair: record for record in self.source_records
-        }
+        self.source_by_pair = {record.pair: record for record in self.source_records}
 
     def build(
         self,
@@ -415,3 +408,110 @@ class TopologyBuilder:
                 )
             )
         return vertices
+
+
+class NodeEdgeTopologyBuilder(TopologyBuilder):
+    """Build topology for metal nodes, organic nodes, and edge fragments."""
+
+    def build(
+        self,
+        fragments: list[Fragment],
+        connecting_bonds: tuple[ConnectionInput, ...],
+    ) -> tuple[list[TopologyVertex], list[TopologyEdge]]:
+        return self.build_fragments(
+            fragments,
+            connecting_bonds,
+            preferred_begin_kind="metal_node",
+        )
+
+
+@dataclass
+class EdgeTopologyContractor:
+    """Contract two-port fragments into composer edge slots."""
+
+    vertices: list[TopologyVertex]
+    edges: list[TopologyEdge]
+    edge_fragments: list[Fragment]
+
+    def contract(self):
+        edge_keys = {
+            (fragment.kind, fragment.index) for fragment in self.edge_fragments
+        }
+        vertices = [
+            vertex
+            for vertex in self.vertices
+            if (vertex.kind, vertex.index) not in edge_keys
+        ]
+        positions = {
+            (vertex.kind, vertex.index): np.asarray(vertex.frac_position)
+            for vertex in self.vertices
+        }
+        order = {
+            (vertex.kind, vertex.index): index for index, vertex in enumerate(vertices)
+        }
+        topology_slots = {key: ("node", index) for key, index in order.items()}
+        incidents = defaultdict(list)
+        contracted_edges: list[TopologyEdge] = []
+
+        for edge in self.edges:
+            begin = (edge.begin_kind, edge.begin_index)
+            end = (edge.end_kind, edge.end_index)
+            begin_is_edge = begin in edge_keys
+            end_is_edge = end in edge_keys
+            if not (begin_is_edge or end_is_edge):
+                contracted_edges.append(edge)
+                continue
+
+            begin_image = np.rint(
+                np.asarray(edge.begin_frac) - positions[begin]
+            ).astype(int)
+            end_image = np.rint(np.asarray(edge.end_frac) - positions[end]).astype(int)
+            shift = end_image - begin_image
+            if begin_is_edge:
+                incidents[begin].append((end, shift))
+            else:
+                incidents[end].append((begin, -shift))
+
+        for fragment in self.edge_fragments:
+            key = (fragment.kind, fragment.index)
+            endpoints = incidents[key]
+            (begin, begin_from_edge), (end, end_from_edge) = endpoints
+            shift = end_from_edge - begin_from_edge
+            if order[begin] > order[end] or (
+                begin == end and tuple(shift) > tuple(-shift)
+            ):
+                begin, end = end, begin
+                shift = -shift
+            begin_frac = positions[begin]
+            end_frac = positions[end] + shift
+            edge_index = len(contracted_edges)
+            contracted_edges.append(
+                TopologyEdge(
+                    begin_kind=begin[0],
+                    begin_index=begin[1],
+                    end_kind=end[0],
+                    end_index=end[1],
+                    begin_frac=tuple(float(value) for value in begin_frac),
+                    end_frac=tuple(float(value) for value in end_frac),
+                    center_frac=tuple(
+                        float(value) for value in 0.5 * (begin_frac + end_frac)
+                    ),
+                    slot_translation=tuple(int(value) for value in shift),
+                )
+            )
+            topology_slots[key] = ("edge", edge_index)
+
+        coordination = Counter()
+        for edge in contracted_edges:
+            coordination[(edge.begin_kind, edge.begin_index)] += 1
+            coordination[(edge.end_kind, edge.end_index)] += 1
+        vertices = [
+            TopologyVertex(
+                vertex.kind,
+                vertex.index,
+                coordination[(vertex.kind, vertex.index)],
+                vertex.frac_position,
+            )
+            for vertex in vertices
+        ]
+        return vertices, contracted_edges, topology_slots

@@ -363,6 +363,8 @@ src/mofbb/
     ├── cli.py               # Decomposition CLI
     ├── decomposer.py        # Single-node workflow
     ├── edge_decomposer.py   # Node-edge workflow
+    ├── linker.py            # Organic node/edge splitting
+    ├── ports.py             # Logical connection-port assignment
     ├── bonding.py           # Bond graph construction and cleanup
     ├── fragments.py         # Fragment generation and X caps
     ├── pbc.py               # Periodic cuts and repeat opening

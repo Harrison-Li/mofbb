@@ -10,8 +10,8 @@ import tempfile
 from pathlib import Path
 
 from .decomposer import SingleNodeDecomposer
-from .edge_decomposer import NodeEdgeDecomposer, NodeEdgeDecompositionResult
-from .results import DecompositionResult
+from .edge_decomposer import NodeEdgeDecomposer
+from .results import DecompositionResult, NodeEdgeDecompositionResult
 
 CliDecompositionResult = DecompositionResult | NodeEdgeDecompositionResult
 
@@ -23,8 +23,6 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the command-line argument parser."""
 
     parser = argparse.ArgumentParser(
-        # Previous decomposition command, retained for reference:
-        # prog="mofbb",
         prog="mofbb-decompose",
         description=(
             "Decompose a CIF into deduplicated edge/node building blocks "
@@ -35,8 +33,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--decomposition",
         choices=("single-node", "node-edge"),
-        # Previous CLI default, retained for reference:
-        # default="single-node",
         default="node-edge",
         help=(
             "Decomposition workflow to run. node-edge is the default; "
@@ -145,8 +141,6 @@ def write_cli_results(
         full_output = staging_root / "full"
         published_output = staging_root / "published"
 
-        # Previous CLI writer, retained for reference:
-        # summary = result.write(output_dir)
         summary = result.write(full_output)
 
         edge_dir = published_output / "bbs" / "edge"
@@ -155,12 +149,7 @@ def write_cli_results(
         node_dir.mkdir(parents=True)
 
         published_groups = []
-        raw_groups = summary.get("groups", [])
-        if not isinstance(raw_groups, list):
-            raise TypeError("Decomposition summary 'groups' must be a list.")
-        for raw_group in raw_groups:
-            if not isinstance(raw_group, dict):
-                raise TypeError("Decomposition group metadata must be an object.")
+        for raw_group in summary.get("groups", []):
             kind = str(raw_group["kind"])
             if kind in _NODE_GROUP_KINDS:
                 destination_dir = node_dir
@@ -174,18 +163,10 @@ def write_cli_results(
             relative_source = Path(str(raw_group["path"]))
             source_path = full_output / relative_source
             destination_path = destination_dir / source_path.name
-            if not source_path.is_file():
-                raise FileNotFoundError(source_path)
-            if destination_path.exists():
-                raise FileExistsError(
-                    f"Duplicate published BB filename: {destination_path.name}"
-                )
             shutil.copyfile(source_path, destination_path)
 
             group = dict(raw_group)
-            group["path"] = str(
-                Path("bbs") / published_role / destination_path.name
-            )
+            group["path"] = str(Path("bbs") / published_role / destination_path.name)
             published_groups.append(group)
 
         original_dir = published_output / "original_mof_cif"
@@ -197,8 +178,6 @@ def write_cli_results(
         topology_dir = published_output / "topology"
         topology_dir.mkdir()
         topology_path = topology_dir / f"{source_cif.stem}.cgd"
-        if not topology_source.is_file():
-            raise FileNotFoundError(topology_source)
         shutil.copyfile(topology_source, topology_path)
 
         reduced_summary = _reduced_summary(
@@ -232,8 +211,6 @@ def main(argv: list[str] | None = None) -> int:
         solvent_mode=args.solvent_mode,
     )
     result = decomposer.decompose()
-    # Previous full-output call, retained for reference:
-    # summary = result.write(args.output_dir)
     summary = write_cli_results(result, args.cif, args.output_dir)
 
     if args.json:

@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
+import json
 from collections import Counter, defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-import json
 from pathlib import Path
 
-from ase.geometry import cellpar_to_cell
 import numpy as np
 import spglib
+from ase.geometry import cellpar_to_cell
 
 from .geometry import format_float
 from .object import Fragment, TopologyEdge, TopologyVertex, XSite
 from .pbc import PeriodicBond, PeriodicOpening
 from .solvent import SolventMode, SolventRemovalResult
-from .topology import validate_source_atom_ownership
+from .topology import EdgeTopologyContractor, validate_source_atom_ownership
 
 
 def _canonical_edge(
@@ -63,8 +63,7 @@ def _topology_symmetry(
     if len(edge_colors) != len(edges):
         raise ValueError("Topology edge colors must align one-for-one with edges.")
     index_by_key = {
-        (vertex.kind, vertex.index): index
-        for index, vertex in enumerate(vertices)
+        (vertex.kind, vertex.index): index for index, vertex in enumerate(vertices)
     }
     periodic_edges = []
     for edge in edges:
@@ -248,16 +247,13 @@ def _write_topology_cgd(
         edge_types,
         node_maps,
         node_images,
-    ) = _topology_symmetry(
-        cell_parameters, vertices, edges, vertex_types, edge_colors
-    )
+    ) = _topology_symmetry(cell_parameters, vertices, edges, vertex_types, edge_colors)
     positions = np.asarray([vertex.frac_position for vertex in vertices], dtype=float)
     projected = _project_topology_positions(
         positions, rotations, translations, node_maps, node_images
     )
     index_by_key = {
-        (vertex.kind, vertex.index): index
-        for index, vertex in enumerate(vertices)
+        (vertex.kind, vertex.index): index for index, vertex in enumerate(vertices)
     }
     projected_edges = []
     for edge in edges:
@@ -267,8 +263,7 @@ def _write_topology_cgd(
             (
                 projected[begin]
                 + np.rint(np.asarray(edge.begin_frac) - positions[begin]),
-                projected[end]
-                + np.rint(np.asarray(edge.end_frac) - positions[end]),
+                projected[end] + np.rint(np.asarray(edge.end_frac) - positions[end]),
             )
         )
 
@@ -299,10 +294,7 @@ def _write_topology_cgd(
             end = " ".join(format_float(value) for value in endpoints[1])
             handle.write(f"  EDGE  {begin}   {end}\n")
         for begin, end in projected_edges:
-            center = " ".join(
-                format_float(value)
-                for value in 0.5 * (begin + end)
-            )
+            center = " ".join(format_float(value) for value in 0.5 * (begin + end))
             handle.write(f"  # EDGE_CENTER  {center}\n")
         handle.write("END\n")
     return {
@@ -322,6 +314,12 @@ def fragment_instance_path(fragment: Fragment) -> str:
     if fragment.kind == "linker":
         return f"linkers/linker_{fragment.index:03d}.xyz"
     return f"{fragment.kind}s/{fragment.kind}_{fragment.index:03d}.xyz"
+
+
+def _fragment_records(fragments: list[Fragment]) -> list[dict[str, object]]:
+    return [
+        fragment.as_dict(fragment_instance_path(fragment)) for fragment in fragments
+    ]
 
 
 def logical_port_partition(fragment: Fragment) -> tuple[tuple[int, ...], ...]:
@@ -367,8 +365,7 @@ def _legacy_connection_records(
     connecting_bonds: tuple[tuple[int, int], ...],
 ) -> tuple[PeriodicBond, ...]:
     return tuple(
-        PeriodicBond(*tuple(sorted(pair)), (0, 0, 0))
-        for pair in connecting_bonds
+        PeriodicBond(*tuple(sorted(pair)), (0, 0, 0)) for pair in connecting_bonds
     )
 
 
@@ -454,7 +451,10 @@ def write_reconstruction_data(
         slots.append(slot)
 
     records = connection_records or _legacy_connection_records(connecting_bonds)
-    if connection_records and tuple(record.pair for record in records) != connecting_bonds:
+    if (
+        connection_records
+        and tuple(record.pair for record in records) != connecting_bonds
+    ):
         raise ValueError(
             "Connection records must align one-for-one with connecting_bonds."
         )
@@ -469,10 +469,9 @@ def write_reconstruction_data(
         source_count = len(fragment.source_indices)
         expected_cap_indices = set(range(source_count, len(fragment.atoms)))
         metadata_cap_indices = {site.x_index for site in fragment.x_sites}
-        if (
-            metadata_cap_indices != expected_cap_indices
-            or len(metadata_cap_indices) != len(fragment.x_sites)
-        ):
+        if metadata_cap_indices != expected_cap_indices or len(
+            metadata_cap_indices
+        ) != len(fragment.x_sites):
             all_x_site_metadata_valid = False
         for site in fragment.x_sites:
             if not (
@@ -481,9 +480,7 @@ def write_reconstruction_data(
                 == fragment.source_indices[site.anchor_index]
                 and site.source_cut_bond
                 == tuple(
-                    sorted(
-                        (site.internal_source_index, site.external_source_index)
-                    )
+                    sorted((site.internal_source_index, site.external_source_index))
                 )
             ):
                 all_x_site_metadata_valid = False
@@ -518,9 +515,9 @@ def write_reconstruction_data(
     all_edges_mapped = True
     all_self_edge_shifts_inverse = True
     all_slot_translations_exact = True
-    physical_identity_counts: Counter[
-        tuple[tuple[int, int], tuple[int, int, int]]
-    ] = Counter()
+    physical_identity_counts: Counter[tuple[tuple[int, int], tuple[int, int, int]]] = (
+        Counter()
+    )
     parallel_groups: dict[
         tuple[tuple[int, int], tuple[int, int, int]], list[dict[str, object]]
     ] = defaultdict(list)
@@ -577,9 +574,10 @@ def write_reconstruction_data(
                 (topology_edge.begin_kind, topology_edge.begin_index)
             ]
             end_slot = slot_by_key[(topology_edge.end_kind, topology_edge.end_index)]
-            if endpoint_slots[0] == endpoint_slots[1]:
-                canonical_translation = topology_edge.slot_translation
-            elif (begin_slot, end_slot) == tuple(endpoint_slots):
+            if endpoint_slots[0] == endpoint_slots[1] or (
+                begin_slot,
+                end_slot,
+            ) == tuple(endpoint_slots):
                 canonical_translation = topology_edge.slot_translation
             elif (begin_slot, end_slot) == tuple(reversed(endpoint_slots)):
                 canonical_translation = _negate_shift(topology_edge.slot_translation)
@@ -593,9 +591,7 @@ def write_reconstruction_data(
             offsets = dict(fragment.source_image_offsets)
             endpoint_offsets.append(offsets.get(atom_index, (0, 0, 0)))
         expected_translation = tuple(
-            record.shift[axis]
-            + endpoint_offsets[0][axis]
-            - endpoint_offsets[1][axis]
+            record.shift[axis] + endpoint_offsets[0][axis] - endpoint_offsets[1][axis]
             for axis in range(3)
         )
         if canonical_translation != expected_translation:
@@ -656,9 +652,9 @@ def write_reconstruction_data(
         for (slot_pair, translation), group in sorted(parallel_groups.items())
         if len({tuple(edge["source_cut_bond"]) for edge in group}) > 1
     ]
-    translations_by_slot_pair: dict[
-        tuple[int, int], set[tuple[int, int, int]]
-    ] = defaultdict(set)
+    translations_by_slot_pair: dict[tuple[int, int], set[tuple[int, int, int]]] = (
+        defaultdict(set)
+    )
     for slot_pair, translation in parallel_groups:
         translations_by_slot_pair[slot_pair].add(translation)
     translated_parallel_edges = [
@@ -746,8 +742,230 @@ def write_reconstruction_data(
     return data
 
 
+class _ResultWriter:
+    """Shared output workflow for decomposition result models."""
+
+    topology_kind = "original_cell_slots"
+    decomposition_kind: str | None = None
+    use_connection_site_cn = False
+
+    def write(self, output_dir: Path) -> dict[str, object]:
+        """Write decomposition artifacts and return their summary."""
+
+        validate_source_atom_ownership(self.source_indices, self.fragments)
+        self._validate_solvent_metadata()
+
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for fragment in self.fragments:
+            fragment.write_xyz(output_dir / fragment_instance_path(fragment))
+            fragment.write_xyz(
+                output_dir
+                / "all_fragments"
+                / f"{fragment.kind}_{fragment.index:03d}.xyz"
+            )
+
+        group_records, fragment_to_bb_id = self._write_group_representatives(output_dir)
+        topology_path = output_dir / "topology.cgd"
+        topology_summary = self.write_topology_cgd(
+            topology_path,
+            fragment_to_bb_id,
+        )
+        topology_summary["path"] = str(topology_path.relative_to(output_dir))
+
+        reconstruction_path = output_dir / "reconstruction_map.json"
+        self.write_reconstruction_map(
+            reconstruction_path,
+            group_records,
+            fragment_to_bb_id,
+        )
+        summary = self._summary(
+            topology_summary,
+            group_records,
+            reconstruction_path.relative_to(output_dir),
+        )
+        self._add_periodic_summary(summary)
+        if self.solvent is not None and self.selected_to_original is not None:
+            summary["solvent"] = self.solvent.write(
+                output_dir,
+                self.solvent_mode,
+                self.selected_to_original,
+            )
+
+        with (output_dir / "decomposition_summary.json").open(
+            "w",
+            encoding="utf-8",
+        ) as handle:
+            json.dump(summary, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+        return summary
+
+    def _validate_solvent_metadata(self) -> None:
+        if self.solvent_mode not in {"none", "free", "all"}:
+            raise ValueError(f"Unsupported solvent mode: {self.solvent_mode!r}.")
+        active = self.solvent_mode != "none"
+        has_solvent = self.solvent is not None
+        has_mapping = self.selected_to_original is not None
+        if (active and not (has_solvent and has_mapping)) or (
+            not active and (has_solvent or has_mapping)
+        ):
+            raise ValueError(
+                f"Inconsistent solvent metadata for mode {self.solvent_mode!r}."
+            )
+        if active:
+            self.solvent.validate_write_request(
+                self.solvent_mode,
+                self.selected_to_original,
+            )
+
+    def _write_group_representatives(
+        self,
+        output_dir: Path,
+    ) -> tuple[list[dict[str, object]], dict[tuple[str, int], str]]:
+        group_records: list[dict[str, object]] = []
+        fragment_to_bb_id: dict[tuple[str, int], str] = {}
+        for kind, fragments in self.fragment_groups:
+            grouped: dict[tuple[object, ...], list[Fragment]] = defaultdict(list)
+            for fragment in fragments:
+                grouped[fragment_group_key(fragment)].append(fragment)
+
+            for group_index, (_, group) in enumerate(
+                sorted(grouped.items()),
+                start=1,
+            ):
+                representative = group[0]
+                bb_id = f"{kind}_group_{group_index:02d}"
+                group_path = output_dir / "bbs" / f"{bb_id}.xyz"
+                representative.write_xyz(group_path)
+                for fragment in group:
+                    fragment_to_bb_id[(fragment.kind, fragment.index)] = bb_id
+                group_records.append(
+                    {
+                        "bb_id": bb_id,
+                        "kind": kind,
+                        "group": group_index,
+                        "count": len(group),
+                        "cn": (
+                            len(representative.x_sites)
+                            if self.use_connection_site_cn
+                            else representative.num_x
+                        ),
+                        "formula": representative.formula,
+                        "num_atoms": representative.num_atoms,
+                        "num_x": representative.num_x,
+                        **fragment_group_metadata(representative),
+                        "x_sites": [
+                            {"site_id": site_id, "x_index": site.x_index}
+                            for site_id, site in enumerate(representative.x_sites)
+                        ],
+                        "fingerprint": representative.fingerprint,
+                        "fragment_indices": [fragment.index for fragment in group],
+                        "path": str(group_path.relative_to(output_dir)),
+                    }
+                )
+        return group_records, fragment_to_bb_id
+
+    def _summary(
+        self,
+        topology: dict[str, object],
+        groups: list[dict[str, object]],
+        reconstruction_path: Path,
+    ) -> dict[str, object]:
+        summary: dict[str, object] = {"name": self.name}
+        if self.decomposition_kind is not None:
+            summary["decomposition"] = self.decomposition_kind
+        summary.update(self._role_summary())
+        summary.update(
+            {
+                "num_connecting_bonds": len(self.connecting_bonds),
+                "points_of_extension": list(self.points_of_extension),
+                "connecting_bonds": [list(pair) for pair in self.connecting_bonds],
+                "topology": topology,
+                "reconstruction_map": str(reconstruction_path),
+                "groups": groups,
+            }
+        )
+        return summary
+
+    def _add_periodic_summary(self, summary: dict[str, object]) -> None:
+        if not self.connection_records:
+            return
+        summary["connecting_bond_records"] = [
+            record.as_dict() for record in self.connection_records
+        ]
+        summary["periodic_components"] = [
+            opening.as_dict() for opening in self.periodic_openings
+        ]
+        summary["periodic_validation"] = dict(self.periodic_validation)
+
+    def _topology_output(self):
+        return self.topology_vertices, self.topology_edges, None
+
+    def write_reconstruction_map(
+        self,
+        path: Path,
+        group_records: list[dict[str, object]],
+        fragment_to_bb_id: dict[tuple[str, int], str],
+    ) -> dict[str, object]:
+        """Write group-first metadata for exact reconstruction experiments."""
+
+        topology_slots = self._topology_output()[2]
+        slot_positions = {
+            (vertex.kind, vertex.index): vertex.frac_position
+            for vertex in self.topology_vertices
+        }
+        return write_reconstruction_data(
+            path,
+            topology_kind=self.topology_kind,
+            cell_parameters=self.cell_parameters,
+            fragments=self.fragments,
+            expected_source_atoms=self.source_indices,
+            connecting_bonds=self.connecting_bonds,
+            connection_records=self.connection_records,
+            periodic_openings=self.periodic_openings,
+            periodic_validation=self.periodic_validation,
+            topology_edges=self.topology_edges,
+            group_records=group_records,
+            fragment_to_bb_id=fragment_to_bb_id,
+            slot_positions=slot_positions,
+            topology_slots=topology_slots,
+        )
+
+    def write_topology_cgd(
+        self,
+        path: Path,
+        fragment_to_bb_id: dict[tuple[str, int], str] | None = None,
+    ) -> dict[str, object]:
+        """Write the colored topology with its validated graph symmetry."""
+
+        if fragment_to_bb_id is None:
+            fragment_to_bb_id = {
+                (fragment.kind, fragment.index): repr(
+                    (fragment.kind, fragment_group_key(fragment))
+                )
+                for fragment in self.fragments
+            }
+        vertices, edges, topology_slots = self._topology_output()
+        edge_bb_ids = None
+        if topology_slots is not None:
+            edge_bb_ids = {
+                slot_index: fragment_to_bb_id[key]
+                for key, (slot_kind, slot_index) in topology_slots.items()
+                if slot_kind == "edge"
+            }
+        return _write_topology_cgd(
+            path,
+            name=self.name,
+            cell_parameters=self.cell_parameters,
+            vertices=vertices,
+            edges=edges,
+            fragment_to_bb_id=fragment_to_bb_id,
+            edge_bb_ids=edge_bb_ids,
+        )
+
+
 @dataclass
-class DecompositionResult:
+class DecompositionResult(_ResultWriter):
     """Complete SingleNode-style decomposition for one MOF."""
 
     name: str
@@ -769,191 +987,129 @@ class DecompositionResult:
 
     @property
     def fragments(self) -> list[Fragment]:
-        """Return all node and linker fragments in output slot order."""
-
         return [*self.node_fragments, *self.linker_fragments]
 
-    def write(self, output_dir: Path) -> dict[str, object]:
-        """Write all output files and return a JSON-serializable summary."""
-
-        validate_source_atom_ownership(
-            (*self.node_indices, *self.linker_indices), self.fragments
-        )
-        if self.solvent_mode == "none":
-            if self.solvent is not None or self.selected_to_original is not None:
-                raise ValueError(
-                    "Inconsistent solvent metadata: mode 'none' requires both "
-                    "the solvent result and selected-to-original mapping to be absent."
-                )
-        elif self.solvent_mode in {"free", "all"}:
-            if self.solvent is None or self.selected_to_original is None:
-                raise ValueError(
-                    f"Inconsistent solvent metadata: active mode {self.solvent_mode!r} "
-                    "requires both a solvent result and selected-to-original mapping."
-                )
-            self.solvent.validate_write_request(
-                self.solvent_mode,
-                self.selected_to_original,
-            )
-        else:
-            raise ValueError(f"Unsupported solvent mode: {self.solvent_mode!r}.")
-
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        for fragment in self.node_fragments:
-            fragment.write_xyz(output_dir / fragment_instance_path(fragment))
-            fragment.write_xyz(
-                output_dir / "all_fragments" / f"node_{fragment.index:03d}.xyz"
-            )
-        for fragment in self.linker_fragments:
-            fragment.write_xyz(output_dir / fragment_instance_path(fragment))
-            fragment.write_xyz(
-                output_dir / "all_fragments" / f"linker_{fragment.index:03d}.xyz"
-            )
-
-        group_records, fragment_to_bb_id = self._write_group_representatives(output_dir)
-
-        topology_path = output_dir / "topology.cgd"
-        topology_summary = self.write_topology_cgd(
-            topology_path, fragment_to_bb_id
-        )
-        topology_summary["path"] = str(topology_path.relative_to(output_dir))
-
-        reconstruction_path = output_dir / "reconstruction_map.json"
-        self.write_reconstruction_map(
-            reconstruction_path, group_records, fragment_to_bb_id
-        )
-
-        summary: dict[str, object] = {
-            "name": self.name,
-            "num_nodes": len(self.node_fragments),
-            "num_linkers": len(self.linker_fragments),
-            "num_connecting_bonds": len(self.connecting_bonds),
-            "node_indices": list(self.node_indices),
-            "linker_indices": list(self.linker_indices),
-            "points_of_extension": list(self.points_of_extension),
-            "connecting_bonds": [list(pair) for pair in self.connecting_bonds],
-            "topology": topology_summary,
-            "reconstruction_map": str(reconstruction_path.relative_to(output_dir)),
-            "groups": group_records,
-            "nodes": [
-                fragment.as_dict(fragment_instance_path(fragment))
-                for fragment in self.node_fragments
-            ],
-            "linkers": [
-                fragment.as_dict(fragment_instance_path(fragment))
-                for fragment in self.linker_fragments
-            ],
-        }
-        if self.connection_records:
-            summary["connecting_bond_records"] = [
-                record.as_dict() for record in self.connection_records
-            ]
-            summary["periodic_components"] = [
-                opening.as_dict() for opening in self.periodic_openings
-            ]
-            summary["periodic_validation"] = dict(self.periodic_validation)
-        if self.solvent is not None and self.selected_to_original is not None:
-            summary["solvent"] = self.solvent.write(
-                output_dir,
-                self.solvent_mode,
-                self.selected_to_original,
-            )
-        with (output_dir / "decomposition_summary.json").open("w", encoding="utf-8") as handle:
-            json.dump(summary, handle, indent=2, sort_keys=True)
-            handle.write("\n")
-        return summary
-
-    def _write_group_representatives(
-        self, output_dir: Path
-    ) -> tuple[list[dict[str, object]], dict[tuple[str, int], str]]:
-        group_records: list[dict[str, object]] = []
-        fragment_to_bb_id: dict[tuple[str, int], str] = {}
-        for kind, fragments in (
+    @property
+    def fragment_groups(self) -> tuple[tuple[str, list[Fragment]], ...]:
+        return (
             ("node", self.node_fragments),
             ("linker", self.linker_fragments),
-        ):
-            grouped: dict[tuple[object, ...], list[Fragment]] = defaultdict(list)
-            for fragment in fragments:
-                grouped[fragment_group_key(fragment)].append(fragment)
+        )
 
-            for group_index, (_, group) in enumerate(sorted(grouped.items()), start=1):
-                representative = group[0]
-                bb_id = f"{kind}_group_{group_index:02d}"
-                group_path = output_dir / "bbs" / f"{kind}_group_{group_index:02d}.xyz"
-                representative.write_xyz(group_path)
-                for fragment in group:
-                    fragment_to_bb_id[(fragment.kind, fragment.index)] = bb_id
-                group_records.append(
-                    {
-                        "bb_id": bb_id,
-                        "kind": kind,
-                        "group": group_index,
-                        "count": len(group),
-                        "cn": representative.num_x,
-                        "formula": representative.formula,
-                        "num_atoms": representative.num_atoms,
-                        "num_x": representative.num_x,
-                        **fragment_group_metadata(representative),
-                        "x_sites": [
-                            {"site_id": site_id, "x_index": site.x_index}
-                            for site_id, site in enumerate(representative.x_sites)
-                        ],
-                        "fingerprint": representative.fingerprint,
-                        "fragment_indices": [fragment.index for fragment in group],
-                        "path": str(group_path.relative_to(output_dir)),
-                    }
-                )
-        return group_records, fragment_to_bb_id
+    @property
+    def source_indices(self) -> tuple[int, ...]:
+        return (*self.node_indices, *self.linker_indices)
 
-    def write_reconstruction_map(
-        self,
-        path: Path,
-        group_records: list[dict[str, object]],
-        fragment_to_bb_id: dict[tuple[str, int], str],
-    ) -> dict[str, object]:
-        """Write group-first metadata for exact reconstruction experiments."""
-
-        slot_positions = {
-            (vertex.kind, vertex.index): vertex.frac_position
-            for vertex in self.topology_vertices
+    def _role_summary(self) -> dict[str, object]:
+        return {
+            "num_nodes": len(self.node_fragments),
+            "num_linkers": len(self.linker_fragments),
+            "node_indices": list(self.node_indices),
+            "linker_indices": list(self.linker_indices),
+            "nodes": _fragment_records(self.node_fragments),
+            "linkers": _fragment_records(self.linker_fragments),
         }
-        return write_reconstruction_data(
-            path,
-            topology_kind="original_cell_slots",
-            cell_parameters=self.cell_parameters,
-            fragments=self.fragments,
-            expected_source_atoms=(*self.node_indices, *self.linker_indices),
-            connecting_bonds=self.connecting_bonds,
-            connection_records=self.connection_records,
-            periodic_openings=self.periodic_openings,
-            periodic_validation=self.periodic_validation,
-            topology_edges=self.topology_edges,
-            group_records=group_records,
-            fragment_to_bb_id=fragment_to_bb_id,
-            slot_positions=slot_positions,
+
+
+@dataclass
+class NodeEdgeDecompositionResult(_ResultWriter):
+    """Complete decomposition into metal nodes, organic nodes, and edges."""
+
+    name: str
+    metal_node_indices: tuple[int, ...]
+    organic_indices: tuple[int, ...]
+    points_of_extension: tuple[int, ...]
+    connecting_bonds: tuple[tuple[int, int], ...]
+    cell_parameters: tuple[float, float, float, float, float, float]
+    topology_vertices: list[TopologyVertex]
+    topology_edges: list[TopologyEdge]
+    metal_node_fragments: list[Fragment] = field(default_factory=list)
+    organic_node_fragments: list[Fragment] = field(default_factory=list)
+    edge_fragments: list[Fragment] = field(default_factory=list)
+    metal_connecting_bonds: tuple[tuple[int, int], ...] = ()
+    organic_connecting_bonds: tuple[tuple[int, int], ...] = ()
+    bound_linker_fragments: list[Fragment] = field(default_factory=list)
+    solvent_mode: SolventMode = "none"
+    solvent: SolventRemovalResult | None = None
+    selected_to_original: tuple[int, ...] | None = None
+    connection_records: tuple[PeriodicBond, ...] = ()
+    periodic_openings: tuple[PeriodicOpening, ...] = ()
+    periodic_validation: dict[str, bool] = field(default_factory=dict)
+
+    topology_kind = "node_edge_slots"
+    decomposition_kind = "node_edge"
+    use_connection_site_cn = True
+
+    @property
+    def fragments(self) -> list[Fragment]:
+        return [
+            *self.metal_node_fragments,
+            *self.organic_node_fragments,
+            *self.edge_fragments,
+            *self.bound_linker_fragments,
+        ]
+
+    @property
+    def fragment_groups(self) -> tuple[tuple[str, list[Fragment]], ...]:
+        return (
+            ("metal_node", self.metal_node_fragments),
+            ("organic_node", self.organic_node_fragments),
+            ("edge", self.edge_fragments),
+            ("linker", self.bound_linker_fragments),
         )
 
-    def write_topology_cgd(
-        self,
-        path: Path,
-        fragment_to_bb_id: dict[tuple[str, int], str] | None = None,
-    ) -> dict[str, object]:
-        """Write the colored topology with its validated graph symmetry."""
+    @property
+    def source_indices(self) -> tuple[int, ...]:
+        return (*self.metal_node_indices, *self.organic_indices)
 
-        if fragment_to_bb_id is None:
-            fragment_to_bb_id = {
-                (fragment.kind, fragment.index): repr(
-                    (fragment.kind, fragment_group_key(fragment))
-                )
-                for fragment in self.fragments
-            }
-        return _write_topology_cgd(
-            path,
-            name=self.name,
-            cell_parameters=self.cell_parameters,
-            vertices=self.topology_vertices,
-            edges=self.topology_edges,
-            fragment_to_bb_id=fragment_to_bb_id,
+    def _role_summary(self) -> dict[str, object]:
+        summary: dict[str, object] = {
+            "num_metal_nodes": len(self.metal_node_fragments),
+            "num_organic_nodes": len(self.organic_node_fragments),
+            "num_edges": len(self.edge_fragments),
+            "num_metal_connecting_bonds": len(self.metal_connecting_bonds),
+            "num_organic_connecting_bonds": len(self.organic_connecting_bonds),
+            "metal_node_indices": list(self.metal_node_indices),
+            "organic_indices": list(self.organic_indices),
+            "metal_connecting_bonds": [
+                list(pair) for pair in self.metal_connecting_bonds
+            ],
+            "organic_connecting_bonds": [
+                list(pair) for pair in self.organic_connecting_bonds
+            ],
+            "metal_nodes": _fragment_records(self.metal_node_fragments),
+            "organic_nodes": _fragment_records(self.organic_node_fragments),
+            "edges": _fragment_records(self.edge_fragments),
+        }
+        if self.bound_linker_fragments:
+            summary["num_bound_linkers"] = len(self.bound_linker_fragments)
+            summary["bound_linkers"] = _fragment_records(self.bound_linker_fragments)
+        return summary
+
+    def _add_periodic_summary(self, summary: dict[str, object]) -> None:
+        super()._add_periodic_summary(summary)
+        if not self.connection_records:
+            return
+        legacy_pairs = {
+            *self.metal_connecting_bonds,
+            *self.organic_connecting_bonds,
+        }
+        periodic_records = tuple(
+            record
+            for record in self.connection_records
+            if record.pair not in legacy_pairs
         )
+        summary["num_periodic_connecting_bonds"] = len(periodic_records)
+        summary["periodic_connecting_bonds"] = [
+            list(record.pair) for record in periodic_records
+        ]
+        summary["periodic_connecting_bond_records"] = [
+            record.as_dict() for record in periodic_records
+        ]
+
+    def _topology_output(self):
+        return EdgeTopologyContractor(
+            self.topology_vertices,
+            self.topology_edges,
+            self.edge_fragments,
+        ).contract()

@@ -1,9 +1,4 @@
-"""SingleNode-style atom-role assignment for decomposition.
-
-This module decides which input atoms belong to node SBUs and which atoms are
-points of extension.  It deliberately does not create fragments, cap bonds, or
-write files; those concerns live in separate modules.
-"""
+"""SingleNode-style atom-role assignment."""
 
 from __future__ import annotations
 

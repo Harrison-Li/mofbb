@@ -7,16 +7,16 @@ from typing import Any
 from .constants import MOFID_NONMETALS, is_mofid_metal
 
 __all__ = [
+    "MOFID_NONMETALS",
     "AtomAssignment",
     "BondNetwork",
     "DecompositionResult",
     "Fragment",
     "FragmentBuilder",
     "LogicalPort",
-    "MOFID_NONMETALS",
     "MofidSolventRemover",
-    "NodeEdgeDecompositionResult",
     "NodeEdgeDecomposer",
+    "NodeEdgeDecompositionResult",
     "OrganicLinkerSplit",
     "OrganicLinkerSplitter",
     "SingleNodeAtomAssigner",
@@ -31,56 +31,42 @@ __all__ = [
     "classify_organic_fragment_kind",
     "decompose_mof_with_edges",
     "is_mofid_metal",
-    "largest_connected_component",
 ]
 
 _LAZY_EXPORTS = {
-    "AtomAssignment": (".assignment", "AtomAssignment"),
-    "SingleNodeAtomAssigner": (".assignment", "SingleNodeAtomAssigner"),
-    "BondNetwork": (".bonding", "BondNetwork"),
-    "build_bond_network": (".bonding", "build_bond_network"),
-    "largest_connected_component": (".bonding", "largest_connected_component"),
-    "SingleNodeDecomposer": (".decomposer", "SingleNodeDecomposer"),
-    "MofidSolventRemover": (".solvent", "MofidSolventRemover"),
-    "SolventMode": (".solvent", "SolventMode"),
-    "SolventRemovalResult": (".solvent", "SolventRemovalResult"),
-    "NodeEdgeDecompositionResult": (
-        ".edge_decomposer",
-        "NodeEdgeDecompositionResult",
-    ),
-    "NodeEdgeDecomposer": (".edge_decomposer", "NodeEdgeDecomposer"),
-    "OrganicLinkerSplit": (".edge_decomposer", "OrganicLinkerSplit"),
-    "OrganicLinkerSplitter": (".edge_decomposer", "OrganicLinkerSplitter"),
-    "classify_organic_fragment_kind": (
-        ".edge_decomposer",
-        "classify_organic_fragment_kind",
-    ),
-    "decompose_mof_with_edges": (".edge_decomposer", "decompose_mof_with_edges"),
-    "FragmentBuilder": (".fragments", "FragmentBuilder"),
-    "Fragment": (".object", "Fragment"),
-    "LogicalPort": (".object", "LogicalPort"),
-    "TopologyEdge": (".object", "TopologyEdge"),
-    "TopologyVertex": (".object", "TopologyVertex"),
-    "XSite": (".object", "XSite"),
-    "DecompositionResult": (".results", "DecompositionResult"),
-    "TopologyBuilder": (".topology", "TopologyBuilder"),
+    "AtomAssignment": ".assignment",
+    "SingleNodeAtomAssigner": ".assignment",
+    "BondNetwork": ".bonding",
+    "build_bond_network": ".bonding",
+    "SingleNodeDecomposer": ".decomposer",
+    "MofidSolventRemover": ".solvent",
+    "SolventMode": ".solvent",
+    "SolventRemovalResult": ".solvent",
+    "NodeEdgeDecompositionResult": ".results",
+    "DecompositionResult": ".results",
+    "NodeEdgeDecomposer": ".edge_decomposer",
+    "decompose_mof_with_edges": ".edge_decomposer",
+    "OrganicLinkerSplit": ".linker",
+    "OrganicLinkerSplitter": ".linker",
+    "classify_organic_fragment_kind": ".linker",
+    "FragmentBuilder": ".fragments",
+    "Fragment": ".object",
+    "LogicalPort": ".object",
+    "TopologyEdge": ".object",
+    "TopologyVertex": ".object",
+    "XSite": ".object",
+    "TopologyBuilder": ".topology",
 }
 
 
 def __getattr__(name: str) -> Any:
-    """Load optional heavy exports lazily.
-
-    This keeps lightweight imports such as ``mofbb.decompose.constants``
-    usable even in environments where scientific runtime dependencies have not
-    been installed yet.
-    """
+    """Load scientific-runtime exports lazily."""
 
     if name not in _LAZY_EXPORTS:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-    module_name, attribute_name = _LAZY_EXPORTS[name]
     from importlib import import_module
 
-    value = getattr(import_module(module_name, __name__), attribute_name)
+    value = getattr(import_module(_LAZY_EXPORTS[name], __name__), name)
     globals()[name] = value
     return value

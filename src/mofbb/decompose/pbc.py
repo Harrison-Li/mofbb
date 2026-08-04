@@ -8,10 +8,10 @@ from functools import cached_property
 from itertools import combinations
 from typing import TypeAlias
 
-from ase import Atoms
 import networkx as nx
 import numpy as np
 import spglib
+from ase import Atoms
 
 from .bonding import BondNetwork
 from .constants import is_mofid_metal
@@ -111,7 +111,7 @@ class PeriodicOpening:
     @classmethod
     def from_selection(
         cls, atom_indices: set[int], selection: PeriodicCutSelection
-    ) -> "PeriodicOpening":
+    ) -> PeriodicOpening:
         return cls(
             source_indices=tuple(sorted(atom_indices)),
             rank=selection.original.rank,
@@ -243,11 +243,9 @@ def periodic_graph_symmetries(
                 int(right),
                 tuple(int(value) for value in shift),
             )
-            if (
-                target not in record_indices
-                or bonds.bond_type(*target.pair)
-                != bonds.bond_type(*record.pair)
-            ):
+            if target not in record_indices or bonds.bond_type(
+                *target.pair
+            ) != bonds.bond_type(*record.pair):
                 valid = False
                 break
             bond_map.append(record_indices[target])
@@ -372,7 +370,11 @@ class PeriodicCutSelector:
         self.symbols = symbols
         self.records = records
 
-    def select(self, atom_indices: set[int], fast: bool = False) -> PeriodicCutSelection:
+    def select(
+        self,
+        atom_indices: set[int],
+        fast: bool = False,
+    ) -> PeriodicCutSelection:
         component_records = tuple(
             record
             for record in self.records
@@ -482,9 +484,7 @@ class PeriodicCutSelector:
                 considered += 1
                 if considered > self.MAX_CANDIDATES:
                     return baseline
-                cuts = tuple(
-                    self.records[index] for index in sorted(candidate_indices)
-                )
+                cuts = tuple(self.records[index] for index in sorted(candidate_indices))
                 try:
                     residual = analyze_component(
                         atom_indices, component_records, frozenset(cuts)
@@ -521,9 +521,7 @@ class PeriodicCutSelector:
             if record.i in atom_indices and record.j in atom_indices
         )
         original = analyze_component(atom_indices, component_records)
-        residual = analyze_component(
-            atom_indices, component_records, frozenset(cuts)
-        )
+        residual = analyze_component(atom_indices, component_records, frozenset(cuts))
         if residual.rank != 0:
             raise ValueError("A symmetry-mapped periodic opening has nonzero holonomy.")
         return PeriodicCutSelection(
@@ -592,7 +590,11 @@ class PeriodicCutSelector:
                 sizes[j_root] += sizes[i_root]
 
         selected = tuple(sorted(cuts))
-        residual = analyze_component(atom_indices, component_records, frozenset(selected))
+        residual = analyze_component(
+            atom_indices,
+            component_records,
+            frozenset(selected),
+        )
         if residual.rank != 0:
             raise ValueError(
                 "Fast periodic opening failed to produce a zero-holonomy residual "
@@ -614,11 +616,17 @@ class PeriodicCutSelector:
         valid: list[tuple[tuple[PeriodicBond, ...], ComponentPeriodicity]],
     ) -> tuple[tuple[PeriodicBond, ...], ComponentPeriodicity]:
         scored = [
-            (self.candidate_score(atom_indices, records, cuts, residual), cuts, residual)
+            (
+                self.candidate_score(atom_indices, records, cuts, residual),
+                cuts,
+                residual,
+            )
             for cuts, residual in valid
         ]
         best_score = min(score for score, _, _ in scored)
-        best = [(cuts, residual) for score, cuts, residual in scored if score == best_score]
+        best = [
+            (cuts, residual) for score, cuts, residual in scored if score == best_score
+        ]
         if len(best) == 1:
             return best[0]
 
