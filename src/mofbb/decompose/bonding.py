@@ -33,20 +33,14 @@ class BondNetwork:
 
     @property
     def pairs(self) -> list[tuple[int, int]]:
-        """Return sorted bonded atom-index pairs."""
-
         return sorted(self.vectors)
 
     def vector(self, i: int, j: int) -> np.ndarray:
-        """Return the minimum-image vector from atom ``i`` to atom ``j``."""
-
         if i < j:
             return self.vectors[(i, j)]
         return -self.vectors[(j, i)]
 
     def bond_type(self, i: int, j: int) -> str:
-        """Return the source bond label for a bonded atom pair."""
-
         return self.bond_types.get(tuple(sorted((i, j))), "S")
 
 

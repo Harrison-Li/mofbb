@@ -19,7 +19,6 @@ from .pbc import (
     periodic_bonds,
 )
 
-ConnectionInput = tuple[int, int] | PeriodicBond
 FragmentKind = Literal["node", "linker", "metal_node", "organic_node", "edge"]
 
 
@@ -41,52 +40,40 @@ class FragmentBuilder:
         self.source_records = (
             periodic_bonds(atoms, bonds) if source_records is None else source_records
         )
-        self.source_by_pair = {record.pair: record for record in self.source_records}
 
     def build_role_fragments(
         self,
         kind: FragmentKind,
         role_indices: set[int] | frozenset[int],
-        connecting_bonds: tuple[ConnectionInput, ...],
+        connecting_bonds: tuple[PeriodicBond, ...],
     ) -> list[Fragment]:
-        """Build all connected fragments for one role: ``node`` or ``linker``."""
-
-        source_records, connection_records = self._normalize_connections(
-            connecting_bonds
-        )
-        fragments = []
-        for index, component in enumerate(
-            connected_components(role_indices, self.bonds.pairs), start=1
-        ):
-            fragments.append(
-                self._materialize_fragment(
-                    kind,
-                    index,
-                    component,
-                    source_records,
-                    connection_records,
-                )
+        return [
+            self._materialize_fragment(
+                kind,
+                index,
+                component,
+                self.source_records,
+                connecting_bonds,
             )
-        return fragments
+            for index, component in enumerate(
+                connected_components(role_indices, self.bonds.pairs),
+                start=1,
+            )
+        ]
 
     def materialize_fragment(
         self,
         kind: FragmentKind,
         index: int,
         component: set[int],
-        connecting_bonds: tuple[ConnectionInput, ...],
+        connecting_bonds: tuple[PeriodicBond, ...],
     ) -> Fragment:
-        """Create one capped finite fragment from a source-atom component."""
-
-        source_records, connection_records = self._normalize_connections(
-            connecting_bonds
-        )
         return self._materialize_fragment(
             kind,
             index,
             component,
-            source_records,
-            connection_records,
+            self.source_records,
+            connecting_bonds,
         )
 
     def _materialize_fragment(
@@ -106,8 +93,6 @@ class FragmentBuilder:
             if record.i in component and record.j in component
         )
         frame = self._materialization_frame(
-            kind,
-            index,
             component,
             source_records,
             internal_cuts,
@@ -124,19 +109,7 @@ class FragmentBuilder:
             source_records,
             internal_cuts,
         )
-        self._validate_retained_bonds(
-            kind,
-            index,
-            component,
-            local_index,
-            positions,
-            source_records,
-            internal_cuts,
-        )
-
         x_sites = self._append_x_caps(
-            kind,
-            index,
             symbols,
             positions,
             local_bonds,
@@ -164,65 +137,17 @@ class FragmentBuilder:
             source_image_offsets=frame.offsets,
         )
 
-    def _normalize_connections(
-        self,
-        connections: tuple[ConnectionInput, ...],
-    ) -> tuple[tuple[PeriodicBond, ...], tuple[PeriodicBond, ...]]:
-        normalized: list[PeriodicBond] = []
-        seen: set[PeriodicBond] = set()
-
-        for connection in connections:
-            if isinstance(connection, PeriodicBond):
-                supplied = connection
-                pair = supplied.pair
-            else:
-                pair = tuple(sorted(connection))
-                supplied = None
-
-            try:
-                source = self.source_by_pair[pair]
-            except KeyError as exc:
-                raise ValueError(
-                    f"Connection {pair} is not present in the source bond network."
-                ) from exc
-            if supplied is not None and supplied.shift != source.shift:
-                raise ValueError(
-                    f"Connection {pair} supplies periodic shift {supplied.shift}, "
-                    f"but the source bond vector requires {source.shift}."
-                )
-            if source not in seen:
-                normalized.append(source)
-                seen.add(source)
-
-        return self.source_records, tuple(normalized)
-
     @staticmethod
     def _materialization_frame(
-        kind: FragmentKind,
-        index: int,
         component: set[int],
         source_records: tuple[PeriodicBond, ...],
         internal_cuts: frozenset[PeriodicBond],
     ) -> ComponentPeriodicity:
-        cut_pairs = [record.pair for record in sorted(internal_cuts)]
-        try:
-            frame = analyze_component(
-                component,
-                source_records,
-                excluded=internal_cuts,
-            )
-        except ValueError as exc:
-            raise ValueError(
-                f"Fragment {kind} {index} has a disconnected residual bond graph "
-                f"after excluding internal cuts {cut_pairs}: {exc}"
-            ) from exc
-        if frame.rank != 0:
-            raise ValueError(
-                f"Fragment {kind} {index} residual bond graph has non-zero holonomy "
-                f"with rank {frame.rank} and generators {frame.generators} after "
-                f"excluding internal cuts {cut_pairs}."
-            )
-        return frame
+        return analyze_component(
+            component,
+            source_records,
+            excluded=internal_cuts,
+        )
 
     def _internal_bonds(
         self,
@@ -246,33 +171,8 @@ class FragmentBuilder:
 
         return local_bonds
 
-    def _validate_retained_bonds(
-        self,
-        kind: FragmentKind,
-        index: int,
-        component: set[int],
-        local_index: dict[int, int],
-        positions: list[np.ndarray],
-        source_records: tuple[PeriodicBond, ...],
-        internal_cuts: frozenset[PeriodicBond],
-    ) -> None:
-        for record in source_records:
-            i, j = record.pair
-            if i not in component or j not in component or record in internal_cuts:
-                continue
-            actual = positions[local_index[j]] - positions[local_index[i]]
-            expected = self.bonds.vector(i, j)
-            if not np.allclose(actual, expected, rtol=0.0, atol=1.0e-6):
-                raise ValueError(
-                    f"Fragment {kind} {index} retained distorted source bond "
-                    f"{record.pair}: materialized vector {actual.tolist()} does not "
-                    f"match the exact oriented bond vector {expected.tolist()}."
-                )
-
     def _append_x_caps(
         self,
-        kind: FragmentKind,
-        index: int,
         symbols: list[str],
         positions: list[np.ndarray],
         local_bonds: list[tuple[int, int, str]],
@@ -307,36 +207,7 @@ class FragmentBuilder:
                         external_image_shift=record.oriented_shift(internal, external),
                     )
                 )
-                self._validate_cap(
-                    kind,
-                    index,
-                    record,
-                    internal,
-                    external,
-                    positions[anchor_index],
-                    positions[x_local_index],
-                )
-
         return x_sites
-
-    def _validate_cap(
-        self,
-        kind: FragmentKind,
-        index: int,
-        record: PeriodicBond,
-        internal: int,
-        external: int,
-        anchor_position: np.ndarray,
-        cap_position: np.ndarray,
-    ) -> None:
-        actual = cap_position - anchor_position
-        expected = 0.5 * self.bonds.vector(internal, external)
-        if not np.allclose(actual, expected, rtol=0.0, atol=1.0e-6):
-            raise ValueError(
-                f"Fragment {kind} {index} cap for source bond {record.pair} at "
-                f"anchor {internal} has the wrong direction or length: "
-                f"{actual.tolist()} != {expected.tolist()}."
-            )
 
     @staticmethod
     def _fragment_cut_endpoints(
@@ -356,8 +227,6 @@ class FragmentBuilder:
 def connected_components(
     atom_indices: set[int] | frozenset[int], bonds: list[tuple[int, int]]
 ) -> list[set[int]]:
-    """Return connected components induced by ``atom_indices`` in stable order."""
-
     graph = nx.Graph()
     graph.add_nodes_from(atom_indices)
     for i, j in bonds:

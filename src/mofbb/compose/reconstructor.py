@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 
 import ase
-from ase.geometry import cellpar_to_cell
 import numpy as np
+from ase.geometry import cellpar_to_cell
 
 from .building_block import BuildingBlock
 from .framework import Framework
@@ -48,8 +48,15 @@ class Reconstructor:
                 "contain reconstruction_map.json."
             )
         data = json.loads(self.map_path.read_text(encoding="utf-8"))
-        topology_path = self.decomposition_dir / data["topology"]["path"]
-        cell, vertices = _read_topology_geometry(topology_path)
+        topology = data["topology"]
+        topology_path = topology.get("path")
+        if topology_path:
+            cell, vertices = _read_topology_geometry(
+                self.decomposition_dir / topology_path
+            )
+        else:
+            cell = cellpar_to_cell(topology["cell"])
+            vertices = []
         slots = sorted(data["slots"], key=lambda slot: slot["slot_id"])
         exact_vertices = [slot.get("exact_frac_position") for slot in slots]
         if all(vertex is not None for vertex in exact_vertices):
@@ -58,6 +65,11 @@ class Reconstructor:
             raise ValueError(
                 "Reconstruction slots must either all define "
                 "exact_frac_position or all use topology NODE positions."
+            )
+        elif not topology_path:
+            raise ValueError(
+                "Reconstruction requires exact slot positions when topology "
+                "output is disabled."
             )
         elif len(slots) != len(vertices):
             raise ValueError(
@@ -94,9 +106,7 @@ class Reconstructor:
             source_positions = block.atoms.positions[:source_count]
             source_centroid = np.mean(source_positions, axis=0)
             target_centroid = np.mod(vertex, 1.0) @ cell
-            placed_positions = (
-                source_positions - source_centroid + target_centroid
-            )
+            placed_positions = source_positions - source_centroid + target_centroid
             for source_index, symbol, position in zip(
                 source_indices,
                 block_symbols[:source_count],
@@ -124,9 +134,7 @@ class Reconstructor:
         for edge in data["edges"]:
             source_pair = tuple(sorted(int(value) for value in edge["source_cut_bond"]))
             endpoint_types = [
-                cap_bond_types.get(
-                    (int(endpoint["slot_id"]), int(endpoint["x_index"]))
-                )
+                cap_bond_types.get((int(endpoint["slot_id"]), int(endpoint["x_index"])))
                 for endpoint in edge["endpoint_x_sites"]
             ]
             known_types = {value for value in endpoint_types if value is not None}
@@ -149,9 +157,7 @@ class Reconstructor:
             cell=cell,
             pbc=True,
         )
-        atoms.set_scaled_positions(
-            np.mod(atoms.get_scaled_positions(wrap=False), 1.0)
-        )
+        atoms.set_scaled_positions(np.mod(atoms.get_scaled_positions(wrap=False), 1.0))
 
         sorted_bonds = sorted(bond_types_by_source_pair.items())
         bonds = np.asarray(

@@ -1,28 +1,20 @@
-#!/usr/bin/env python3
 """Decompose all CIF files in a folder through the MOFBB Python API."""
 
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ProcessPoolExecutor, as_completed
 import json
 import os
-from pathlib import Path
 import shutil
 import tempfile
 import time
 import traceback
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from pathlib import Path
 
-from mofbb.decompose import NodeEdgeDecomposer, SingleNodeDecomposer
+from mofbb.decompose import NodeEdgeDecomposer, SolventMode
 
-
-DECOMPOSERS = {
-    "node-edge": NodeEdgeDecomposer,
-    "single-node": SingleNodeDecomposer,
-}
 COUNT_KEYS = (
-    "num_nodes",
-    "num_linkers",
     "num_metal_nodes",
     "num_organic_nodes",
     "num_edges",
@@ -55,11 +47,11 @@ def find_cifs(input_dir: Path) -> list[Path]:
 def decompose_one(
     cif: Path,
     output_dir: Path,
-    decomposition: str,
-    solvent_mode: str,
     x_symbol: str,
     bond_scale: float,
     cleanup: bool,
+    solvent_mode: SolventMode,
+    write_topology: bool = False,
 ) -> dict[str, object]:
     """Decompose one CIF atomically, returning a compact status record."""
 
@@ -76,14 +68,17 @@ def decompose_one(
         staging_dir = Path(
             tempfile.mkdtemp(prefix=f".{output_dir.name}-", dir=output_dir.parent)
         )
-        decomposer = DECOMPOSERS[decomposition](
+        decomposer = NodeEdgeDecomposer(
             cif,
             x_symbol=x_symbol,
             bond_scale=bond_scale,
             cleanup=cleanup,
             solvent_mode=solvent_mode,
         )
-        summary = decomposer.decompose().write(staging_dir)
+        summary = decomposer.decompose().write(
+            staging_dir,
+            write_topology=write_topology,
+        )
         if output_dir.exists() or output_dir.is_symlink():
             raise FileExistsError(f"Output appeared during processing: {output_dir}")
         os.replace(staging_dir, output_dir)
@@ -93,7 +88,7 @@ def decompose_one(
             status="succeeded",
             counts={key: summary[key] for key in COUNT_KEYS if key in summary},
         )
-    except Exception as error:  # Keep one bad MOF from stopping the batch.
+    except Exception as error:  # noqa: BLE001 - isolate each input
         record.update(
             status="failed",
             error=f"{type(error).__name__}: {error}",
@@ -111,17 +106,15 @@ def batch_decompose(
     input_dir: Path,
     output_dir: Path,
     *,
-    decomposition: str = "node-edge",
     workers: int = 1,
-    solvent_mode: str = "none",
     x_symbol: str = "X",
     bond_scale: float = 1.2,
     cleanup: bool = True,
+    solvent_mode: SolventMode = "none",
+    write_topology: bool = False,
 ) -> dict[str, object]:
     """Decompose a directory of CIFs concurrently via the Python API."""
 
-    if decomposition not in DECOMPOSERS:
-        raise ValueError(f"Unsupported decomposition: {decomposition}")
     if workers < 1:
         raise ValueError("workers must be at least 1")
 
@@ -158,11 +151,11 @@ def batch_decompose(
         report_progress(record, completed)
 
     worker_args = (
-        decomposition,
-        solvent_mode,
         x_symbol,
         bond_scale,
         cleanup,
+        solvent_mode,
+        write_topology,
     )
     if workers == 1:
         for cif, destination in pending:
@@ -171,24 +164,12 @@ def batch_decompose(
             report_progress(record, len(results))
     else:
         with ProcessPoolExecutor(max_workers=workers) as executor:
-            futures = {
-                executor.submit(
-                    decompose_one, cif, destination, *worker_args
-                ): (cif, destination)
+            futures = [
+                executor.submit(decompose_one, cif, destination, *worker_args)
                 for cif, destination in pending
-            }
+            ]
             for future in as_completed(futures):
-                cif, destination = futures[future]
-                try:
-                    record = future.result()
-                except Exception as error:
-                    record = {
-                        "input": str(cif),
-                        "output": str(destination),
-                        "status": "failed",
-                        "error": f"Worker process failed: {error}",
-                        "seconds": 0.0,
-                    }
+                record = future.result()
                 results.append(record)
                 report_progress(record, len(results))
 
@@ -196,7 +177,9 @@ def batch_decompose(
     report: dict[str, object] = {
         "input_dir": str(Path(input_dir).resolve()),
         "output_dir": str(output_dir.resolve()),
-        "decomposition": decomposition,
+        "decomposition": "node_edge",
+        "solvent_mode": solvent_mode,
+        "write_topology": write_topology,
         "workers": workers,
         "total": len(results),
         "succeeded": sum(item["status"] == "succeeded" for item in results),
@@ -216,18 +199,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input-dir", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
-    parser.add_argument(
-        "--decomposition",
-        choices=tuple(DECOMPOSERS),
-        default="node-edge",
-    )
     parser.add_argument("--workers", type=_positive_int, default=1)
-    parser.add_argument(
-        "--solvent-mode", choices=("none", "free", "all"), default="none"
-    )
     parser.add_argument("--x-symbol", default="X")
     parser.add_argument("--bond-scale", type=float, default=1.2)
+    parser.add_argument(
+        "--solvent-mode",
+        choices=("none", "free", "all"),
+        default="none",
+    )
     parser.add_argument("--no-cleanup", action="store_true")
+    parser.add_argument("--write-topology", action="store_true")
     return parser
 
 
@@ -238,12 +219,12 @@ def main(argv: list[str] | None = None) -> int:
         report = batch_decompose(
             args.input_dir,
             args.output_dir,
-            decomposition=args.decomposition,
             workers=args.workers,
-            solvent_mode=args.solvent_mode,
             x_symbol=args.x_symbol,
             bond_scale=args.bond_scale,
             cleanup=not args.no_cleanup,
+            solvent_mode=args.solvent_mode,
+            write_topology=args.write_topology,
         )
     except (NotADirectoryError, ValueError) as error:
         parser.error(str(error))

@@ -6,9 +6,9 @@ back into periodic structures.
 
 It supports two complementary workflows:
 
-- **Decomposition:** split an input CIF into node/linker or
-  metal-node/organic-node/edge fragments, group equivalent fragments, and
-  export the corresponding topology and reconstruction metadata.
+- **Decomposition:** split an input CIF into metal-node, organic-node, and edge
+  fragments, group equivalent fragments, and export topology and
+  reconstruction metadata.
 - **Composition:** either reconstruct the original per-instance geometry from
   a decomposition directory or assemble selected building blocks on a CGD
   topology.
@@ -20,13 +20,13 @@ It supports two complementary workflows:
 
 - Reads periodic CIF structures through ASE.
 - Uses MOFid-style metal classification and atom-assignment rules.
+- Optionally removes MOFid-style free or all solvent before decomposition.
 - Caps every cut bond with an `X` connection site.
-- Supports single-node and node-edge decomposition.
-- Optionally removes free or all detected solvent before decomposition.
+- Decomposes MOFs into metal nodes, organic nodes, and edges.
 - Opens infinite one-dimensional metal components into finite
   crystallographic repeats while retaining their cell translations.
-- Writes extended XYZ building blocks, a symmetry-annotated CGD topology,
-  JSON summaries, and a schema-v2 reconstruction map.
+- Writes extended XYZ building blocks, a symmetry-preserving CGD topology,
+  JSON summaries, and a reconstruction map.
 - Reconstructs decomposition outputs without requiring JAX.
 - Performs topology scaling, building-block orientation, and geometric quality
   checks for topology-driven assembly.
@@ -73,29 +73,15 @@ python -m mofbb.compose --help
 
 ## Decomposition
 
-### Workflows
+### Node-edge workflow
 
-| Mode | Command | Building-block roles |
-| --- | --- | --- |
-| Single-node | `--decomposition single-node` | Metal-containing `node` fragments and organic `linker` fragments |
-| Node-edge (default) | `--decomposition node-edge` | `metal_node`, `organic_node`, and two-connected `edge` fragments |
-
-Single-node decomposition preserves each organic linker as one fragment:
-
-```bash
-mofbb-decompose structure.cif \
-  --decomposition single-node \
-  --output-dir outputs/single-node
-```
-
-Node-edge decomposition further analyzes each organic linker as a graph.
+Node-edge decomposition analyzes each organic linker as a graph.
 Organic cores with more than two connection sites become `organic_node`
 fragments, while paths with exactly two connection sites become `edge`
 fragments:
 
 ```bash
 mofbb-decompose structure.cif \
-  --decomposition node-edge \
   --output-dir outputs/node-edge
 ```
 
@@ -105,35 +91,14 @@ Common options include:
 | --- | --- | --- |
 | `--bond-scale FLOAT` | `1.2` | Multiplier applied to ASE natural covalent cutoffs |
 | `--x-symbol SYMBOL` | `X` | Dummy atom used to cap cut bonds |
-| `--solvent-mode {none,free,all}` | `none` | Solvent treatment before decomposition |
-| `--no-cleanup` | off | Keep all connected components in legacy `none` solvent mode |
+| `--solvent-mode MODE` | `none` | Keep solvent, remove `free`, or remove `all` solvent |
+| `--no-cleanup` | off | Keep all connected components |
+| `--write-topology` | off | Emit the symmetry-aware `topology.cgd` file |
 | `--json` | off | Print the reduced CLI output summary to standard output |
 
 Keep the default `X` symbol when the output will be passed to
 `mofbb-compose` as a topology assignment, whose connection-point handling is
 based on `X` atoms.
-
-### Solvent handling
-
-MOFBB provides three solvent modes:
-
-| Mode | Structure decomposed |
-| --- | --- |
-| `none` | No explicit solvent classification; by default, retain the largest connected component |
-| `free` | Free-solvent-removed (FSR) structure; bound solvent remains |
-| `all` | All-solvent-removed (ASR) structure; both free and bound solvent are removed |
-
-For example:
-
-```bash
-mofbb-decompose structure.cif \
-  --solvent-mode all \
-  --output-dir outputs/desolvated
-```
-
-The selected FSR or ASR structure is used for decomposition. The reduced CLI
-output still preserves the byte-identical input under `original_mof_cif/`;
-auxiliary solvent files and decomposition metadata are not published.
 
 ## Composition
 
@@ -159,6 +124,9 @@ reconstruction uses each slot's `exact_instance_path`, not the grouped
 representative under `bbs/`.
 
 ### Topology-driven assembly
+
+Use `--write-topology` during decomposition when a generated CGD will be used
+for topology-driven assembly.
 
 Pass a CGD file and assign a building block to every topology node type:
 
@@ -199,25 +167,16 @@ the composed coordinates outside the primary unit cell.
 ### Decompose a structure
 
 ```python
-from mofbb.decompose import SingleNodeDecomposer
-
-result = SingleNodeDecomposer(
-    "path/to/structure.cif",
-    bond_scale=1.2,
-    solvent_mode="none",
-).decompose()
-
-summary = result.write("outputs/structure")
-print(summary["num_nodes"], summary["num_linkers"])
-```
-
-Use `NodeEdgeDecomposer` for the node-edge workflow:
-
-```python
 from mofbb.decompose import NodeEdgeDecomposer
 
-result = NodeEdgeDecomposer("path/to/structure.cif").decompose()
-summary = result.write("outputs/node-edge")
+result = NodeEdgeDecomposer(
+    "path/to/structure.cif",
+    solvent_mode="all",
+).decompose()
+summary = result.write(
+    "outputs/node-edge",
+    write_topology=True,
+)
 
 print(
     summary["num_metal_nodes"],
@@ -255,54 +214,36 @@ framework.write_cif("outputs/composed.cif")
 
 ## Output files
 
-The `mofbb-decompose` CLI publishes only deduplicated BB representatives, the
-original input CIF, and the decomposition topology:
+The CLI and Python API write the same reconstruction-oriented layout; the CLI
+also copies the source CIF into the output directory:
 
 ```text
 outputs/structure/
-├── bbs/
-│   ├── edge/
-│   └── nodes/
-├── original_mof_cif/
-│   └── structure.cif
-└── topology/
-    └── structure.cgd
-```
-
-The Python `result.write()` API retains the complete reconstruction-oriented
-layout. A full single-node decomposition has the following files:
-
-```text
-outputs/structure/
-├── all_fragments/              # Copies of every fragment
 ├── bbs/                        # One representative per fingerprint group
-├── linkers/                    # Exact per-instance linker geometries
-├── nodes/                      # Exact per-instance node geometries
-├── decomposition_summary.json # Counts, groups, paths, and validation data
-├── reconstruction_map.json    # Authoritative slot/edge reconstruction data
-└── topology.cgd               # Colored topology, symmetry, and edge geometry
+├── edges/                      # Exact per-instance edge geometries
+├── metal_nodes/                # Exact per-instance metal nodes
+├── organic_nodes/              # Exact per-instance organic nodes
+├── decomposition_summary.json # Counts, groups, and paths
+├── reconstruction_map.json    # Slot and cut-bond reconstruction data
+└── topology.cgd               # Optional; enable with --write-topology
 ```
 
-Node-edge output uses `metal_nodes/`, `organic_nodes/`, and `edges/`; it can
-also contain `linkers/` for retained bound-solvent accessories. Every fragment
-XYZ stores its connection-point indices and bond records in the extended XYZ
-comment and bond sections.
+Every fragment XYZ stores its connection-point indices and bond records in the
+extended XYZ comment and bond sections.
 
 The main metadata files serve different purposes:
 
-- `decomposition_summary.json` is the user-facing inventory of fragments,
-  groups, solvent selections, and topology counts.
+- `decomposition_summary.json` is the user-facing inventory of groups and,
+  when requested, topology metadata.
 - `reconstruction_map.json` records exact slot instances, source atom indices,
-  paired `X` sites, cut-bond translations, and reconstruction validation.
-- `topology.cgd` records the collapsed colored periodic net and the symmetry
-  operations that preserve both its BB types and translated edges.
+  paired `X` sites, and cut-bond translations.
+- Optional `topology.cgd` records the collapsed periodic net with its validated
+  graph symmetry and explicit symmetry operations.
 
 These files intentionally use two different fragment centers. A CGD `NODE`
-position is the centroid of the fragment's connection (`X`) sites, matching the
-Composer placement anchor. Each reconstruction slot instead stores the wrapped
-real-atom centroid in both `exact_frac_position` and
-`real_atom_centroid_frac`; the same provenance value is included with each
-fragment in `decomposition_summary.json`.
+position is the centroid of the fragment's connection (`X`) sites. Each
+reconstruction slot instead stores the wrapped real-atom centroid in
+`exact_frac_position`.
 
 ## Periodic components and geometry contract
 
@@ -327,8 +268,7 @@ Files under `bbs/` are fingerprint-group representatives intended for
 inspection and library matching. Equivalent instances can use different local
 atom or `X` index orderings, and schema 2 does not provide a
 representative-to-instance permutation. Therefore, a grouped representative is
-not an exact replacement for a slot's `exact_instance_path`; this limitation is
-recorded in the reconstruction map's `geometry_contract` object.
+not an exact replacement for a slot's `exact_instance_path`.
 
 For periodic rods and structures with self-edges or parallel edges, treat
 `reconstruction_map.json` as authoritative. A generic CGD/PORMAKE reader may
@@ -336,8 +276,8 @@ not preserve all translated edge multiplicities.
 
 ## Examples
 
-Prepared single-node and node-edge decomposition artifacts for CPO-27-Ni,
-HKUST-1, MOF-5, UiO-67, and Zn2-TTFB are available under [`examples/`](examples/).
+Prepared legacy decomposition artifacts for CPO-27-Ni, HKUST-1, MOF-5,
+UiO-67, and Zn2-TTFB are available under [`examples/`](examples/).
 They can be used to inspect the output schema or test reconstruction directly:
 
 ```bash
@@ -361,13 +301,11 @@ src/mofbb/
 │   └── scaler.py            # NumPy/SciPy topology scaling
 └── decompose/
     ├── cli.py               # Decomposition CLI
-    ├── decomposer.py        # Single-node workflow
-    ├── edge_decomposer.py   # Node-edge workflow
+    ├── decomposer.py        # Node-edge workflow
     ├── linker.py            # Organic node/edge splitting
     ├── ports.py             # Logical connection-port assignment
     ├── bonding.py           # Bond graph construction and cleanup
     ├── fragments.py         # Fragment generation and X caps
     ├── pbc.py               # Periodic cuts and repeat opening
-    ├── results.py           # Output and reconstruction metadata
-    └── solvent.py           # Solvent classification and export
+    └── results.py           # Output and reconstruction metadata
 ```

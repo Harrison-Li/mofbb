@@ -209,7 +209,6 @@ def run_case(
         decomposition = NodeEdgeDecomposer(
             rebuilt_path,
             cleanup=False,
-            solvent_mode="none",
         ).decompose()
         decomposition.write(redecomposition_dir)
 
@@ -331,7 +330,7 @@ def build_summary(
         "configuration": {
             "accuracy": accuracy,
             "decomposer": (
-                "NodeEdgeDecomposer(cleanup=False, solvent_mode='none')"
+                "NodeEdgeDecomposer(cleanup=False)"
             ),
             "node_labels": "element symbols including X",
             "edge_labels": "ignored",

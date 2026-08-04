@@ -27,15 +27,7 @@ class OrganicLinkerSplit:
 
 
 def classify_organic_fragment_kind(fragment: Fragment) -> OrganicFragmentKind:
-    """Classify an organic fragment from its dummy connection-site count."""
-
-    num_connection_sites = len(fragment.x_sites)
-    if num_connection_sites < 2:
-        raise ValueError(
-            f"Organic fragment {fragment.index} has fewer than 2 connection "
-            f"sites ({num_connection_sites})."
-        )
-    return "edge" if num_connection_sites == 2 else "organic_node"
+    return "edge" if len(fragment.x_sites) == 2 else "organic_node"
 
 
 @dataclass(frozen=True)
@@ -52,8 +44,8 @@ class OrganicLinkerSplitter:
         atoms: ase.Atoms,
         bonds: BondNetwork,
         symbols: list[str],
+        source_records: tuple[PeriodicBond, ...],
         x_symbol: str = "X",
-        source_records: tuple[PeriodicBond, ...] | None = None,
     ) -> None:
         self.atoms = atoms
         self.bonds = bonds
@@ -66,8 +58,6 @@ class OrganicLinkerSplitter:
         organic_fragments: list[Fragment],
         metal_connecting_bonds: tuple[tuple[int, int], ...],
     ) -> OrganicLinkerSplit:
-        """Split each original organic linker into smaller node/edge pieces."""
-
         role_components: list[_RoleComponent] = []
         organic_cut_bonds: set[tuple[int, int]] = set()
         external_cut_set = {
@@ -87,7 +77,10 @@ class OrganicLinkerSplitter:
                 )
             )
 
-        all_cut_bonds = tuple(sorted({*metal_connecting_bonds, *organic_cut_bonds}))
+        all_cut_pairs = {*metal_connecting_bonds, *organic_cut_bonds}
+        all_cut_records = tuple(
+            record for record in self.source_records if record.pair in all_cut_pairs
+        )
         fragment_builder = FragmentBuilder(
             self.atoms,
             self.bonds,
@@ -107,7 +100,7 @@ class OrganicLinkerSplitter:
                     component.kind,
                     len(group) + 1,
                     set(component.atom_indices),
-                    all_cut_bonds,
+                    all_cut_records,
                 )
             )
 
@@ -163,8 +156,6 @@ class OrganicLinkerSplitter:
         external_cut_bonds: tuple[tuple[int, int], ...],
         source_atoms: set[int],
     ) -> tuple[nx.Graph, set[int]]:
-        """Build the heavy-atom graph and identify multi-port node cores."""
-
         excluded_bonds = {tuple(sorted(cut_bond)) for cut_bond in external_cut_bonds}
         graph = nx.Graph()
         graph.add_nodes_from(heavy_atoms)
@@ -219,8 +210,6 @@ class OrganicLinkerSplitter:
         external_cut_bonds: tuple[tuple[int, int], ...],
         source_atoms: set[int],
     ) -> set[int]:
-        """Find a multi-port junction between cyclic two-port regions."""
-
         bridges = {tuple(sorted(edge)) for edge in nx.bridges(graph)}
         bridge_free_graph = graph.copy()
         bridge_free_graph.remove_edges_from(bridges)
@@ -495,8 +484,6 @@ class OrganicLinkerSplitter:
         external_cut_bonds: tuple[tuple[int, int], ...],
         source_atoms: set[int],
     ) -> tuple[set[int], int]:
-        """Return adjacent node components and total connection count."""
-
         excluded_bonds = {tuple(sorted(cut_bond)) for cut_bond in external_cut_bonds}
         boundary_nodes: set[int] = set()
         port_count = self.external_cut_count(
@@ -520,8 +507,6 @@ class OrganicLinkerSplitter:
         node_component_by_atom: dict[int, int],
         external_cut_bonds: tuple[tuple[int, int], ...],
     ) -> bool:
-        """Return whether a donor-only component is pendant to one core bond."""
-
         donor_elements = {"O", "N", "S"}
         if not component or any(
             self.symbols[atom_index] not in donor_elements for atom_index in component
@@ -601,20 +586,3 @@ class OrganicLinkerSplitter:
                 continue
             cut_bonds.add(tuple(sorted((i, j))))
         return cut_bonds
-
-
-def relabel_fragment(fragment: Fragment, kind: str, index: int) -> Fragment:
-    """Return one fragment copied with a new output role label."""
-
-    return Fragment(
-        kind=kind,
-        index=index,
-        source_indices=fragment.source_indices,
-        atoms=fragment.atoms.copy(),
-        bonds=fragment.bonds,
-        fingerprint=fragment.fingerprint,
-        x_sites=fragment.x_sites,
-        source_image_offsets=fragment.source_image_offsets,
-        logical_kind=fragment.logical_kind,
-        logical_ports=fragment.logical_ports,
-    )

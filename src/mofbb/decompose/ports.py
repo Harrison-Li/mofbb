@@ -7,12 +7,8 @@ from dataclasses import dataclass
 from itertools import combinations
 from math import gcd
 
-import ase
-
-from .bonding import BondNetwork
 from .object import Fragment, LogicalPort, TopologyEdge, XSite
 from .pbc import PeriodicBond
-from .topology import TopologyBuilder
 
 
 class LogicalPortAssigner:
@@ -20,11 +16,9 @@ class LogicalPortAssigner:
 
     def __init__(
         self,
-        atoms: ase.Atoms,
-        bonds: BondNetwork,
         fragments: list[Fragment],
         connection_records: tuple[PeriodicBond, ...],
-        topology_edges: list[TopologyEdge] | None = None,
+        topology_edges: list[TopologyEdge],
     ) -> None:
         self.fragments = fragments
         self.atom_to_fragment = {
@@ -34,11 +28,6 @@ class LogicalPortAssigner:
         }
         self.record_by_pair = {record.pair: record for record in connection_records}
 
-        if topology_edges is None:
-            _, topology_edges = TopologyBuilder(atoms, bonds).build_fragments(
-                fragments,
-                connection_records,
-            )
         self.edge_by_pair = {
             edge.source_cut_bond: edge
             for edge in topology_edges
@@ -59,8 +48,6 @@ class LogicalPortAssigner:
         }
 
     def assign(self) -> None:
-        """Assign logical ports and logical roles to all fragments."""
-
         for fragment in self.fragments:
             fragment.logical_ports = self.ports_for_fragment(fragment)
             fragment.logical_kind = fragment.kind
@@ -105,14 +92,7 @@ class LogicalPortAssigner:
         grouped_x_indices: dict[tuple[str, int, tuple[int, int, int]], list[int]],
     ) -> tuple[str, int, tuple[int, int, int]]:
         fragment_key = (fragment.kind, fragment.index)
-        try:
-            record = self.record_by_pair[site.source_cut_bond]
-        except KeyError as exc:
-            raise ValueError(
-                f"X site {site.x_index} on fragment {fragment_key} has no "
-                "matching connection record for source bond "
-                f"{site.source_cut_bond}."
-            ) from exc
+        record = self.record_by_pair[site.source_cut_bond]
 
         internal = site.internal_source_index
         external = site.external_source_index
@@ -264,22 +244,3 @@ class _MultiRankSelfEdgeLattice:
             (*self.generators, translation)
         )
         return rank == self.rank and divisor == self.determinant_divisor
-
-
-def assign_logical_ports(
-    atoms: ase.Atoms,
-    bonds: BondNetwork,
-    fragments: list[Fragment],
-    connection_records: tuple[PeriodicBond, ...],
-    *,
-    topology_edges: list[TopologyEdge] | None = None,
-) -> None:
-    """Assign stable logical ports using exact physical slot translations."""
-
-    LogicalPortAssigner(
-        atoms,
-        bonds,
-        fragments,
-        connection_records,
-        topology_edges,
-    ).assign()

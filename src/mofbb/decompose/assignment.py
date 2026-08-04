@@ -1,9 +1,8 @@
-"""SingleNode-style atom-role assignment."""
+"""Metal-node atom assignment."""
 
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass
 
 import networkx as nx
 
@@ -11,16 +10,8 @@ from .bonding import BondNetwork
 from .constants import is_mofid_metal
 
 
-@dataclass(frozen=True)
-class AtomAssignment:
-    """Result of assigning source atoms to SingleNode-inspired roles."""
-
-    node_indices: frozenset[int]
-    points_of_extension: frozenset[int]
-
-
-class SingleNodeAtomAssigner:
-    """Classify source atoms using MOFid SingleNode-inspired rules."""
+class NodeAtomAssigner:
+    """Classify source atoms using MOFid-inspired rules."""
 
     def __init__(
         self,
@@ -35,11 +26,8 @@ class SingleNodeAtomAssigner:
         self.node_core_by_atom: dict[int, int] = {}
         self.coordination_seed_atoms: frozenset[int] = frozenset()
 
-    def assign(self) -> AtomAssignment:
-        """Return node atoms and points of extension for the source structure."""
-
+    def assign(self) -> frozenset[int]:
         nodes = self._seed_node_atoms()
-        points_of_extension: set[int] = set()
         visited_bridges: set[int] = set()
         seed_atoms = tuple(sorted(nodes))
 
@@ -47,7 +35,9 @@ class SingleNodeAtomAssigner:
             if atom_index in visited_bridges or self.symbols[atom_index] != "O":
                 continue
             self._classify_oxygen_neighbor(
-                atom_index, nodes, points_of_extension, visited_bridges
+                atom_index,
+                nodes,
+                visited_bridges,
             )
 
         for atom_index in seed_atoms:
@@ -68,28 +58,23 @@ class SingleNodeAtomAssigner:
             ):
                 continue
             self._classify_nitrogen_neighbor(
-                atom_index, nodes, points_of_extension, visited_bridges
+                atom_index,
+                nodes,
+                visited_bridges,
             )
 
         if self.absorb_one_port_regions:
             self._absorb_one_port_regions(nodes)
 
-        return AtomAssignment(
-            node_indices=frozenset(nodes),
-            points_of_extension=frozenset(points_of_extension),
-        )
+        return frozenset(nodes)
 
     def _seed_node_atoms(self) -> set[int]:
-        """Start nodes with MOFid metals and their direct neighbors."""
-
         nodes = {i for i, symbol in enumerate(self.symbols) if is_mofid_metal(symbol)}
         for metal in list(nodes):
             nodes.update(self.bonds.adjacency[metal])
         return nodes
 
     def _index_node_cores(self, nodes: set[int]) -> None:
-        """Index metal clusters together with their retained coordination shell."""
-
         node_graph = nx.Graph()
         node_graph.add_nodes_from(nodes)
         node_graph.add_edges_from(
@@ -102,8 +87,6 @@ class SingleNodeAtomAssigner:
         }
 
     def _absorb_one_port_regions(self, nodes: set[int]) -> None:
-        """Absorb non-node regions attached through exactly one source bond."""
-
         remaining = set(range(len(self.symbols))) - nodes
         while remaining:
             start = remaining.pop()
@@ -128,11 +111,8 @@ class SingleNodeAtomAssigner:
         self,
         oxygen: int,
         nodes: set[int],
-        points_of_extension: set[int],
         visited_bridges: set[int],
     ) -> None:
-        """Apply SingleNode-style rules for oxygen atoms adjacent to metals."""
-
         attached_hydrogens: set[int] = set()
         attached_carbon: int | None = None
         metal_oxide_or_carboxylate = True
@@ -171,7 +151,6 @@ class SingleNodeAtomAssigner:
             attached_carbon,
             attached_hydrogens,
             nodes,
-            points_of_extension,
             visited_bridges,
         )
 
@@ -181,11 +160,8 @@ class SingleNodeAtomAssigner:
         carbon: int,
         attached_hydrogens: set[int],
         nodes: set[int],
-        points_of_extension: set[int],
         visited_bridges: set[int],
     ) -> None:
-        """Promote a valid carboxylate bridge into the node assignment."""
-
         carbon_neighbors = self.bonds.adjacency[carbon]
         carbon_c_neighbors = [i for i in carbon_neighbors if self.symbols[i] == "C"]
         carbon_o_neighbors = [i for i in carbon_neighbors if self.symbols[i] == "O"]
@@ -207,7 +183,6 @@ class SingleNodeAtomAssigner:
             return
 
         carboxylate = {oxygen, carbon, other_oxygen}
-        points_of_extension.add(carbon)
         visited_bridges.update(carboxylate)
         nodes.update(carboxylate)
 
@@ -220,23 +195,19 @@ class SingleNodeAtomAssigner:
         self,
         nitrogen: int,
         nodes: set[int],
-        points_of_extension: set[int],
         visited_bridges: set[int],
     ) -> None:
-        """Apply SingleNode-style rules for nitrogen atoms adjacent to metals."""
-
         bridge_nitrogen = self._paired_node_nitrogen(nitrogen, nodes)
         if bridge_nitrogen is None:
             nodes.discard(nitrogen)
             return
 
-        ring, ring_poe = self._calculate_nonmetal_ring(nitrogen, bridge_nitrogen)
+        ring = self._calculate_nonmetal_ring(nitrogen, bridge_nitrogen)
         if not ring:
             return
 
         nodes.update(ring)
         visited_bridges.update(ring)
-        points_of_extension.update(ring_poe - nodes)
 
     def _paired_node_nitrogen(self, nitrogen: int, nodes: set[int]) -> int | None:
         return next(
@@ -248,7 +219,7 @@ class SingleNodeAtomAssigner:
             None,
         )
 
-    def _calculate_nonmetal_ring(self, a: int, b: int) -> tuple[set[int], set[int]]:
+    def _calculate_nonmetal_ring(self, a: int, b: int) -> set[int]:
         graph = nx.Graph()
         for i, j in self.bonds.pairs:
             if is_mofid_metal(self.symbols[i]) or is_mofid_metal(self.symbols[j]):
@@ -260,15 +231,14 @@ class SingleNodeAtomAssigner:
         try:
             path = nx.shortest_path(graph, a, b)
         except (nx.NetworkXNoPath, nx.NodeNotFound):
-            return set(), set()
+            return set()
 
         if len(path) > 6:
-            return set(), set()
+            return set()
 
         ring = set(path)
         ring.add(a)
         ring.add(b)
-        ring_poe: set[int] = set()
         node_core = self.node_core_by_atom.get(a)
 
         for atom in list(ring):
@@ -283,12 +253,10 @@ class SingleNodeAtomAssigner:
                 substituents.update(substituent)
                 if reaches_other_core:
                     break
-            if reaches_other_core:
-                ring_poe.add(atom)
-            else:
+            if not reaches_other_core:
                 ring.update(substituents)
 
-        return ring, ring_poe
+        return ring
 
     def _trace_external_region(
         self, start: int, blocked: set[int], node_core: int | None
