@@ -11,6 +11,7 @@ from typing import TypeAlias
 from ase import Atoms
 import networkx as nx
 import numpy as np
+import spglib
 
 from .bonding import BondNetwork
 from .constants import is_mofid_metal
@@ -91,6 +92,14 @@ class PeriodicCutSelection:
 
 
 @dataclass(frozen=True)
+class PeriodicGraphSymmetry:
+    """Atom and periodic-bond permutations for one source symmetry operation."""
+
+    atom_map: tuple[int, ...]
+    bond_map: tuple[int, ...]
+
+
+@dataclass(frozen=True)
 class PeriodicOpening:
     source_indices: tuple[int, ...]
     rank: int
@@ -167,6 +176,86 @@ def periodic_bonds(atoms: Atoms, bonds: BondNetwork) -> tuple[PeriodicBond, ...]
             raise ValueError(f"Bond {(i, j)} shifts along a non-periodic axis.")
         records.append(PeriodicBond(i, j, tuple(int(value) for value in shift)))
     return tuple(records)
+
+
+def periodic_graph_symmetries(
+    atoms: Atoms,
+    bonds: BondNetwork,
+    records: tuple[PeriodicBond, ...],
+    symprec: float = 0.05,
+) -> tuple[PeriodicGraphSymmetry, ...]:
+    """Return source-crystal operations that also preserve the periodic bond graph."""
+
+    cell = np.asarray(atoms.cell.array, dtype=float)
+    raw_positions = atoms.get_scaled_positions(wrap=False)
+    wrapped_positions = atoms.get_scaled_positions(wrap=True)
+    numbers = np.asarray(atoms.numbers)
+    dataset = spglib.get_symmetry_dataset(
+        (cell, wrapped_positions, numbers),
+        symprec=symprec,
+        angle_tolerance=5.0,
+    )
+    identity = PeriodicGraphSymmetry(
+        tuple(range(len(atoms))),
+        tuple(range(len(records))),
+    )
+    if dataset is None:
+        return (identity,)
+
+    record_indices = {record: index for index, record in enumerate(records)}
+    symmetries = []
+    seen = set()
+    for rotation, translation in zip(dataset.rotations, dataset.translations):
+        transformed = raw_positions @ rotation.T + translation
+        atom_map = np.empty(len(atoms), dtype=int)
+        atom_images = np.empty((len(atoms), 3), dtype=int)
+        valid = True
+        for number in np.unique(numbers):
+            indices = np.flatnonzero(numbers == number)
+            differences = transformed[indices, None] - raw_positions[indices]
+            images = np.rint(differences)
+            distances = np.linalg.norm((differences - images) @ cell, axis=2)
+            nearest = np.argmin(distances, axis=1)
+            if (
+                len(set(nearest.tolist())) != len(indices)
+                or np.max(distances[np.arange(len(indices)), nearest]) > symprec
+            ):
+                valid = False
+                break
+            atom_map[indices] = indices[nearest]
+            atom_images[indices] = images[np.arange(len(indices)), nearest]
+        if not valid:
+            continue
+
+        bond_map = []
+        for record in records:
+            left, right = atom_map[record.i], atom_map[record.j]
+            shift = (
+                rotation @ np.asarray(record.shift)
+                + atom_images[record.j]
+                - atom_images[record.i]
+            )
+            if left > right:
+                left, right = right, left
+                shift = -shift
+            target = PeriodicBond(
+                int(left),
+                int(right),
+                tuple(int(value) for value in shift),
+            )
+            if (
+                target not in record_indices
+                or bonds.bond_type(*target.pair)
+                != bonds.bond_type(*record.pair)
+            ):
+                valid = False
+                break
+            bond_map.append(record_indices[target])
+        key = (tuple(atom_map), tuple(bond_map))
+        if valid and key not in seen:
+            seen.add(key)
+            symmetries.append(PeriodicGraphSymmetry(*key))
+    return tuple(symmetries) or (identity,)
 
 
 def analyze_component(
@@ -334,6 +423,115 @@ class PeriodicCutSelector:
             f"(max_cut_size={self.MAX_CUT_SIZE}, formula={formula}, "
             f"component_size={len(atom_indices)}, "
             f"bond_count={len(component_records)})."
+        )
+
+    def select_symmetry_preserving(
+        self,
+        atom_indices: set[int],
+        bond_maps: tuple[tuple[int, ...], ...],
+        fast: bool = False,
+        baseline: PeriodicCutSelection | None = None,
+    ) -> PeriodicCutSelection:
+        """Select an opening invariant under the component stabilizer."""
+
+        if baseline is None:
+            baseline = self.select(atom_indices, fast=fast)
+        if not baseline.cuts:
+            return baseline
+
+        record_indices = {record: index for index, record in enumerate(self.records)}
+        component_records = tuple(
+            record
+            for record in self.records
+            if record.i in atom_indices and record.j in atom_indices
+        )
+        component_indices = {record_indices[record] for record in component_records}
+        cut_indices = {record_indices[record] for record in baseline.cuts}
+        if all(
+            {mapping[index] for index in cut_indices} == cut_indices
+            for mapping in bond_maps
+        ):
+            return baseline
+
+        unseen = set(component_indices)
+        orbits = []
+        while unseen:
+            orbit = {min(unseen)}
+            while True:
+                expanded = orbit | {
+                    mapping[index] for mapping in bond_maps for index in orbit
+                }
+                if expanded == orbit:
+                    break
+                orbit = expanded
+            if not orbit <= component_indices:
+                raise ValueError(
+                    "A component stabilizer maps a bond outside its component."
+                )
+            orbits.append(orbit)
+            unseen -= orbit
+
+        considered = 0
+        valid = []
+        cut_size = len(baseline.cuts)
+        for orbit_count in range(1, min(cut_size, len(orbits)) + 1):
+            for selected_orbits in combinations(orbits, orbit_count):
+                candidate_indices = set().union(*selected_orbits)
+                if len(candidate_indices) != cut_size:
+                    continue
+                considered += 1
+                if considered > self.MAX_CANDIDATES:
+                    return baseline
+                cuts = tuple(
+                    self.records[index] for index in sorted(candidate_indices)
+                )
+                try:
+                    residual = analyze_component(
+                        atom_indices, component_records, frozenset(cuts)
+                    )
+                except _DisconnectedComponentError:
+                    continue
+                if residual.rank == 0:
+                    valid.append((cuts, residual))
+        if valid:
+            cuts, residual = self.choose_canonical(
+                atom_indices, component_records, valid
+            )
+            return PeriodicCutSelection(
+                cuts,
+                baseline.original,
+                residual,
+                considered,
+                tuple(self.cut_detail(record) for record in cuts),
+            )
+
+        return baseline
+
+    def selection_from_cuts(
+        self,
+        atom_indices: set[int],
+        cuts: tuple[PeriodicBond, ...],
+        candidates_considered: int,
+    ) -> PeriodicCutSelection:
+        """Build and validate a selection mapped from an equivalent component."""
+
+        component_records = tuple(
+            record
+            for record in self.records
+            if record.i in atom_indices and record.j in atom_indices
+        )
+        original = analyze_component(atom_indices, component_records)
+        residual = analyze_component(
+            atom_indices, component_records, frozenset(cuts)
+        )
+        if residual.rank != 0:
+            raise ValueError("A symmetry-mapped periodic opening has nonzero holonomy.")
+        return PeriodicCutSelection(
+            cuts,
+            original,
+            residual,
+            candidates_considered,
+            tuple(self.cut_detail(record) for record in cuts),
         )
 
     def select_fast(
@@ -582,4 +780,68 @@ def select_periodic_cuts(
 
     return PeriodicCutSelector(atoms, bonds, symbols, records).select(
         atom_indices, fast=fast
+    )
+
+
+def select_periodic_component_cuts(
+    atoms: Atoms,
+    bonds: BondNetwork,
+    symbols: list[str],
+    components: list[set[int]],
+    records: tuple[PeriodicBond, ...],
+    symmetries: tuple[PeriodicGraphSymmetry, ...],
+    *,
+    fast: bool = False,
+) -> tuple[tuple[set[int], PeriodicCutSelection], ...]:
+    """Select covariant cuts jointly for symmetry-equivalent components."""
+
+    selector = PeriodicCutSelector(atoms, bonds, symbols, records)
+    component_keys = {frozenset(component) for component in components}
+    record_indices = {record: index for index, record in enumerate(records)}
+    selected: dict[frozenset[int], PeriodicCutSelection] = {}
+
+    for component in components:
+        key = frozenset(component)
+        if key in selected:
+            continue
+        stabilizer = tuple(
+            symmetry.bond_map
+            for symmetry in symmetries
+            if frozenset(symmetry.atom_map[index] for index in component) == key
+        )
+        baseline = selector.select(component, fast=fast)
+        # A rank-one periodic chain need not admit a connected invariant cut.
+        selection = (
+            selector.select_symmetry_preserving(
+                component,
+                stabilizer,
+                fast=fast,
+                baseline=baseline,
+            )
+            if baseline.original.rank > 1
+            else baseline
+        )
+        selected[key] = selection
+        cut_indices = {record_indices[record] for record in selection.cuts}
+        if selection.original.rank < 2 or any(
+            {mapping[index] for index in cut_indices} != cut_indices
+            for mapping in stabilizer
+        ):
+            continue
+        for symmetry in symmetries:
+            target = frozenset(symmetry.atom_map[index] for index in component)
+            if target == key or target not in component_keys or target in selected:
+                continue
+            mapped_cuts = tuple(
+                records[symmetry.bond_map[record_indices[record]]]
+                for record in selection.cuts
+            )
+            selected[target] = selector.selection_from_cuts(
+                set(target),
+                tuple(sorted(mapped_cuts)),
+                selection.candidates_considered,
+            )
+
+    return tuple(
+        (component, selected[frozenset(component)]) for component in components
     )

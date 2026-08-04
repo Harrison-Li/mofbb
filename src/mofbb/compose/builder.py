@@ -6,6 +6,7 @@ from collections import defaultdict
 
 import numpy as np
 
+from ..matching import BuildingBlockGraph, compare_building_blocks
 from .edge import Edge
 from .framework import Framework
 from .locator import Locator
@@ -259,6 +260,7 @@ class Builder:
         covariant_edge_orbits = set()
 
         slot_min_rmsd = defaultdict(lambda: -1.0)
+        template_graphs = {}
 
         def rmsd_ratio(value, minimum):
             if minimum < 1e-12:
@@ -268,28 +270,56 @@ class Builder:
         def blocks_share_template(left, right):
             if left is None or right is None:
                 return left is right
-            if left.name != right.name:
+
+            def graph(block):
+                key = id(block)
+                if key not in template_graphs:
+                    template_graphs[key] = (
+                        BuildingBlockGraph.from_building_block(block)
+                    )
+                return template_graphs[key]
+
+            comparison = compare_building_blocks(
+                graph(left),
+                graph(right),
+                require_kind=False,
+                require_bond_types=True,
+            )
+            if not comparison.matched:
                 return False
-            if left.atoms.get_chemical_symbols() != right.atoms.get_chemical_symbols():
-                return False
-            if not np.array_equal(
-                left.connection_point_indices,
-                right.connection_point_indices,
-            ):
-                return False
-            left_positions = left.atoms.positions - left.centroid
-            right_positions = right.atoms.positions - right.centroid
-            if not np.allclose(left_positions, right_positions, atol=1e-12):
+
+            mapping = dict(comparison.mapping)
+            right_order = np.asarray(
+                [mapping[index] for index in range(len(left.atoms))],
+                dtype=int,
+            )
+            mapped_connection_points = {
+                mapping[int(index)] for index in left.connection_point_indices
+            }
+            if mapped_connection_points != set(right.connection_point_indices):
                 return False
             if not np.allclose(
                 left.atoms.get_initial_charges(),
-                right.atoms.get_initial_charges(),
+                right.atoms.get_initial_charges()[right_order],
                 atol=1e-12,
             ):
                 return False
-            if not np.array_equal(left.bonds, right.bonds):
-                return False
-            return left.bond_types == right.bond_types
+
+            left_positions = left.atoms.positions - left.centroid
+            right_positions = (
+                right.atoms.positions[right_order] - right.centroid
+            )
+            covariance = right_positions.T @ left_positions
+            source_axes, _, target_axes = np.linalg.svd(covariance)
+            rotation = source_axes @ target_axes
+            if np.linalg.det(rotation) < 0.0:
+                source_axes[:, -1] *= -1.0
+                rotation = source_axes @ target_axes
+            residuals = np.linalg.norm(
+                right_positions @ rotation - left_positions,
+                axis=1,
+            )
+            return bool(np.max(residuals, initial=0.0) <= 1.0e-6)
 
         def orbit_has_one_template(orbit):
             representative_block = bbs[orbit.representative]
@@ -329,12 +359,66 @@ class Builder:
                     )
             return representative_permutation
 
+        def node_port_compatibility(node_index):
+            source_symbols = bbs[node_index].connection_point_anchor_symbols
+            allowed = np.ones(
+                (len(topology.neighbor_list[node_index]), len(source_symbols)),
+                dtype=bool,
+            )
+            for target_offset, node_neighbor in enumerate(
+                topology.neighbor_list[node_index]
+            ):
+                edge_index = int(node_neighbor.index)
+                opposing_block = bbs[edge_index]
+                if opposing_block is None:
+                    endpoints = [
+                        int(neighbor.index)
+                        for neighbor in topology.neighbor_list[edge_index]
+                    ]
+                    opposing_index = (
+                        endpoints[1]
+                        if endpoints[0] == node_index
+                        else endpoints[0]
+                    )
+                    opposing_block = bbs[opposing_index]
+
+                for source_offset, source_symbol in enumerate(source_symbols):
+                    allowed[target_offset, source_offset] = any(
+                        not pbc.is_carbon_metal_pair(
+                            source_symbol,
+                            opposing_symbol,
+                        )
+                        for opposing_symbol in (
+                            opposing_block.connection_point_anchor_symbols
+                        )
+                    )
+            return allowed
+
         def locate_node(i, forced_permutation=None):
             node_bb = bbs[i]
             target = topology.local_structure(i)
+            allowed = node_port_compatibility(i)
+
+            def locate_compatible(block, slices=4):
+                try:
+                    return locator.locate(
+                        target,
+                        block,
+                        max_n_slices=slices,
+                        allowed=allowed,
+                    )
+                except ValueError as error:
+                    if "No chemically compatible" not in str(error):
+                        raise
+                    return locator.locate(target, block, max_n_slices=slices)
 
             if forced_permutation is not None:
                 perm = np.asarray(forced_permutation, dtype=int)
+                if not np.all(allowed[np.arange(len(perm)), perm]):
+                    raise ValueError(
+                        "Forbidden fused-bond chemistry rejected provided "
+                        f"permutation for node slot {i}."
+                    )
                 logger.info(
                     "Use given permutation for node slot index %d"
                     ", permutation: %s",
@@ -368,7 +452,7 @@ class Builder:
                     *key,
                     slot_min_rmsd[key],
                 )
-            located_node, perm, rmsd = locator.locate(target, node_bb)
+            located_node, perm, rmsd = locate_compatible(node_bb)
             logger.info(
                 "Pre-location at node slot %d"
                 ", (node type: %s, node bb: %s)"
@@ -381,8 +465,9 @@ class Builder:
             # 1% error.
             ratio = rmsd_ratio(rmsd, slot_min_rmsd[key])
             if ratio > 1.01:
-                located_node, perm, rmsd = locator.locate(
-                    target, node_bb, max_n_slices=max_n_slices
+                located_node, perm, rmsd = locate_compatible(
+                    node_bb,
+                    max_n_slices,
                 )
                 logger.info(
                     "RMSD > MIN_RMSD*1.01, relocate Node %d"
@@ -396,8 +481,9 @@ class Builder:
             if ratio > 1.01:
                 # Make chiral building block.
                 node_bb = node_bb.make_chiral_building_block()
-                located_node, perm, rmsd = locator.locate(
-                    target, node_bb, max_n_slices=max_n_slices
+                located_node, perm, rmsd = locate_compatible(
+                    node_bb,
+                    max_n_slices,
                 )
                 logger.info(
                     "RMSD > MIN_RMSD*1.01, relocate Node %d"
@@ -524,8 +610,42 @@ class Builder:
             if topology.node_types[neighbor_i.index] <= topology.node_types[
                 neighbor_j.index
             ]:
-                return np.array([0, 1])
-            return np.array([1, 0])
+                preferred = np.array([0, 1])
+            else:
+                preferred = np.array([1, 0])
+
+            edge_block = bbs[edge_index]
+            if edge_block is None:
+                return preferred
+            node_x_sites = pbc._find_matched_x_sites(
+                topology,
+                located_bbs,
+                permutations,
+                edge_index,
+            )
+            node_symbols = [
+                pbc._connection_port(located_bbs[neighbor.index], x_site)[0]
+                for neighbor, x_site in zip(
+                    (neighbor_i, neighbor_j),
+                    node_x_sites,
+                    strict=True,
+                )
+            ]
+            edge_symbols = edge_block.connection_point_anchor_symbols
+            for candidate in (preferred, preferred[::-1]):
+                if all(
+                    not pbc.is_carbon_metal_pair(
+                        node_symbol,
+                        edge_symbols[int(source_offset)],
+                    )
+                    for node_symbol, source_offset in zip(
+                        node_symbols,
+                        candidate,
+                        strict=True,
+                    )
+                ):
+                    return candidate.copy()
+            return preferred
 
         # Edge orientation is applied after scaling, but its endpoint
         # permutation is already derived orbit-wise for the scaler and port

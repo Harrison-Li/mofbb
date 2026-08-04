@@ -114,7 +114,17 @@ class TopologyBuilder:
             )
             for fragment in fragments
         }
-        raw_centroids = self._raw_centroids(fragments, frames)
+        real_centroids = self._raw_real_centroids(fragments, frames)
+        for fragment in fragments:
+            key = (fragment.kind, fragment.index)
+            fragment.real_atom_centroid_frac = tuple(
+                float(value) for value in np.mod(real_centroids[key], 1.0)
+            )
+        raw_centroids = self._raw_centroids(
+            fragments,
+            frames,
+            real_centroids,
+        )
         coordination: dict[FragmentKey, int] = defaultdict(int)
         edges = self._build_edges(
             connection_records,
@@ -258,11 +268,13 @@ class TopologyBuilder:
             rank=0,
         )
 
-    def _raw_centroids(
+    def _raw_real_centroids(
         self,
         fragments: list[Fragment],
         frames: dict[FragmentKey, ComponentPeriodicity],
     ) -> dict[FragmentKey, np.ndarray]:
+        """Return source-frame centroids of each fragment's real atoms."""
+
         scaled = np.asarray(self.atoms.get_scaled_positions(wrap=False), dtype=float)
         return {
             (fragment.kind, fragment.index): np.mean(
@@ -278,6 +290,45 @@ class TopologyBuilder:
             )
             for fragment in fragments
         }
+
+    def _raw_centroids(
+        self,
+        fragments: list[Fragment],
+        frames: dict[FragmentKey, ComponentPeriodicity],
+        real_centroids: dict[FragmentKey, np.ndarray],
+    ) -> dict[FragmentKey, np.ndarray]:
+        """Return source-frame centroids of the fragments' dummy X sites."""
+
+        scaled = np.asarray(self.atoms.get_scaled_positions(wrap=False), dtype=float)
+        inverse_cell = np.linalg.inv(np.asarray(self.atoms.cell.array, dtype=float))
+        centroids = {}
+        for fragment in fragments:
+            key = (fragment.kind, fragment.index)
+            frame = frames[key]
+            if not fragment.x_sites:
+                # No dummy centroid exists for a zero-cut accessory fragment;
+                # retain the previous real-atom centroid as its fallback anchor.
+                centroids[key] = real_centroids[key]
+                continue
+
+            # The former topology anchor is retained separately in
+            # ``real_atom_centroid_frac`` for reconstruction and provenance.
+            x_positions = []
+            for site in fragment.x_sites:
+                anchor = scaled[site.internal_source_index] + np.asarray(
+                    frame.offset(site.internal_source_index), dtype=int
+                )
+                half_bond = (
+                    0.5
+                    * self.bonds.vector(
+                        site.internal_source_index,
+                        site.external_source_index,
+                    )
+                    @ inverse_cell
+                )
+                x_positions.append(anchor + half_bond)
+            centroids[key] = np.mean(x_positions, axis=0)
+        return centroids
 
     def _build_edges(
         self,

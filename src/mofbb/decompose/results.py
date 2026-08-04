@@ -35,7 +35,14 @@ def _topology_symmetry(
     edges: list[TopologyEdge],
     vertex_types: list[int],
     edge_colors: list[int] | None = None,
-) -> tuple[str, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[
+    str,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+]:
     """Detect operations of the colored periodic topology graph."""
 
     identity = (
@@ -43,6 +50,8 @@ def _topology_symmetry(
         np.eye(3, dtype=int)[None, ...],
         np.zeros((1, 3)),
         np.arange(1, len(edges) + 1),
+        np.arange(len(vertices), dtype=int)[None, ...],
+        np.zeros((1, len(vertices), 3), dtype=int),
     )
     if not vertices:
         return identity
@@ -96,33 +105,6 @@ def _topology_symmetry(
                 decorated_positions.append(marker)
                 decorated_types.append(marker_type)
 
-    dataset = spglib.get_symmetry_dataset(
-        (
-            np.asarray(cellpar_to_cell(cell_parameters)),
-            np.asarray(decorated_positions),
-            np.asarray(decorated_types),
-        ),
-        symprec=0.05,
-        angle_tolerance=5.0,
-    )
-    if dataset is None:
-        return identity
-
-    rotations = np.asarray(dataset.rotations, int)
-    translations = np.asarray(dataset.translations, float)
-    same_type = types[:, None] == types[None, :]
-    node_maps, node_images = [], []
-    for rotation, translation in zip(rotations, translations):
-        transformed = positions @ rotation.T + translation
-        differences = transformed[:, None] - positions[None]
-        images = np.rint(differences)
-        matches = same_type & np.all(abs(differences - images) <= 2.0e-4, axis=2)
-        if np.any(matches.sum(axis=1) != 1):
-            return identity
-        mapping = np.argmax(matches, axis=1)
-        node_maps.append(mapping)
-        node_images.append(images[np.arange(len(vertices)), mapping].astype(int))
-
     indices_by_edge: dict[
         tuple[tuple[int, int, tuple[int, int, int]], int], list[int]
     ] = defaultdict(list)
@@ -133,30 +115,101 @@ def _topology_symmetry(
         for indices in indices_by_edge.values()
         for rank, index in enumerate(indices)
     }
-    edge_maps = []
-    for rotation, mapping, images in zip(rotations, node_maps, node_images):
-        mapped = []
-        for index, (begin, end, shift) in enumerate(periodic_edges):
-            target = _canonical_edge(
-                int(mapping[begin]),
-                int(mapping[end]),
-                images[end] + rotation @ np.asarray(shift) - images[begin],
-            )
-            candidates = indices_by_edge.get((target, edge_colors[index]), ())
-            if edge_rank[index] >= len(candidates):
-                return identity
-            mapped.append(candidates[edge_rank[index]])
-        if len(set(mapped)) != len(edges):
-            return identity
-        edge_maps.append(mapped)
-
-    edge_types = np.zeros(len(edges), dtype=int)
-    for edge_index in range(len(edges)):
-        if edge_types[edge_index]:
+    cell = np.asarray(cellpar_to_cell(cell_parameters))
+    same_type = types[:, None] == types[None, :]
+    for symprec in (0.05, 0.10):
+        dataset = spglib.get_symmetry_dataset(
+            (
+                cell,
+                np.asarray(decorated_positions),
+                np.asarray(decorated_types),
+            ),
+            symprec=symprec,
+            angle_tolerance=5.0,
+        )
+        if dataset is None:
             continue
-        orbit = np.unique(np.asarray(edge_maps)[:, edge_index])
-        edge_types[orbit] = int(edge_types.max()) + 1
-    return str(dataset.international), rotations, translations, edge_types
+
+        rotations, translations = [], []
+        node_maps, node_images, edge_maps = [], [], []
+        for rotation, translation in zip(dataset.rotations, dataset.translations):
+            transformed = positions @ rotation.T + translation
+            differences = transformed[:, None] - positions[None]
+            images = np.rint(differences)
+            residuals = (differences - images) @ cell
+            matches = same_type & (np.linalg.norm(residuals, axis=2) <= symprec)
+            if np.any(matches.sum(axis=1) != 1):
+                continue
+            mapping = np.argmax(matches, axis=1)
+            mapped_images = images[np.arange(len(vertices)), mapping].astype(int)
+
+            mapped = []
+            for index, (begin, end, shift) in enumerate(periodic_edges):
+                target = _canonical_edge(
+                    int(mapping[begin]),
+                    int(mapping[end]),
+                    mapped_images[end]
+                    + rotation @ np.asarray(shift)
+                    - mapped_images[begin],
+                )
+                candidates = indices_by_edge.get((target, edge_colors[index]), ())
+                if edge_rank[index] >= len(candidates):
+                    break
+                mapped.append(candidates[edge_rank[index]])
+            if len(mapped) != len(edges) or len(set(mapped)) != len(edges):
+                continue
+
+            rotations.append(rotation)
+            translations.append(translation)
+            node_maps.append(mapping)
+            node_images.append(mapped_images)
+            edge_maps.append(mapped)
+
+        if len(rotations) <= 1:
+            continue
+        rotations = np.asarray(rotations, int)
+        translations = np.asarray(translations, float)
+        group_type = spglib.get_spacegroup_type_from_symmetry(
+            rotations, translations, cell, symprec=symprec
+        )
+        if group_type is None:
+            continue
+
+        edge_types = np.zeros(len(edges), dtype=int)
+        for edge_index in range(len(edges)):
+            if edge_types[edge_index]:
+                continue
+            orbit = np.unique(np.asarray(edge_maps)[:, edge_index])
+            edge_types[orbit] = int(edge_types.max()) + 1
+        return (
+            str(group_type.international_short),
+            rotations,
+            translations,
+            edge_types,
+            np.asarray(node_maps),
+            np.asarray(node_images),
+        )
+    return identity
+
+
+def _project_topology_positions(
+    positions: np.ndarray,
+    rotations: np.ndarray,
+    translations: np.ndarray,
+    node_maps: np.ndarray,
+    node_images: np.ndarray,
+) -> np.ndarray:
+    """Project approximately symmetric vertices onto their exact group orbit."""
+
+    projected = np.zeros_like(positions)
+    counts = np.zeros(len(positions), dtype=int)
+    for rotation, translation, mapping, images in zip(
+        rotations, translations, node_maps, node_images
+    ):
+        transformed = positions @ rotation.T + translation - images
+        np.add.at(projected, mapping, transformed)
+        np.add.at(counts, mapping, 1)
+    return projected / counts[:, None]
 
 
 def _write_topology_cgd(
@@ -188,9 +241,36 @@ def _write_topology_cgd(
         )
         for index in range(len(edges))
     ]
-    symbol, rotations, translations, edge_types = _topology_symmetry(
+    (
+        symbol,
+        rotations,
+        translations,
+        edge_types,
+        node_maps,
+        node_images,
+    ) = _topology_symmetry(
         cell_parameters, vertices, edges, vertex_types, edge_colors
     )
+    positions = np.asarray([vertex.frac_position for vertex in vertices], dtype=float)
+    projected = _project_topology_positions(
+        positions, rotations, translations, node_maps, node_images
+    )
+    index_by_key = {
+        (vertex.kind, vertex.index): index
+        for index, vertex in enumerate(vertices)
+    }
+    projected_edges = []
+    for edge in edges:
+        begin = index_by_key[(edge.begin_kind, edge.begin_index)]
+        end = index_by_key[(edge.end_kind, edge.end_index)]
+        projected_edges.append(
+            (
+                projected[begin]
+                + np.rint(np.asarray(edge.begin_frac) - positions[begin]),
+                projected[end]
+                + np.rint(np.asarray(edge.end_frac) - positions[end]),
+            )
+        )
 
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
@@ -206,18 +286,23 @@ def _write_topology_cgd(
                 *(format_float(value) for value in translation),
             ]
             handle.write(f"  # SYMOP {' '.join(values)}\n")
-        for vertex_type, vertex in zip(vertex_types, vertices):
-            frac = " ".join(format_float(value) for value in vertex.frac_position)
+        for vertex_type, vertex, frac_position in zip(
+            vertex_types, vertices, projected
+        ):
+            frac = " ".join(format_float(value) for value in frac_position)
             handle.write(f"  NODE {vertex_type} {vertex.coordination} {frac}\n")
-        for edge_number, (edge_type, edge) in enumerate(
-            zip(edge_types, edges), start=1
+        for edge_number, (edge_type, endpoints) in enumerate(
+            zip(edge_types, projected_edges), start=1
         ):
             handle.write(f"  # EDGE_TYPE {edge_number} {edge_type}\n")
-            begin = " ".join(format_float(value) for value in edge.begin_frac)
-            end = " ".join(format_float(value) for value in edge.end_frac)
+            begin = " ".join(format_float(value) for value in endpoints[0])
+            end = " ".join(format_float(value) for value in endpoints[1])
             handle.write(f"  EDGE  {begin}   {end}\n")
-        for edge in edges:
-            center = " ".join(format_float(value) for value in edge.center_frac)
+        for begin, end in projected_edges:
+            center = " ".join(
+                format_float(value)
+                for value in 0.5 * (begin + end)
+            )
             handle.write(f"  # EDGE_CENTER  {center}\n")
         handle.write("END\n")
     return {
@@ -357,8 +442,12 @@ def write_reconstruction_data(
             ],
             "formula": fragment.formula,
         }
-        if slot_positions is not None:
-            slot["exact_frac_position"] = list(slot_positions[key])
+        real_centroid = fragment.real_atom_centroid_frac
+        if real_centroid is None and slot_positions is not None:
+            real_centroid = slot_positions[key]
+        if real_centroid is not None:
+            slot["exact_frac_position"] = list(real_centroid)
+            slot["real_atom_centroid_frac"] = list(real_centroid)
         if topology_slots is not None:
             slot_kind, slot_index = topology_slots[key]
             slot["topology_slot"] = {"kind": slot_kind, "index": slot_index}
@@ -622,8 +711,11 @@ def write_reconstruction_data(
         },
         "geometry_contract": {
             "exact_slot_geometry_field": "exact_instance_path",
+            "exact_position_semantics": "real_atom_centroid",
             "group_representatives_are_exact_slot_geometry": False,
             "representative_atom_permutations_emitted": False,
+            "source_provenance_position_field": "real_atom_centroid_frac",
+            "topology_position_semantics": "connection_centroid",
         },
         "bb_groups": [
             {
@@ -823,6 +915,10 @@ class DecompositionResult:
     ) -> dict[str, object]:
         """Write group-first metadata for exact reconstruction experiments."""
 
+        slot_positions = {
+            (vertex.kind, vertex.index): vertex.frac_position
+            for vertex in self.topology_vertices
+        }
         return write_reconstruction_data(
             path,
             topology_kind="original_cell_slots",
@@ -836,6 +932,7 @@ class DecompositionResult:
             topology_edges=self.topology_edges,
             group_records=group_records,
             fragment_to_bb_id=fragment_to_bb_id,
+            slot_positions=slot_positions,
         )
 
     def write_topology_cgd(

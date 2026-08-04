@@ -139,6 +139,10 @@ def build_bond_network_from_cif(cif: str | Path, atoms: ase.Atoms) -> BondNetwor
     vector_by_pair: dict[tuple[int, int], np.ndarray] = {}
     bond_types: dict[tuple[int, int], str] = {}
     cell = np.array(atoms.cell.array, dtype=float)
+    # ASE can recover a serialized 0.0 boundary coordinate as 1 - epsilon.
+    frac = atoms.get_scaled_positions(wrap=False)
+    frac = np.mod(np.round(frac, decimals=10), 1.0)
+    canonical_positions = frac @ cell
     for row in rows:
         if len(row) <= max(label_1_index, label_2_index):
             continue
@@ -152,7 +156,11 @@ def build_bond_network_from_cif(cif: str | Path, atoms: ase.Atoms) -> BondNetwor
             if symmetry_index is not None and len(row) > symmetry_index
             else np.zeros(3, dtype=int)
         )
-        vector = atoms.positions[j] + image @ cell - atoms.positions[i]
+        vector = (
+            canonical_positions[j]
+            + image @ cell
+            - canonical_positions[i]
+        )
         a, b = sorted((i, j))
         pair_vector = np.array(vector if i == a else -vector, dtype=float)
         pair = (a, b)

@@ -41,7 +41,7 @@ def _target_edge_frame(edge_axis, transverse_direction):
     return np.stack([x, y, z])
 
 
-def find_best_permutation(p, q):
+def find_best_permutation(p, q, allowed=None):
     """Find the assignment of ``q`` points onto ``p`` points.
 
     Solves the linear assignment problem (Hungarian algorithm) on the
@@ -66,8 +66,24 @@ def find_best_permutation(p, q):
     """
     dist = p[:, np.newaxis] - q[np.newaxis, :]
     dist = np.linalg.norm(dist, axis=-1)
+    if allowed is not None:
+        allowed = np.asarray(allowed, dtype=bool)
+        if allowed.shape != dist.shape:
+            raise ValueError(
+                "Connection compatibility mask must match the assignment matrix."
+            )
+        dist[~allowed] = np.inf
 
-    _, perm = scipy.optimize.linear_sum_assignment(dist)
+    try:
+        rows, perm = scipy.optimize.linear_sum_assignment(dist)
+    except ValueError as error:
+        raise ValueError(
+            "No chemically compatible connection-point permutation exists."
+        ) from error
+    if not np.all(np.isfinite(dist[rows, perm])):
+        raise ValueError(
+            "No chemically compatible connection-point permutation exists."
+        )
 
     return perm
 
@@ -127,7 +143,7 @@ class Locator:
     and :class:`~pormake.scaler.Scaler`.
     """
 
-    def locate(self, target, bb, max_n_slices=4):
+    def locate(self, target, bb, max_n_slices=4, allowed=None):
         """Orient ``bb`` onto ``target`` and find the best permutation.
 
         Scans a coarse Euler-angle grid (whose density adapts to the
@@ -193,7 +209,7 @@ class Locator:
 
             # Reorder coordinates.
             q_coord = atoms.positions
-            q_perm = find_best_permutation(p_coord, q_coord)
+            q_perm = find_best_permutation(p_coord, q_coord, allowed=allowed)
 
             # Use this permutation of the euler angle. But do not used the
             # Rotated atoms in order to get pure U.

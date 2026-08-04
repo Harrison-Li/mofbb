@@ -24,7 +24,8 @@ from .pbc import (
     PeriodicBond,
     PeriodicOpening,
     periodic_bonds,
-    select_periodic_cuts,
+    periodic_graph_symmetries,
+    select_periodic_component_cuts,
 )
 from .results import (
     _write_topology_cgd,
@@ -124,31 +125,36 @@ class NodeEdgeDecomposer:
         organic_indices = set(range(len(self.atoms))) - metal_node_indices
         connecting_bonds = find_connecting_bonds(self.bonds.pairs, metal_node_indices)
         source_records = periodic_bonds(self.atoms, self.bonds)
+        source_symmetries = periodic_graph_symmetries(
+            self.atoms, self.bonds, source_records
+        )
         periodic_cuts: list[PeriodicBond] = []
         organic_periodic_cuts: list[PeriodicBond] = []
         periodic_openings: list[PeriodicOpening] = []
-        for component in connected_components(metal_node_indices, self.bonds.pairs):
-            selection = select_periodic_cuts(
-                self.atoms,
-                self.bonds,
-                self.symbols,
-                component,
-                source_records,
-            )
+        metal_components = connected_components(metal_node_indices, self.bonds.pairs)
+        organic_components = connected_components(organic_indices, self.bonds.pairs)
+        for component, selection in select_periodic_component_cuts(
+            self.atoms,
+            self.bonds,
+            self.symbols,
+            metal_components,
+            source_records,
+            source_symmetries,
+        ):
             periodic_cuts.extend(selection.cuts)
             if selection.cuts:
                 periodic_openings.append(
                     PeriodicOpening.from_selection(component, selection)
                 )
-        for component in connected_components(organic_indices, self.bonds.pairs):
-            selection = select_periodic_cuts(
-                self.atoms,
-                self.bonds,
-                self.symbols,
-                component,
-                source_records,
-                fast=True,
-            )
+        for component, selection in select_periodic_component_cuts(
+            self.atoms,
+            self.bonds,
+            self.symbols,
+            organic_components,
+            source_records,
+            source_symmetries,
+            fast=True,
+        ):
             periodic_cuts.extend(selection.cuts)
             organic_periodic_cuts.extend(selection.cuts)
             if selection.cuts:

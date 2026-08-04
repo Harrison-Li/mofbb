@@ -72,6 +72,7 @@ class Fragment:
     ] = ()
     logical_kind: str | None = None
     logical_ports: tuple[LogicalPort, ...] = ()
+    real_atom_centroid_frac: tuple[float, float, float] | None = None
 
     @property
     def formula(self) -> str:
@@ -133,6 +134,11 @@ class Fragment:
                 [atom_index, list(offset)]
                 for atom_index, offset in self.source_image_offsets
             ],
+            "real_atom_centroid_frac": (
+                None
+                if self.real_atom_centroid_frac is None
+                else list(self.real_atom_centroid_frac)
+            ),
             "fingerprint": self.fingerprint,
             "x_sites": [site.as_dict() for site in self.x_sites],
             "path": None if path is None else str(path),

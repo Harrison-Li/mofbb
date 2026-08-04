@@ -218,6 +218,9 @@ notebook/
 .DS_store
 /tests
 !/tests/
+/tests
 /tests/*
 !/tests/test_assembly_evaluation.py
-/experiments
+!/tests/test_decomposed_bb_roundtrip.py
+/experiments/*
+!/experiments/evaluate_decomposed_bb_roundtrip.py

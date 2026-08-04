@@ -297,6 +297,13 @@ The main metadata files serve different purposes:
 - `topology.cgd` records the collapsed colored periodic net and the symmetry
   operations that preserve both its BB types and translated edges.
 
+These files intentionally use two different fragment centers. A CGD `NODE`
+position is the centroid of the fragment's connection (`X`) sites, matching the
+Composer placement anchor. Each reconstruction slot instead stores the wrapped
+real-atom centroid in both `exact_frac_position` and
+`real_atom_centroid_frac`; the same provenance value is included with each
+fragment in `decomposition_summary.json`.
+
 ## Periodic components and geometry contract
 
 Infinite one-dimensional metal components are exported as finite

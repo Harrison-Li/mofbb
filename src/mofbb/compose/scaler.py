@@ -153,6 +153,7 @@ class Scaler:
         images = []
         c = topology.atoms.cell
         invc = np.linalg.inv(c)
+        scaled_positions = topology.atoms.get_scaled_positions(wrap=True)
         for e in topology.edge_indices:
             # ni: neigbor with index i.
             ni, nj = topology.neighbor_list[e]
@@ -167,9 +168,11 @@ class Scaler:
             # d = d_{ij}
             d = nj.distance_vector - ni.distance_vector
 
-            ri = topology.atoms.positions[i]
-            rj = topology.atoms.positions[j]
-            s = (d - (rj - ri)) @ invc
+            # Use the same wrapped fractional coordinates as the symmetry
+            # parameterization below. Mixing unwrapped Cartesian positions
+            # with wrapped optimization variables changes an edge image when
+            # an equivalent node is stored at fractional 1 instead of 0.
+            s = d @ invc - (scaled_positions[j] - scaled_positions[i])
 
             images.append(s)
 
@@ -385,19 +388,11 @@ class Scaler:
         # Transform to Cartesian coordinates.
         r = s @ c
         invc = np.linalg.inv(c)
-        inv_old_c = np.linalg.inv(topology.atoms.cell)
-        for e in topology.edge_indices:
+        for e, image in zip(topology.edge_indices, images, strict=True):
             ni, nj = topology.neighbor_list[e]
 
             i = ni.index
             j = nj.index
-
-            ri = topology.atoms.positions[i]
-            rj = topology.atoms.positions[j]
-
-            d = nj.distance_vector - ni.distance_vector
-
-            image = (d - (rj - ri)) @ inv_old_c
 
             # Calculate new edge center.
             ri = r[i]
