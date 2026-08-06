@@ -12,20 +12,10 @@ from itertools import product
 
 import numpy as np
 import scipy as sp
-import scipy.optimize
 
-from .log import logger
-from .symmetry_scaling import SymmetryReducedParameterization
-
-
-def _wrap_fractional(values):
-    """Return a canonical periodic representative without nudging boundaries."""
-
-    wrapped = np.mod(values, 1.0)
-    on_boundary = (np.abs(wrapped) < 1.0e-12) | (
-        np.abs(wrapped - 1.0) < 1.0e-12
-    )
-    return np.where(on_boundary, 0.0, wrapped)
+from mofbb.compose.log import logger
+from mofbb.compose.symmetry_scaling import SymmetryReducedParameterization
+from mofbb.compose.utils import wrap_fractional
 
 
 def _objective_value_and_gradient(
@@ -403,7 +393,7 @@ class Scaler:
             # Select center position wrapped by unit cell.
             rc = ri + 0.5 * d
             sc = np.dot(rc, invc)
-            sc = _wrap_fractional(sc)
+            sc = wrap_fractional(sc)
             rc = np.dot(sc, c)
             r[e] = rc
 
@@ -430,7 +420,7 @@ class Scaler:
 
         # Make scaled topology.
         s = np.dot(r, invc)
-        s = _wrap_fractional(s)
+        s = wrap_fractional(s)
         r = np.dot(s, c)
 
         scaled_topology = topology.copy()

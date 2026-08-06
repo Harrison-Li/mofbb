@@ -14,9 +14,9 @@ try:
 except Exception:
     from ase.neighborlist import natural_cutoffs
 
-from .local_structure import LocalStructure
-from .log import logger
-from .utils import (  # covalent_neighbor_list,
+from mofbb.compose.local_structure import LocalStructure
+from mofbb.compose.log import logger
+from mofbb.compose.utils import (
     METAL_LIKE,
     read_budiling_block_xyz,
     write_molecule_cif,
@@ -65,32 +65,32 @@ def _unit_vector(vector, name):
     return vector / length
 
 
-def _orient_pca_axis(axis, transverse_positions, longitudinal_positions):
+def _orient_pca_axis(axis, transverse, axial):
     """Choose the sign of a PCA axis from the full atomic distribution.
 
     PCA defines an undirected axis: ``axis`` and ``-axis`` are equivalent.
     Rotation-covariant moments of the complete atomic cloud choose between
-    them without selecting a marker atom. If every score vanishes, the sign is
-    left unresolved by these PCA moments.
+    them. If every score vanishes, stable BB atom order breaks the remaining
+    exact tie while the returned degeneracy flag stays true.
     """
 
-    transverse_projection = transverse_positions @ axis
-    transverse_scale = np.max(np.abs(transverse_projection))
-    if transverse_scale < _FRAME_EPSILON:
+    projection = transverse @ axis
+    scale = np.max(np.abs(projection))
+    if scale < _FRAME_EPSILON:
         return axis, True
 
-    p = transverse_projection / transverse_scale
-    longitudinal_scale = np.max(np.abs(longitudinal_positions))
-    if longitudinal_scale < _FRAME_EPSILON:
-        longitudinal = np.zeros_like(longitudinal_positions)
+    p = projection / scale
+    axial_scale = np.max(np.abs(axial))
+    if axial_scale < _FRAME_EPSILON:
+        axial = np.zeros_like(axial)
     else:
-        longitudinal = longitudinal_positions / longitudinal_scale
+        axial = axial / axial_scale
 
     scores = (
-        np.mean(p * longitudinal),
+        np.mean(p * axial),
         np.mean(p**3),
-        np.mean(p * longitudinal**2),
-        np.mean(p**3 * longitudinal),
+        np.mean(p * axial**2),
+        np.mean(p**3 * axial),
         np.mean(p**5),
     )
     for score in scores:
@@ -98,6 +98,9 @@ def _orient_pca_axis(axis, transverse_positions, longitudinal_positions):
         if abs(score) >= _PCA_SIGN_TOLERANCE:
             return (axis if score > 0.0 else -axis), False
 
+    for projection in p:
+        if abs(projection) >= _PCA_SIGN_TOLERANCE:
+            return (axis if projection > 0.0 else -axis), True
     return axis, True
 
 
@@ -161,7 +164,7 @@ class BuildingBlock:
         self.check_bonds()
 
     def copy(self):
-        """Return an independent deep copy of this building block.
+        """Return an independent copy of this building block.
 
         Used whenever the assembly pipeline needs to place several
         instances of the same fragment onto different slots without
@@ -171,27 +174,14 @@ class BuildingBlock:
         Returns
         -------
         BuildingBlock
-            A deep copy whose ``atoms`` can be mutated freely.
+            A copy whose mutable atoms and bond arrays are independent.
         """
-        return copy.deepcopy(self)
-
-    def make_chiral_building_block(self):
-        """Return the mirror image of this building block.
-
-        Inverts every atomic position through the origin, producing
-        the opposite-handed enantiomer. This gives the ``Locator`` a
-        second candidate to try when a fragment's connection points
-        cannot be aligned onto a slot by rotation alone (some slots
-        require a reflected building block to reach a low RMSD).
-
-        Returns
-        -------
-        BuildingBlock
-            A copy with all positions negated.
-        """
-        _bb = self.copy()
-        _bb.atoms.set_positions(-_bb.atoms.get_positions())
-        return _bb
+        block = copy.copy(self)
+        block.atoms = self.atoms.copy()
+        block.connection_point_indices = self.connection_point_indices.copy()
+        block._bonds = self._bonds.copy()
+        block._bond_types = self._bond_types.copy()
+        return block
 
     def local_structure(self):
         """Build the ``LocalStructure`` of the connection points.
@@ -283,10 +273,12 @@ class BuildingBlock:
         their leading principal component defines ``x``. Finally,
         ``y = cross(z, x)`` completes a right-handed frame.
 
-        No marker atom is used. The sign of the principal component is chosen
-        from rotation-covariant moments of the complete atom distribution.
-        Linear, nearly linear, or transversely isotropic linkers are reported
-        as torsion-degenerate; an unresolved PCA sign is reported separately.
+        The sign of the principal component is chosen from rotation-covariant
+        moments of the complete atom distribution. If all such moments vanish,
+        stable BB atom order breaks the otherwise exact sign tie. Linear,
+        nearly linear, or transversely isotropic linkers are reported as
+        torsion-degenerate; an intrinsic moment-sign degeneracy is reported
+        separately.
 
         Parameters
         ----------
@@ -318,25 +310,23 @@ class BuildingBlock:
         z = _unit_vector(x1 - x0, "the X0-to-X1 axis")
 
         symbols = np.asarray(self.atoms.get_chemical_symbols())
-        real_positions = self.atoms.positions[symbols != "X"]
-        if len(real_positions) == 0:
+        real_pos = self.atoms.positions[symbols != "X"]
+        if len(real_pos) == 0:
             raise ValueError(f"{self.name!r} contains no real atoms.")
 
-        offsets = real_positions - edge_center
-        longitudinal_positions = offsets @ z
-        transverse_positions = offsets - np.outer(longitudinal_positions, z)
+        offsets = real_pos - edge_center
+        axial = offsets @ z
+        transverse = offsets - np.outer(axial, z)
         radial_extent = float(
-            np.max(np.linalg.norm(transverse_positions, axis=1))
+            np.max(np.linalg.norm(transverse, axis=1))
         )
 
-        pca_positions = transverse_positions - np.mean(
-            transverse_positions, axis=0
-        )
-        covariance = pca_positions.T @ pca_positions / len(pca_positions)
+        pca_pos = transverse - np.mean(transverse, axis=0)
+        covariance = pca_pos.T @ pca_pos / len(pca_pos)
         eigenvalues, eigenvectors = np.linalg.eigh(covariance)
 
         if eigenvalues[-1] < _FRAME_EPSILON:
-            mean_transverse = np.mean(transverse_positions, axis=0)
+            mean_transverse = np.mean(transverse, axis=0)
             sign_degenerate = np.linalg.norm(mean_transverse) < _FRAME_EPSILON
             if sign_degenerate:
                 x = self._arbitrary_transverse_axis(z)
@@ -356,13 +346,11 @@ class BuildingBlock:
         x = eigenvectors[:, -1]
         x -= np.dot(x, z) * z
         x = _unit_vector(x, "the transverse PCA axis")
-        centered_longitudinal = longitudinal_positions - np.mean(
-            longitudinal_positions
-        )
+        centered_axial = axial - np.mean(axial)
         x, sign_degenerate = _orient_pca_axis(
             x,
-            pca_positions,
-            centered_longitudinal,
+            pca_pos,
+            centered_axial,
         )
 
         leading_value = max(float(eigenvalues[-1]), _FRAME_EPSILON)

@@ -1,6 +1,6 @@
 """Compatibility entry point forwarding to the decomposition CLI."""
 
-from .decompose.cli import build_parser, main
+from mofbb.decompose.cli import build_parser, main
 
 __all__ = ["build_parser", "main"]
 

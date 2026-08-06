@@ -13,7 +13,7 @@ import ase.visualize
 import numpy as np
 from ase.geometry import find_mic
 
-from .log import logger
+from mofbb.compose.log import logger
 
 
 class Framework:
@@ -196,20 +196,25 @@ class Framework:
 
             # Build one canonical coordinate representation for the CIF.
             # Rounding must happen before bond-image calculation because these
-            # are the exact five-decimal coordinates emitted below. The second
-            # modulo maps a rounded 1.00000 back to the canonical 0.00000.
+            # are the exact ten-decimal coordinates emitted below. The second
+            # modulo maps a rounded 1.0000000000 back to canonical zero.
             frac_coords = np.mod(
                 self.atoms.get_scaled_positions(wrap=False),
                 1.0,
             )
             frac_coords = np.mod(
-                np.round(frac_coords, decimals=5),
+                np.round(frac_coords, decimals=10),
                 1.0,
             )
             for i, (sym, pos, charge) in enumerate(zip(symbols, frac_coords, charges)):
                 label = "{}{}".format(sym, i)
                 f.write(
-                    "{} {} {:.5f} {:.5f} {:.5f} {:.5f}\n".format(label, sym, *pos, charge)
+                    "{} {} {:.10f} {:.10f} {:.10f} {:.5f}\n".format(
+                        label,
+                        sym,
+                        *pos,
+                        charge,
+                    )
                 )
 
             f.write("loop_\n")

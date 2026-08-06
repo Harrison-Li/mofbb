@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from . import compose, decompose
+from mofbb import compose, decompose
 
 __all__ = ["compose", "decompose", *decompose.__all__]
 

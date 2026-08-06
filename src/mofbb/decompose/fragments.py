@@ -8,11 +8,11 @@ import ase
 import networkx as nx
 import numpy as np
 
-from .bonding import BondNetwork
-from .fingerprint import fragment_fingerprint
-from .geometry import center_positions
-from .object import Fragment, XSite
-from .pbc import (
+from mofbb.decompose.bonding import BondNetwork
+from mofbb.decompose.fingerprint import fragment_fingerprint
+from mofbb.decompose.geometry import center_positions
+from mofbb.decompose.object import Fragment, XSite
+from mofbb.decompose.pbc import (
     ComponentPeriodicity,
     PeriodicBond,
     analyze_component,
@@ -47,16 +47,27 @@ class FragmentBuilder:
         role_indices: set[int] | frozenset[int],
         connecting_bonds: tuple[PeriodicBond, ...],
     ) -> list[Fragment]:
+        graph = nx.Graph()
+        graph.add_nodes_from(role_indices)
+        excluded = set(connecting_bonds)
+        graph.add_edges_from(
+            record.pair
+            for record in self.source_records
+            if record not in excluded
+            and record.i in role_indices
+            and record.j in role_indices
+        )
+        components = sorted(nx.connected_components(graph), key=min)
         return [
             self._materialize_fragment(
                 kind,
                 index,
-                component,
+                set(component),
                 self.source_records,
                 connecting_bonds,
             )
             for index, component in enumerate(
-                connected_components(role_indices, self.bonds.pairs),
+                components,
                 start=1,
             )
         ]

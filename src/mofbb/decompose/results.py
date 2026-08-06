@@ -7,16 +7,22 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .geometry import format_float
-from .object import Fragment, TopologyEdge, TopologyVertex
-from .pbc import PeriodicBond
-from .solvent import SolventMode, SolventRemovalResult
-from .symmetry import detect_topology_symmetry
-from .topology import EdgeTopologyContractor
+import numpy as np
 
-
-def fragment_instance_path(fragment: Fragment) -> str:
-    return f"{fragment.kind}s/{fragment.kind}_{fragment.index:03d}.xyz"
+from mofbb.decompose.object import Fragment, TopologyEdge, TopologyVertex
+from mofbb.decompose.pbc import PeriodicBond
+from mofbb.decompose.solvent import SolventMode, SolventRemovalResult
+from mofbb.decompose.symmetry import AtomicSymmetry, SpaceGroupOperations, TopologySymmetry
+from mofbb.decompose.topology import EdgeTopologyContractor
+from mofbb.decompose.export import (
+    CgdWriter,
+    LegacyMap,
+    PortMapper,
+    SymmetryBuilder,
+    edge_types,
+    fit_cell as _symmetry_compatible_cell_parameters,
+    fragment_instance_path,
+)
 
 
 def logical_port_partition(fragment: Fragment) -> tuple[tuple[int, ...], ...]:
@@ -61,77 +67,29 @@ def _write_topology_cgd(
     edges: list[TopologyEdge],
     fragment_to_bb_id: dict[tuple[str, int], str],
     edge_bb_ids: dict[int, str] | None = None,
+    assembly_symmetry: (
+        tuple[str, np.ndarray, np.ndarray] | SpaceGroupOperations | None
+    ) = None,
+    decorated_symmetry: TopologySymmetry | None = None,
+    port_maps: dict[int, list[int]] | None = None,
 ) -> dict[str, object]:
     """Write the explicit topology with its graph-derived symmetry."""
 
-    bb_types: dict[str, int] = {}
-    vertex_types = [
-        bb_types.setdefault(
-            fragment_to_bb_id[(vertex.kind, vertex.index)],
-            len(bb_types) + 1,
-        )
-        for vertex in vertices
-    ]
-    edge_color_ids: dict[str | None, int] = {}
-    edge_colors = [
-        edge_color_ids.setdefault(
-            None if edge_bb_ids is None else edge_bb_ids.get(index),
-            len(edge_color_ids) + 1,
-        )
-        for index in range(len(edges))
-    ]
-    symmetry = detect_topology_symmetry(
-        cell_parameters,
-        vertices,
-        edges,
-        vertex_types,
-        edge_colors,
-    )
-    positions, endpoints = symmetry.project(vertices, edges)
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
-        handle.write("CRYSTAL\n")
-        handle.write(f"  NAME {name}\n")
-        handle.write(f"  GROUP {symmetry.symbol}\n")
-        cell = " ".join(map(format_float, cell_parameters))
-        handle.write(f"  CELL {cell}\n")
-        handle.write("  # EXPANDED\n")
-        for rotation, translation in zip(
-            symmetry.rotations,
-            symmetry.translations,
-        ):
-            values = [
-                *(str(int(value)) for value in rotation.ravel()),
-                *(format_float(value) for value in translation),
-            ]
-            handle.write(f"  # SYMOP {' '.join(values)}\n")
-        for vertex_type, vertex, position in zip(
-            vertex_types,
-            vertices,
-            positions,
-        ):
-            position = " ".join(map(format_float, position))
-            handle.write(f"  NODE {vertex_type} {vertex.coordination} {position}\n")
-        for index, (edge_type, (begin, end)) in enumerate(
-            zip(symmetry.edge_types, endpoints),
-            start=1,
-        ):
-            handle.write(f"  # EDGE_TYPE {index} {edge_type}\n")
-            begin = " ".join(map(format_float, begin))
-            end = " ".join(map(format_float, end))
-            handle.write(f"  EDGE  {begin}   {end}\n")
-        for begin, end in endpoints:
-            center = " ".join(map(format_float, (begin + end) / 2))
-            handle.write(f"  # EDGE_CENTER  {center}\n")
-        handle.write("END\n")
-    return {
-        "num_vertices": len(vertices),
-        "num_edges": len(edges),
-        "num_node_types": len(bb_types),
-        "spacegroup": symmetry.symbol,
-        "num_symmetry_operations": len(symmetry.rotations),
-    }
+    source = assembly_symmetry
+    if source is not None and not isinstance(source, SpaceGroupOperations):
+        source = SpaceGroupOperations(*source)
+    return CgdWriter(
+        path=Path(path),
+        name=name,
+        cell=cell_parameters,
+        nodes=vertices,
+        edges=edges,
+        bb_ids=fragment_to_bb_id,
+        edge_bbs=edge_bb_ids,
+        src_sym=source,
+        slot_sym=decorated_symmetry,
+        ports=port_maps,
+    ).write()
 
 
 @dataclass
@@ -150,6 +108,11 @@ class NodeEdgeDecompositionResult:
     solvent: SolventRemovalResult | None = None
     selected_to_original: tuple[int, ...] | None = None
     connection_records: tuple[PeriodicBond, ...] = ()
+    assembly_spacegroup: str | None = None
+    assembly_rotations: np.ndarray | None = None
+    assembly_translations: np.ndarray | None = None
+    assembly_atom_maps: np.ndarray | None = None
+    assembly_atom_images: np.ndarray | None = None
 
     @property
     def fragments(self) -> list[Fragment]:
@@ -280,6 +243,70 @@ class NodeEdgeDecompositionResult:
             self.edge_fragments,
         ).contract()
 
+    def _decorated_topology_symmetry(
+        self,
+        vertices: list[TopologyVertex],
+        edges: list[TopologyEdge],
+        topology_slots: dict[tuple[str, int], tuple[str, int]],
+        fragment_to_bb_id: dict[tuple[str, int], str],
+        edge_colors: list[int],
+    ) -> TopologySymmetry | None:
+        """Return the source subgroup preserving BB slots and selected cuts."""
+
+        source = self._atomic_symmetry()
+        if source is None:
+            return None
+        return SymmetryBuilder(
+            cell=self.cell_parameters,
+            nodes=vertices,
+            edges=edges,
+            slot_map=topology_slots,
+            frags=self.fragments,
+            bonds=self.connection_records,
+            bb_ids=fragment_to_bb_id,
+            colors=edge_colors,
+            src=source,
+        ).build()
+
+    def _topology_port_maps(
+        self,
+        vertices: list[TopologyVertex],
+        edges: list[TopologyEdge],
+        topology_slots: dict[tuple[str, int], tuple[str, int]],
+    ) -> dict[int, list[int]]:
+        """Map topology incidences to each emitted BB's connection ports."""
+
+        return PortMapper(
+            src_nodes=self.topology_vertices,
+            src_edges=self.topology_edges,
+            nodes=vertices,
+            edges=edges,
+            slot_map=topology_slots,
+            frags=self.fragments,
+        ).build()
+
+    def _atomic_symmetry(self) -> AtomicSymmetry | None:
+        values = (
+            self.assembly_spacegroup,
+            self.assembly_rotations,
+            self.assembly_translations,
+            self.assembly_atom_maps,
+            self.assembly_atom_images,
+        )
+        if any(value is None for value in values):
+            return None
+        return AtomicSymmetry(*values)
+
+    def _space_group_operations(self) -> SpaceGroupOperations | None:
+        source = self._atomic_symmetry()
+        if source is None:
+            return None
+        return SpaceGroupOperations(
+            source.symbol,
+            source.rotations,
+            source.translations,
+        )
+
     def write_topology_cgd(
         self,
         path: Path,
@@ -296,14 +323,26 @@ class NodeEdgeDecompositionResult:
             for key, (kind, index) in topology_slots.items()
             if kind == "edge"
         }
-        return _write_topology_cgd(
-            Path(path),
-            self.name,
-            self.cell_parameters,
+        edge_colors, _ = edge_types(len(edges), edge_bb_ids)
+        decorated_symmetry = self._decorated_topology_symmetry(
             vertices,
             edges,
+            topology_slots,
             fragment_to_bb_id,
-            edge_bb_ids,
+            edge_colors,
+        )
+        port_maps = self._topology_port_maps(vertices, edges, topology_slots)
+        return _write_topology_cgd(
+            path=Path(path),
+            name=self.name,
+            cell_parameters=self.cell_parameters,
+            vertices=vertices,
+            edges=edges,
+            fragment_to_bb_id=fragment_to_bb_id,
+            edge_bb_ids=edge_bb_ids,
+            assembly_symmetry=self._space_group_operations(),
+            decorated_symmetry=decorated_symmetry,
+            port_maps=port_maps,
         )
 
     def write_reconstruction_map(
@@ -314,20 +353,11 @@ class NodeEdgeDecompositionResult:
         topology_path: str | None = None,
     ) -> dict[str, object]:
         _, _, topology_slots = self._contracted_topology()
-        slots = self._reconstruction_slots(fragment_to_bb_id, topology_slots)
-        topology: dict[str, object] = {
-            "kind": "node_edge_slots",
-            "cell": list(self.cell_parameters),
-        }
-        if topology_path:
-            topology["path"] = topology_path
-        data = {
-            "schema_version": 2,
-            "topology": topology,
-            "bb_groups": group_records,
-            "slots": slots,
-            "edges": self._reconstruction_edges(),
-        }
+        data = LegacyMap(
+            self,
+            fragment_to_bb_id,
+            topology_slots,
+        ).build(group_records, topology_path)
         _write_json(Path(path), data)
         return data
 
@@ -336,100 +366,10 @@ class NodeEdgeDecompositionResult:
         fragment_to_bb_id: dict[tuple[str, int], str],
         topology_slots: dict[tuple[str, int], tuple[str, int]],
     ) -> list[dict[str, object]]:
-        topology_positions = {
-            (vertex.kind, vertex.index): vertex.frac_position
-            for vertex in self.topology_vertices
-        }
-        slots = []
-        for slot_id, fragment in enumerate(self.fragments):
-            key = (fragment.kind, fragment.index)
-            position = fragment.real_atom_centroid_frac or topology_positions[key]
-            slot_kind, slot_index = topology_slots[key]
-            slots.append(
-                {
-                    "slot_id": slot_id,
-                    "kind": fragment.kind,
-                    "cn": fragment.num_x,
-                    "logical_kind": fragment.logical_kind or fragment.kind,
-                    "logical_ports": [
-                        port.as_dict() for port in fragment.logical_ports
-                    ],
-                    "bb_id": fragment_to_bb_id[key],
-                    "exact_instance_path": fragment_instance_path(fragment),
-                    "source_indices": list(fragment.source_indices),
-                    "source_image_offsets": [
-                        [atom_index, list(offset)]
-                        for atom_index, offset in fragment.source_image_offsets
-                    ],
-                    "exact_frac_position": list(position),
-                    "topology_slot": {"kind": slot_kind, "index": slot_index},
-                }
-            )
-        return slots
+        return LegacyMap(self, fragment_to_bb_id, topology_slots).slots()
 
     def _reconstruction_edges(self) -> list[dict[str, object]]:
-        fragments = self.fragments
-        slot_by_key = {
-            (fragment.kind, fragment.index): slot_id
-            for slot_id, fragment in enumerate(fragments)
-        }
-        slot_by_atom = {
-            atom_index: slot_id
-            for slot_id, fragment in enumerate(fragments)
-            for atom_index in fragment.source_indices
-        }
-        x_sites = {
-            (
-                slot_id,
-                site.source_cut_bond,
-                site.source_cut_shift,
-                site.internal_source_index,
-            ): site
-            for slot_id, fragment in enumerate(fragments)
-            for site in fragment.x_sites
-        }
-        topology_by_record: dict[
-            tuple[tuple[int, int], tuple[int, int, int]], list[TopologyEdge]
-        ] = defaultdict(list)
-        for edge in self.topology_edges:
-            topology_by_record[(edge.source_cut_bond, edge.source_cut_shift)].append(
-                edge
-            )
-
-        edges = []
-        for edge_id, record in enumerate(self.connection_records):
-            endpoint_slots = [slot_by_atom[record.i], slot_by_atom[record.j]]
-            endpoint_sites = [
-                x_sites[(slot_id, record.pair, record.shift, atom_index)]
-                for atom_index, slot_id in zip(record.pair, endpoint_slots)
-            ]
-            topology_edge = topology_by_record[(record.pair, record.shift)].pop(0)
-            topology_endpoints = (
-                slot_by_key[(topology_edge.begin_kind, topology_edge.begin_index)],
-                slot_by_key[(topology_edge.end_kind, topology_edge.end_index)],
-            )
-            translation = topology_edge.slot_translation
-            if topology_endpoints == tuple(reversed(endpoint_slots)):
-                translation = tuple(-value for value in translation)
-            edges.append(
-                {
-                    "edge_id": edge_id,
-                    "endpoint_slots": endpoint_slots,
-                    "endpoint_x_sites": [
-                        {
-                            "slot_id": slot_id,
-                            "x_index": site.x_index,
-                            "internal_source_index": site.internal_source_index,
-                            "external_source_index": site.external_source_index,
-                        }
-                        for slot_id, site in zip(endpoint_slots, endpoint_sites)
-                    ],
-                    "source_cut_bond": list(record.pair),
-                    "source_cut_shift": list(record.shift),
-                    "slot_translation": list(translation),
-                }
-            )
-        return edges
+        return LegacyMap(self, {}, {}).edges()
 
     def _summary(
         self,

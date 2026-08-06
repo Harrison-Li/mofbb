@@ -8,7 +8,7 @@ import ase
 import ase.neighborlist
 import numpy as np
 
-from .log import logger
+from mofbb.compose.log import logger
 
 
 class Neighbor:

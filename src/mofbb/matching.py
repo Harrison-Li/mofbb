@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING, Literal
 
 import networkx as nx
 
-from .decompose.constants import is_mofid_metal
+from mofbb.decompose.constants import is_mofid_metal
 
 if TYPE_CHECKING:
-    from .compose.building_block import BuildingBlock
-    from .decompose.object import Fragment
+    from mofbb.compose.building_block import BuildingBlock
+    from mofbb.decompose.object import Fragment
 
 
 BuildingBlockKind = Literal["metal_node", "organic_node", "edge", "linker"]
@@ -72,7 +72,7 @@ class BuildingBlockGraph:
     ) -> BuildingBlockGraph:
         """Load a PORMAKE extended XYZ building block."""
 
-        from .compose.building_block import BuildingBlock
+        from mofbb.compose.building_block import BuildingBlock
 
         block = BuildingBlock(path)
         return cls.from_building_block(block, kind=kind, name=name)

@@ -9,10 +9,13 @@ import warnings
 import numpy as np
 import scipy
 
-from .log import logger
-
 
 _EDGE_FRAME_EPSILON = 1e-12
+_MAX_CANONICAL_PORTS = 15
+
+
+class PortAssignmentError(ValueError):
+    """Raised when no feasible connection-point permutation exists."""
 
 
 def _target_edge_frame(edge_axis, transverse_direction):
@@ -57,6 +60,9 @@ def find_best_permutation(p, q, allowed=None):
     q : numpy.ndarray
         Points to be matched against ``p``, shape ``(n, 3)`` (e.g. the
         building block's connection-point directions).
+    allowed : array_like of bool, optional
+        Feasibility mask with shape ``(n, n)``. Forbidden target/source pairs
+        are excluded from the assignment solver.
 
     Returns
     -------
@@ -64,27 +70,17 @@ def find_best_permutation(p, q, allowed=None):
         Permutation index array of length ``n`` such that ``q[perm]`` is
         aligned, element-wise, with ``p``.
     """
-    dist = p[:, np.newaxis] - q[np.newaxis, :]
-    dist = np.linalg.norm(dist, axis=-1)
+    dist = np.linalg.norm(p[:, None] - q[None, :], axis=-1)
     if allowed is not None:
-        allowed = np.asarray(allowed, dtype=bool)
-        if allowed.shape != dist.shape:
-            raise ValueError(
-                "Connection compatibility mask must match the assignment matrix."
-            )
-        dist[~allowed] = np.inf
-
+        dist = np.where(np.asarray(allowed, dtype=bool), dist, np.inf)
     try:
         rows, perm = scipy.optimize.linear_sum_assignment(dist)
+        if not np.all(np.isfinite(dist[rows, perm])):
+            raise ValueError
     except ValueError as error:
-        raise ValueError(
+        raise PortAssignmentError(
             "No chemically compatible connection-point permutation exists."
         ) from error
-    if not np.all(np.isfinite(dist[rows, perm])):
-        raise ValueError(
-            "No chemically compatible connection-point permutation exists."
-        )
-
     return perm
 
 
@@ -133,26 +129,25 @@ class Locator:
     A topology slot only fixes the *directions* toward its neighbors;
     the building block must be rotated so that its connection points
     point along those directions. Because the correct point-to-direction
-    pairing is not known in advance, this class scans a grid of trial
-    orientations over Euler angles, solving the assignment problem at
-    each trial and keeping the rotation/permutation pair with the lowest
-    RMSD. The Euler scan makes the result robust against the local
-    minima that arise when an arbitrary initial permutation is fitted
-    directly. The matched building block, its winning permutation, and
-    the RMSD are returned for use by :class:`~pormake.builder.Builder`
-    and :class:`~pormake.scaler.Scaler`.
+    pairing is not known in advance, this class tests every permutation
+    for common two- to five-connected slots. Larger slots use the bounded
+    Euler-angle search to avoid factorial growth. The matched building
+    block, its winning permutation, and RMSD are returned to the builder.
     """
 
-    def locate(self, target, bb, max_n_slices=4, allowed=None):
+    def locate(
+        self,
+        target,
+        bb,
+        max_n_slices=4,
+        allowed=None,
+    ):
         """Orient ``bb`` onto ``target`` and find the best permutation.
 
-        Scans a coarse Euler-angle grid (whose density adapts to the
-        number of connection points and to ``max_n_slices``); at each
-        trial orientation it solves for the best connection-point
-        permutation, fits the optimal rotation for that permutation, and
-        retains the lowest-RMSD result. Only orientation is applied
-        here -- translation onto the final cell position happens later
-        in the build, after the topology is scaled.
+        Exhaustively evaluates feasible permutations for up to five
+        connection points. For larger slots it scans a bounded Euler grid,
+        solves the assignment at each trial, and keeps the lowest-RMSD fit.
+        Translation onto the final cell position happens later.
 
         Parameters
         ----------
@@ -163,11 +158,10 @@ class Locator:
             The building block to orient. It is copied before rotation,
             so the input is left unchanged.
         max_n_slices : int, optional
-            Controls the Euler-angle grid resolution. The effective
-            number of slices per angle is reduced for slots with few
-            connection points (2, 3, or 4) and equals ``max_n_slices``
-            otherwise. Larger values trade speed for accuracy.
-
+            Euler-angle grid resolution for slots with more than five
+            connection points. Larger values trade speed for accuracy.
+        allowed : array_like of bool, optional
+            Feasibility mask applied to every connection-point assignment.
         Returns
         -------
         bb : BuildingBlock
@@ -177,75 +171,64 @@ class Locator:
         rmsd_val : float
             Per-point RMSD of the returned orientation.
         """
-        local0 = target
-        local1 = bb.local_structure()
-
-        # p: target points, q: to be rotated points.
-        p_coord = local0.atoms.positions
-
-        # Serching best orientation over Euler angles.
+        p_coord = target.atoms.positions
+        source_atoms = bb.local_structure().atoms
         n_points = p_coord.shape[0]
-        if n_points == 2:
-            n_slices = 1
-        elif n_points == 3:
-            n_slices = max_n_slices - 2
-        elif n_points == 4:
-            n_slices = max_n_slices - 1
-        else:
+        allowed = None if allowed is None else np.asarray(allowed, dtype=bool)
+
+        def permutations():
+            if n_points <= 5:
+                for values in itertools.permutations(range(n_points)):
+                    permutation = np.asarray(values)
+                    if allowed is None or np.all(
+                        allowed[np.arange(n_points), permutation]
+                    ):
+                        yield permutation
+                return
+
+            points = source_atoms.positions
+            if n_points <= _MAX_CANONICAL_PORTS:
+                weights = np.arange(1, n_points + 1, dtype=float)
+                centered = points - np.average(points, axis=0, weights=weights)
+                _, axes = np.linalg.eigh((centered * weights[:, None]).T @ centered)
+                pivots = np.argmax(np.abs(centered @ axes), axis=0)
+                signs = np.sign((centered @ axes)[pivots, np.arange(3)])
+                axes *= np.where(signs == 0, 1, signs)
+                if np.linalg.det(axes) < 0:
+                    axes[:, 0] *= -1
+                points = points @ axes
             n_slices = max_n_slices
+            angles = (
+                np.linspace(0, 360, n_slices),
+                np.linspace(0, 180, n_slices),
+                np.linspace(0, 360, n_slices),
+            )
+            eulers = np.asarray(list(itertools.product(*angles)))
+            matrices = scipy.spatial.transform.Rotation.from_euler(
+                "zxz", -eulers, degrees=True
+            ).as_matrix()
+            rotated = np.einsum("nij,pj->npi", matrices, points)
+            for positions in rotated:
+                yield find_best_permutation(p_coord, positions, allowed=allowed)
 
-        logger.debug("n_slices: %d", n_slices)
-
-        alpha = np.linspace(0, 360, n_slices)
-        beta = np.linspace(0, 180, n_slices)
-        gamma = np.linspace(0, 360, n_slices)
-
-        min_rmsd_val = 1e30
-        for a, b, g in itertools.product(alpha, beta, gamma):
-            # Copy atoms object for euler rotation.
-            atoms = local1.atoms.copy()
-            # Rotate.
-            atoms.euler_rotate(a, b, g, center=(0, 0, 0))
-
-            # Reorder coordinates.
-            q_coord = atoms.positions
-            q_perm = find_best_permutation(p_coord, q_coord, allowed=allowed)
-
-            # Use this permutation of the euler angle. But do not used the
-            # Rotated atoms in order to get pure U.
-            q_coord = local1.atoms.positions[q_perm]
-
-            # Rotation matrix.
-            U, rmsd_val = find_best_orientation(p_coord, q_coord)
-
-            # Save best U and Euler angle.
-            if rmsd_val < min_rmsd_val:
-                min_rmsd_val = rmsd_val
-                min_rmsd_U = U
-                min_perm = q_perm
-
-            # The value of 1e-4 can be changed.
-            if min_rmsd_val < 1e-4:
+        best = (np.inf, None, None)
+        for permutation in permutations():
+            rotation, rmsd = find_best_orientation(
+                p_coord, source_atoms.positions[permutation]
+            )
+            if rmsd < best[0]:
+                best = rmsd, rotation, permutation
+            if best[0] < 1e-4:
                 break
 
-        # Load best vals.
-        U = min_rmsd_U
-        rmsd_val = min_rmsd_val
-
-        # Copy for ratation.
-        bb = bb.copy()
-
-        # Rotate using U from RMSD.
-        positions = bb.atoms.positions
-        centroid = bb.centroid
-
-        positions -= centroid
-        positions = np.dot(positions, U) + centroid
-
-        # Update position of atoms.
-        bb.atoms.set_positions(positions)
-
-        return bb, min_perm, rmsd_val
+        if best[1] is None:
+            raise PortAssignmentError("No compatible connection-point permutation exists.")
+        rmsd, rotation, permutation = best
+        located = bb.copy()
+        located.atoms.set_positions(
+            (bb.atoms.positions - bb.centroid) @ rotation + bb.centroid
+        )
+        return located, permutation, rmsd
 
     def locate_with_permutation(self, target, bb, permutation):
         """Orient ``bb`` onto ``target`` using a known permutation.
@@ -275,36 +258,15 @@ class Locator:
         rmsd_val : float
             Per-point RMSD of the returned orientation.
         """
-        local0 = target
-        local1 = bb.local_structure()
-
-        # p: target points, q: to be rotated points.
-        # Atom types are neglected.
-        # p_atoms = np.array(local0.atoms.symbols)
-        p_coord = local0.atoms.positions
-
-        # Atom types are neglected.
-        # q_atoms = np.array(local1.atoms.symbols)
-        q_coord = local1.atoms.positions
-        # Permutation used here.
-        q_coord = q_coord[permutation]
-
-        # Rotation matrix.
-        U, rmsd_val = find_best_orientation(p_coord, q_coord)
-
-        bb = bb.copy()
-
-        # Rotate using U from RMSD.
-        positions = bb.atoms.positions
-        centroid = bb.centroid
-
-        positions -= centroid
-        positions = np.dot(positions, U) + centroid
-
-        # Update position of atoms.
-        bb.atoms.set_positions(positions)
-
-        return bb, rmsd_val
+        rotation, rmsd = find_best_orientation(
+            target.atoms.positions,
+            bb.local_structure().atoms.positions[permutation],
+        )
+        located = bb.copy()
+        located.atoms.set_positions(
+            (bb.atoms.positions - bb.centroid) @ rotation + bb.centroid
+        )
+        return located, rmsd
 
     def locate_edge_with_frame(
         self,
@@ -348,19 +310,8 @@ class Locator:
         """
 
         target_points = np.asarray(target_points, dtype=float)
-        if target_points.shape != (2, 3):
-            raise ValueError("target_points must have shape (2, 3).")
-
         target_transverse = np.asarray(target_transverse, dtype=float)
-        if target_transverse.shape != (3,):
-            raise ValueError("target_transverse must have shape (3,).")
-
         permutation = np.asarray(permutation, dtype=int)
-        if permutation.shape != (2,) or not np.array_equal(
-            np.sort(permutation), np.array([0, 1])
-        ):
-            raise ValueError("Edge permutation must be [0, 1] or [1, 0].")
-
         source_frame = bb.edge_frame()
 
         # permutation[target] = source. Inverting it gives target positions
@@ -391,32 +342,3 @@ class Locator:
         rmsd = float(np.sqrt(np.mean(np.sum(residual**2, axis=1))))
 
         return located_bb, rmsd, source_frame
-
-    def calculate_rmsd(self, target, bb, max_n_slices=6):
-        """Return only the best-fit RMSD of ``bb`` against ``target``.
-
-        Convenience wrapper around :meth:`locate` that discards the
-        rotated building block and permutation, keeping just the RMSD.
-        The builder uses it to establish the minimum achievable RMSD for
-        a given (node type, building block) pair so it can detect when a
-        placement is sub-optimal and warrants a higher-accuracy or
-        chiral retry.
-
-        Parameters
-        ----------
-        target : LocalStructure
-            The slot's local structure to evaluate the fit against.
-        bb : BuildingBlock
-            The building block being tested.
-        max_n_slices : int, optional
-            Euler-angle grid resolution passed through to
-            :meth:`locate`; defaults to a finer grid than ``locate`` so
-            the reference minimum is reliable.
-
-        Returns
-        -------
-        float
-            Per-point RMSD of the best orientation found.
-        """
-        _, _, rmsd_val = self.locate(target, bb, max_n_slices)
-        return rmsd_val

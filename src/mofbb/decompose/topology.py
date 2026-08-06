@@ -8,9 +8,9 @@ from dataclasses import dataclass
 import ase
 import numpy as np
 
-from .bonding import BondNetwork
-from .object import Fragment, TopologyEdge, TopologyVertex
-from .pbc import (
+from mofbb.decompose.bonding import BondNetwork
+from mofbb.decompose.object import Fragment, TopologyEdge, TopologyVertex
+from mofbb.decompose.pbc import (
     ComponentPeriodicity,
     PeriodicBond,
     analyze_component,
@@ -237,43 +237,66 @@ class EdgeTopologyContractor:
         edge_keys = {
             (fragment.kind, fragment.index) for fragment in self.edge_fragments
         }
-        vertices = [
-            vertex
-            for vertex in self.vertices
-            if (vertex.kind, vertex.index) not in edge_keys
-        ]
         positions = {
             (vertex.kind, vertex.index): np.asarray(vertex.frac_position)
             for vertex in self.vertices
         }
-        order = {
-            (vertex.kind, vertex.index): index for index, vertex in enumerate(vertices)
-        }
-        topology_slots = {key: ("node", index) for key, index in order.items()}
         incidents = defaultdict(list)
-        contracted_edges: list[TopologyEdge] = []
-
         for edge in self.edges:
             begin = (edge.begin_kind, edge.begin_index)
             end = (edge.end_kind, edge.end_index)
             begin_is_edge = begin in edge_keys
             end_is_edge = end in edge_keys
             if not (begin_is_edge or end_is_edge):
-                contracted_edges.append(edge)
                 continue
-
             begin_image = np.rint(
                 np.asarray(edge.begin_frac) - positions[begin]
             ).astype(int)
-            end_image = np.rint(np.asarray(edge.end_frac) - positions[end]).astype(int)
+            end_image = np.rint(
+                np.asarray(edge.end_frac) - positions[end]
+            ).astype(int)
             shift = end_image - begin_image
             if begin_is_edge:
                 incidents[begin].append((end, shift))
             else:
                 incidents[end].append((begin, -shift))
 
+        contracted_keys = set()
+        for key in edge_keys:
+            endpoints = incidents[key]
+            if len(endpoints) != 2:
+                raise ValueError(
+                    f"Edge fragment {key!r} has {len(endpoints)} topology incidences."
+                )
+            (begin, begin_from_edge), (end, end_from_edge) = endpoints
+            shift = end_from_edge - begin_from_edge
+            if begin != end or np.any(shift):
+                contracted_keys.add(key)
+
+        vertices = [
+            vertex
+            for vertex in self.vertices
+            if (vertex.kind, vertex.index) not in contracted_keys
+        ]
+        order = {
+            (vertex.kind, vertex.index): index for index, vertex in enumerate(vertices)
+        }
+        topology_slots = {key: ("node", index) for key, index in order.items()}
+        contracted_edges: list[TopologyEdge] = []
+
+        for edge in self.edges:
+            begin = (edge.begin_kind, edge.begin_index)
+            end = (edge.end_kind, edge.end_index)
+            begin_is_edge = begin in contracted_keys
+            end_is_edge = end in contracted_keys
+            if not (begin_is_edge or end_is_edge):
+                contracted_edges.append(edge)
+            continue
+
         for fragment in self.edge_fragments:
             key = (fragment.kind, fragment.index)
+            if key not in contracted_keys:
+                continue
             endpoints = incidents[key]
             (begin, begin_from_edge), (end, end_from_edge) = endpoints
             shift = end_from_edge - begin_from_edge

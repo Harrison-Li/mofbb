@@ -4,9 +4,9 @@ Adapted from https://github.com/Sangwon91/PORMAKE/blob/main/src/pormake/database
 import pickle
 from pathlib import Path
 
-from .building_block import BuildingBlock
-from .log import logger
-from .topology import Topology
+from mofbb.compose.building_block import BuildingBlock
+from mofbb.compose.log import logger
+from mofbb.compose.topology import Topology
 
 
 class Database:
@@ -50,72 +50,23 @@ class Database:
     def __init__(self, topo_dir=None, bb_dir=None):
         """Resolve and validate the topology/building-block directories."""
         db_path = Path(__file__).parent / "database"
-
-        if topo_dir is None:
-            self.topo_dir = db_path / "topologies"
-            logger.debug("Default topology DB is loaded.")
-        else:
-            self.topo_dir = Path(topo_dir)
-            logger.debug('topo_dir type is changed to %s' % type(self.topo_dir))
-
-        if bb_dir is None:
-            self.bb_dir = db_path / "bbs"
-            logger.debug("Default building block DB is loaded.")
-        else:
-            self.bb_dir = Path(bb_dir)
-            logger.debug('bb_dir type is changed to %s' % type(self.bb_dir))
-
-        if not self.topo_dir.exists():
-            message = "%s does not exist." % self.topo_dir
-            logger.error(message)
-            raise Exception(message)
-
-        if not self.bb_dir.exists():
-            message = "%s does not exist." % self.bb_dir
-            logger.error(message)
-            raise Exception(message)
-
-    def _get_topology_list(self):
-        """Return the names of all topologies in ``topo_dir``.
-
-        Returns
-        -------
-        list of str
-            Stems (names without extension) of every ``.cgd`` file in
-            the topology directory.
-        """
-        return [p.stem for p in self.topo_dir.glob("*.cgd")]
+        self.topo_dir = Path(topo_dir or db_path / "topologies")
+        self.bb_dir = Path(bb_dir or db_path / "bbs")
+        for directory in (self.topo_dir, self.bb_dir):
+            if not directory.is_dir():
+                raise FileNotFoundError(
+                    f"Database directory does not exist: {directory}"
+                )
 
     @property
     def topology_list(self):
         """list of str: Names of all available topologies."""
-        return self._get_topology_list()
-
-    @property
-    def topo_list(self):
-        """list of str: Convenience alias for :attr:`topology_list`."""
-        return self._get_topology_list()
-
-    def _get_bb_list(self):
-        """Return the names of all building blocks in ``bb_dir``.
-
-        Returns
-        -------
-        list of str
-            Stems (names without extension) of every ``.xyz`` file in
-            the building-block directory.
-        """
-        return [p.stem for p in self.bb_dir.glob("*.xyz")]
+        return [path.stem for path in self.topo_dir.glob("*.cgd")]
 
     @property
     def building_block_list(self):
         """list of str: Names of all available building blocks."""
-        return self._get_bb_list()
-
-    @property
-    def bb_list(self):
-        """list of str: Convenience alias for :attr:`building_block_list`."""
-        return self._get_bb_list()
+        return [path.stem for path in self.bb_dir.glob("*.xyz")]
 
     def serialize(self):
         """Pre-pickle every bundled topology for fast later loading.
@@ -127,8 +78,8 @@ class Database:
         Topologies that fail to parse are skipped with a debug message.
         """
         print("Database serialization starts.")
-        n_topos = len(self.topo_list)
-        for i, name in enumerate(self.topo_list, start=1):
+        n_topos = len(self.topology_list)
+        for i, name in enumerate(self.topology_list, start=1):
             cgd_path = self.topo_dir / (name + ".cgd")
             try:
                 topo = Topology(cgd_path)
@@ -168,35 +119,18 @@ class Database:
         Exception
             If the topology cannot be loaded from pickle or ``.cgd``.
         """
-        # Add .cgd to the topology name.
         pickle_path = self.topo_dir / (name + ".pickle")
-        try:
+        if pickle_path.exists():
             with pickle_path.open("rb") as f:
-                topo = pickle.load(f)
+                topology = pickle.load(f)
             logger.debug("Topology is loaded from pickle.")
-            return topo
-        except Exception as e:
-            # logger.exception(e)
-            logger.debug("No %s.pickle in DB. Try cgd format.", name)
+            return topology
 
-        cgd_path = self.topo_dir / (name + ".cgd")
-        try:
-            topo = Topology(cgd_path)
-        except Exception as e:
-            message = "Topology loading is failed: %s." % e
-            logger.error(message)
-            raise Exception(message)
-
-        # Save pickle
+        topology = Topology(self.topo_dir / (name + ".cgd"))
         with pickle_path.open("wb") as f:
-            pickle.dump(topo, f)
+            pickle.dump(topology, f)
         logger.debug("Pickle %s saved" % pickle_path)
-
-        return topo
-
-    def get_topo(self, name):
-        """Convenience alias for :meth:`get_topology`."""
-        return self.get_topology(name)
+        return topology
 
     def get_building_block(self, name):
         """Load a building block by name from the ``.xyz`` library.
@@ -217,20 +151,5 @@ class Database:
         Exception
             If the building block cannot be loaded.
         """
-        # Add .xyz to the building block name.
         name = Path(name).stem + ".xyz"
-
-        path = self.bb_dir / name
-
-        try:
-            bb = BuildingBlock(path)
-        except Exception as e:
-            message = "BuildingBlock loading is failed: %s." % e
-            logger.error(message)
-            raise Exception(message)
-
-        return bb
-
-    def get_bb(self, name):
-        """Convenience alias for :meth:`get_building_block`."""
-        return self.get_building_block(name)
+        return BuildingBlock(self.bb_dir / name)

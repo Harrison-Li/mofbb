@@ -19,10 +19,10 @@ import ase
 import ase.visualize
 import numpy as np
 
-from .local_structure import LocalStructure
-from .log import logger
-from .neighbor import NeighborList
-from .utils import read_cgd
+from mofbb.compose.local_structure import LocalStructure
+from mofbb.compose.log import logger
+from mofbb.compose.neighbor import NeighborList
+from mofbb.compose.utils import read_cgd
 
 
 class Topology:

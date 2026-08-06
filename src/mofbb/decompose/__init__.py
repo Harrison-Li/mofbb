@@ -1,8 +1,8 @@
 """Node-edge MOF decomposition."""
 
-from .decomposer import NodeEdgeDecomposer
-from .results import NodeEdgeDecompositionResult
-from .solvent import MofidSolventRemover, SolventMode, SolventRemovalResult
+from mofbb.decompose.decomposer import NodeEdgeDecomposer
+from mofbb.decompose.results import NodeEdgeDecompositionResult
+from mofbb.decompose.solvent import MofidSolventRemover, SolventMode, SolventRemovalResult
 
 __all__ = [
     "MofidSolventRemover",

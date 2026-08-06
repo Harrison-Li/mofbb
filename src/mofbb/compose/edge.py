@@ -51,6 +51,11 @@ class Edge:
         self.original_centers = (
             self.original.atoms.positions @ self.original_cell_inverse
         )
+        self.orbit_by_edge = {
+            int(member): orbit
+            for orbit in self.symmetry.edge_orbits
+            for member in orbit.members
+        }
         self.edges_by_type = defaultdict(list)
         self.endpoint_order = {}
         self.original_endpoints = {}
@@ -63,8 +68,9 @@ class Edge:
 
         targets = {}
 
-        for edge_type, edge_indices in self.edges_by_type.items():
+        for _, edge_indices in self.edges_by_type.items():
             representative = min(edge_indices)
+            edge_type = int(self.original.node_types[representative])
             transverse, gauge = self._choose_transverse(representative)
 
             targets[representative] = EdgeOrientationTarget(
@@ -140,8 +146,8 @@ class Edge:
             )
             self.scaled_endpoints[edge_index] = scaled_points[order]
 
-            edge_type = int(self.original.node_types[edge_index])
-            self.edges_by_type[edge_type].append(edge_index)
+            orbit = self.orbit_by_edge[edge_index]
+            self.edges_by_type[orbit.representative].append(edge_index)
 
     def _choose_transverse(self, edge_index):
         """Choose a stable transverse direction for a representative edge."""

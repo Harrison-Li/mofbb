@@ -20,7 +20,7 @@ except ImportError:  # pragma: no cover - compatibility for unusual ASE layouts
     from ase.neighborlist import neighbor_list
     from ase.utils import natural_cutoffs  # type: ignore[attr-defined]
 
-from .constants import is_mofid_metal
+from mofbb.decompose.constants import is_mofid_metal
 
 
 @dataclass(frozen=True)
@@ -168,6 +168,15 @@ def read_bonded_structure(
     bonds = build_bond_network_from_cif(cif, atoms)
     if bonds is None:
         bonds = build_bond_network(atoms, scale=scale)
+    scaled = np.mod(atoms.get_scaled_positions(wrap=False), 1.0)
+    on_boundary = np.isclose(scaled, 0.0, atol=1.0e-12, rtol=0.0) | np.isclose(
+        scaled,
+        1.0,
+        atol=1.0e-12,
+        rtol=0.0,
+    )
+    scaled[on_boundary] = 0.0
+    atoms.set_scaled_positions(scaled)
     if not cleanup:
         return atoms, bonds
     return largest_connected_component_with_bonds(atoms, bonds)

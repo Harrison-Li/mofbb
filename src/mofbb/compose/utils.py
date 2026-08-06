@@ -14,23 +14,13 @@ Metal-Organic Framework.
 """
 
 from pathlib import Path
-import re
 
 import ase
 import ase.io
-import ase.neighborlist
-from ase.geometry import cellpar_to_cell
 import numpy as np
 
-try:
-    from ase.utils import natural_cutoffs
-except Exception as e:
-    e
-    from ase.neighborlist import natural_cutoffs
-
-import pymatgen.core as mg
-
-from .log import logger
+from mofbb.compose.formats.cgd import read_cgd
+from mofbb.compose.log import logger
 
 # Metal species.
 METAL_LIKE = [
@@ -122,331 +112,38 @@ METAL_LIKE = [
 ]
 
 
-def bound_values(x, eps=1e-4):
-    """Nudge fractional coordinates away from the exact cell boundary.
+def wrap_fractional(values, tolerance=1.0e-12):
+    """Return canonical fractional coordinates in the interval ``[0, 1)``.
 
-    Values that sit essentially at 0 or 1 are pushed inward by ``eps``.
-    Fractional coordinates lying exactly on a periodic boundary cause
-    ambiguous wrapping and edge-case artifacts when neighbor lists are
-    rebuilt, so this clamp keeps positions strictly inside ``(0, 1)``.
+    Floating-point arithmetic can place a coordinate infinitesimally below
+    zero, which a plain modulo operation represents as a value just below one.
+    Coordinates within ``tolerance`` of either periodic boundary therefore map
+    to exactly zero. This keeps equivalent boundary sites in one stable
+    representation without moving coordinates away from special positions.
 
     Parameters
     ----------
-    x : numpy.ndarray
-        Array of fractional coordinates.
-    eps : float, optional
-        Minimum distance to keep from the 0 and 1 boundaries.
+    values : array-like
+        Fractional coordinates of any shape.
+    tolerance : float, optional
+        Absolute distance from zero or one treated as the periodic boundary.
 
     Returns
     -------
     numpy.ndarray
-        Coordinates with values near 0 replaced by ``eps`` and values
-        near 1 replaced by ``1 - eps``.
+        Wrapped coordinates with numerical boundary noise canonicalized.
     """
-    x = np.where(np.abs(x - 0) < eps, np.full_like(x, 0 + eps), x)
-    x = np.where(np.abs(x - 1) < eps, np.full_like(x, 1 - eps), x)
 
-    return x
-
-
-def covalent_neighbor_list(
-    atoms, scale=1.2, neglected_species=[], neglected_indices=[]
-):
-    """Build a bonded neighbor list from scaled covalent radii.
-
-    Wraps :func:`ase.neighborlist.neighbor_list` using per-atom cutoffs
-    derived from ASE's natural (covalent) radii, scaled by ``scale`` so
-    that atoms within roughly bonding distance are treated as
-    neighbors. Selected species or indices can be excluded from bonding
-    by zeroing their cutoff, which is useful for ignoring connection
-    markers or specific atoms when inferring molecular bonds.
-
-    Parameters
-    ----------
-    atoms : ase.Atoms
-        Atoms to analyze.
-    scale : float, optional
-        Multiplier applied to each natural cutoff radius.
-    neglected_species : list of str, optional
-        Element symbols whose atoms should not form bonds.
-    neglected_indices : list of int, optional
-        Atom indices that should not form bonds.
-
-    Returns
-    -------
-    tuple of numpy.ndarray
-        The ``("ijD")`` neighbor-list arrays: first-atom indices,
-        second-atom indices, and the distance vectors between them.
-    """
-    cutoffs = natural_cutoffs(atoms)
-    cutoffs = [scale * c for c in cutoffs]
-    # Remove radii to neglect them.
-    species_indices = [
-        i for i, a in enumerate(atoms) if a.symbol in neglected_species
-    ]
-
-    for i in neglected_indices + species_indices:
-        cutoffs[i] = 0.0
-
-    return ase.neighborlist.neighbor_list("ijD", atoms, cutoff=cutoffs)
-
-
-def read_cgd(filename, node_symbol="C", edge_center_symbol="O"):
-    """Parse a ``.cgd`` net file into an :class:`ase.Atoms` topology.
-
-    A ``.cgd`` file describes an abstract net by its space group, cell
-    parameters, symmetry-unique node positions (with coordination
-    numbers), and edges. This function expands the asymmetric unit by
-    the space group via :mod:`pymatgen`, places a placeholder atom at
-    every node and edge center, removes symmetry-generated duplicates,
-    and returns the result as an :class:`ase.Atoms` object that the rest
-    of PORMAKE treats as the topology skeleton.
-
-    The one-based identifier in each ``NODE`` record becomes its zero-based
-    non-negative type tag, so repeated identifiers share one building-block
-    type. Edge centers use negative tags, and every site carries its
-    coordination number ``cn`` for connectivity matching. Decomposer-written
-    ``# EXPANDED`` files retain their explicit sites and embedded operations.
-
-    Parameters
-    ----------
-    filename : str or pathlib.Path
-        Path to the ``.cgd`` net file.
-    node_symbol : str, optional
-        Element symbol used as a placeholder for net nodes.
-    edge_center_symbol : str, optional
-        Element symbol used as a placeholder for edge centers.
-
-    Returns
-    -------
-    ase.Atoms
-        The topology, with ``tags`` encoding site types and ``info``
-        holding the space group, name, and per-site coordination
-        numbers.
-    """
-    with open(filename, "r") as f:
-        # Neglect "CRYSTAL" and "END"
-        raw_lines = f.readlines()[1:-1]
-
-    expanded = False
-    symmetry_operations = []
-    declared_edge_types = {}
-    for line in raw_lines:
-        stripped = line.strip()
-        if not stripped.startswith("#"):
-            continue
-        tokens = stripped[1:].split()
-        if tokens == ["EXPANDED"]:
-            expanded = True
-        elif tokens[:1] == ["SYMOP"]:
-            if len(tokens) != 13:
-                raise ValueError("A CGD SYMOP comment must contain 12 numbers.")
-            values = np.asarray(tokens[1:], dtype=float)
-            symmetry_operations.append(
-                {
-                    "rotation": values[:9].reshape(3, 3).tolist(),
-                    "translation": values[9:].tolist(),
-                }
-            )
-        elif tokens[:1] == ["EDGE_TYPE"]:
-            if len(tokens) != 3:
-                raise ValueError("A CGD EDGE_TYPE comment requires edge and type IDs.")
-            edge_index, edge_type = (int(value) for value in tokens[1:])
-            if edge_index < 1 or edge_type < 1:
-                raise ValueError("CGD EDGE_TYPE IDs must be positive.")
-            declared_edge_types[edge_index - 1] = edge_type
-
-    lines = [line for line in raw_lines if not line.lstrip().startswith("#")]
-
-    # Get topology name.
-    name = lines[0].split()[1]
-    # Get spacegroup.
-    spacegroup = lines[1].split()[1]
-
-    # Get cell paremeters and expand cell lengths by 10.
-    cellpar = np.array(lines[2].split()[1:], dtype=float)
-
-    # Parse node information.
-    node_positions = []
-    node_labels = []
-    coordination_numbers = []
-    for line in lines[3:]:
-        tokens = line.split()
-
-        if tokens[0] != "NODE":
-            continue
-
-        coordination_number = int(tokens[2])
-        pos = [float(r) for r in tokens[3:]]
-        node_labels.append(tokens[1])
-        node_positions.append(pos)
-        coordination_numbers.append(coordination_number)
-
-    node_positions = np.array(node_positions)
-    # coordination_numbers = np.array(coordination_numbers)
-
-    # Parse edge information.
-    edge_center_positions = []
-    for line in lines[3:]:
-        tokens = line.split()
-
-        if tokens[0] != "EDGE":
-            continue
-
-        pos_i = np.array([float(r) for r in tokens[1:4]])
-        pos_j = np.array([float(r) for r in tokens[4:]])
-
-        edge_center_pos = 0.5 * (pos_i + pos_j)
-        edge_center_positions.append(edge_center_pos)
-
-    # New feature. Read EDGE_CENTER.
-    for line in lines[3:]:
-        tokens = line.split()
-
-        if tokens[0] != "EDGE_CENTER":
-            continue
-
-        edge_center_pos = np.array([float(r) for r in tokens[1:]])
-        edge_center_positions.append(edge_center_pos)
-
-    edge_center_positions = np.array(edge_center_positions)
-
-    # Carbon for nodes, oxygen for edges.
-    n_nodes = node_positions.shape[0]
-    n_edges = edge_center_positions.shape[0]
-    species = np.concatenate(
-        [
-            np.full(shape=n_nodes, fill_value=node_symbol),
-            np.full(shape=n_edges, fill_value=edge_center_symbol),
-        ]
+    wrapped = np.mod(values, 1.0)
+    on_boundary = np.isclose(wrapped, 0.0, atol=tolerance, rtol=0.0) | np.isclose(
+        wrapped,
+        1.0,
+        atol=tolerance,
+        rtol=0.0,
     )
+    return np.where(on_boundary, 0.0, wrapped)
 
-    coords = np.concatenate([node_positions, edge_center_positions], axis=0)
 
-    # Pymatget can handle : indicator in spacegroup.
-    # Mark symmetrically equivalent sites.
-    numeric_types = {}
-    used_types = set()
-    for label in node_labels:
-        match = re.fullmatch(r"[Vv]?([0-9]+)", label)
-        if match:
-            node_id = int(match.group(1))
-            if node_id < 1:
-                raise ValueError("CGD NODE IDs must be positive.")
-            numeric_types[label] = node_id - 1
-            used_types.add(node_id - 1)
-    named_types = {}
-    node_types = []
-    for label in node_labels:
-        if label in numeric_types:
-            node_types.append(numeric_types[label])
-            continue
-        if label not in named_types:
-            candidate = 0
-            while candidate in used_types:
-                candidate += 1
-            named_types[label] = candidate
-            used_types.add(candidate)
-        node_types.append(named_types[label])
-
-    cn_by_type = {}
-    for node_type, coordination_number in zip(node_types, coordination_numbers):
-        previous = cn_by_type.setdefault(node_type, coordination_number)
-        if previous != coordination_number:
-            raise ValueError(
-                f"CGD NODE type {node_type} declares both CN {previous} "
-                f"and CN {coordination_number}."
-            )
-
-    edge_types = [
-        -declared_edge_types.get(index, index + 1)
-        for index in range(len(edge_center_positions))
-    ]
-    site_properties = {
-        "type": node_types + edge_types,
-        "cn": coordination_numbers + [2 for _ in edge_center_positions],
-    }
-
-    normalized_spacegroup = spacegroup.replace(" ", "")
-    if normalized_spacegroup == "P1" or expanded:
-        explicit_edge_endpoints = [
-            [
-                [float(value) for value in line.split()[1:4]],
-                [float(value) for value in line.split()[4:]],
-            ]
-            for line in lines[3:]
-            if line.split()[0] == "EDGE"
-        ]
-        info = {
-            "spacegroup": spacegroup,
-            "name": name,
-            "cn": site_properties["cn"],
-        }
-        if symmetry_operations:
-            info["symmetry_operations"] = symmetry_operations
-        if len(explicit_edge_endpoints) == n_edges:
-            info["edge_endpoints"] = explicit_edge_endpoints
-        return ase.Atoms(
-            symbols=species,
-            scaled_positions=np.mod(coords, 1.0),
-            cell=cellpar_to_cell(cellpar),
-            tags=site_properties["type"],
-            pbc=True,
-            info=info,
-        )
-
-    # I don't know why pymatgen can't parse this spacegroup.
-    if spacegroup == "Cmca":
-        spacegroup = "Cmce"
-
-    structure = mg.Structure.from_spacegroup(
-        sg=spacegroup,
-        lattice=mg.Lattice.from_parameters(*cellpar),
-        species=species,
-        coords=coords,
-        site_properties=site_properties,
-    )
-
-    # Add information.
-    info = {
-        "spacegroup": spacegroup,
-        "name": name,
-        "cn": structure.site_properties["cn"],
-    }
-
-    # Cast mg.Structure to ase.Atoms
-    atoms = ase.Atoms(
-        symbols=[s.name for s in structure.species],
-        positions=structure.cart_coords,
-        cell=structure.lattice.matrix,
-        tags=structure.site_properties["type"],
-        pbc=True,
-        info=info,
-    )
-
-    # Remove overlap
-    I, J = ase.neighborlist.neighbor_list("ij", atoms, cutoff=0.1)
-    tags = atoms.get_tags()
-    removed_indices = {
-        int(j)
-        for i, j in zip(I, J)
-        if j > i and tags[i] == tags[j]
-    }
-    if removed_indices:
-        # Save original size of atoms.
-        n = len(atoms)
-
-        del atoms[list(removed_indices)]
-
-        cn = atoms.info["cn"]
-        # Remove old cn info.
-        cn = [cn[i] for i in range(n) if i not in removed_indices]
-
-        atoms.info["cn"] = cn
-
-        logger.debug("Overlapped symmetry copies are removed: %s", removed_indices)
-
-    return atoms
 
 
 def read_budiling_block_xyz(bb_file):

@@ -6,7 +6,7 @@ import ase
 import ase.visualize
 import numpy as np
 
-from .utils import write_molecule_cif
+from mofbb.compose.utils import write_molecule_cif
 
 
 class LocalStructure:

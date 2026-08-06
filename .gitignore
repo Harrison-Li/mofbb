@@ -216,11 +216,8 @@ notebook/
 /docs
 /.worktrees/
 .DS_store
-/tests
-!/tests/
-/tests
 /tests/*
 !/tests/test_assembly_evaluation.py
-!/tests/test_decomposed_bb_roundtrip.py
+!/tests/test_periodic_image_gauge.py
 /experiments/*
 !/experiments/evaluate_decomposed_bb_roundtrip.py

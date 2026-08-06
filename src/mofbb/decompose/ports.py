@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from itertools import combinations
 from math import gcd
 
-from .object import Fragment, LogicalPort, TopologyEdge, XSite
-from .pbc import PeriodicBond
+from mofbb.decompose.object import Fragment, LogicalPort, TopologyEdge, XSite
+from mofbb.decompose.pbc import PeriodicBond
 
 
 class LogicalPortAssigner:

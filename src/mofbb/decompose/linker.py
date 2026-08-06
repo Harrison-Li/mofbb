@@ -9,10 +9,10 @@ from typing import Literal
 import ase
 import networkx as nx
 
-from .bonding import BondNetwork
-from .fragments import FragmentBuilder
-from .object import Fragment
-from .pbc import PeriodicBond
+from mofbb.decompose.bonding import BondNetwork
+from mofbb.decompose.fragments import FragmentBuilder
+from mofbb.decompose.object import Fragment
+from mofbb.decompose.pbc import PeriodicBond
 
 OrganicFragmentKind = Literal["organic_node", "edge"]
 

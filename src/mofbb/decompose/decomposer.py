@@ -2,24 +2,60 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 from ase.geometry import cell_to_cellpar
 
-from .assignment import NodeAtomAssigner
-from .bonding import read_bonded_structure
-from .fragments import FragmentBuilder, connected_components
-from .linker import OrganicLinkerSplitter
-from .object import Fragment
-from .pbc import (
+from mofbb.decompose.assignment import NodeAtomAssigner
+from mofbb.decompose.bonding import read_bonded_structure
+from mofbb.decompose.cleanup import TerminalAbsorber
+from mofbb.decompose.fragments import FragmentBuilder, connected_components
+from mofbb.decompose.linker import OrganicLinkerSplitter
+from mofbb.decompose.object import Fragment
+from mofbb.decompose.pbc import (
     PeriodicBond,
     periodic_bonds,
     select_periodic_component_cuts,
 )
-from .ports import LogicalPortAssigner
-from .results import NodeEdgeDecompositionResult
-from .solvent import MofidSolventRemover, SolventMode, SolventRemovalResult
-from .topology import NodeEdgeTopologyBuilder
+from mofbb.decompose.ports import LogicalPortAssigner
+from mofbb.decompose.results import NodeEdgeDecompositionResult
+from mofbb.decompose.solvent import MofidSolventRemover, SolventMode, SolventRemovalResult
+from mofbb.decompose.symmetry import AtomicSymmetry, PeriodicBondOrbitClosure
+from mofbb.decompose.topology import NodeEdgeTopologyBuilder
+
+
+@dataclass
+class FragmentGroups:
+    """Role-specific fragments carried through topology cleanup."""
+
+    metal: list[Fragment]
+    organic: list[Fragment]
+    edges: list[Fragment]
+    bound: list[Fragment]
+
+    def all(self) -> list[Fragment]:
+        return [*self.metal, *self.organic, *self.edges, *self.bound]
+
+
+def _symmetry_closed_records(
+    selected: list[PeriodicBond],
+    source_records: tuple[PeriodicBond, ...],
+    rotations: np.ndarray,
+    atom_maps: np.ndarray,
+    atom_images: np.ndarray,
+) -> list[PeriodicBond]:
+    """Close selected bonds under bond-preserving source symmetry operations."""
+
+    symmetry = AtomicSymmetry(
+        "P1",
+        rotations,
+        np.zeros((len(rotations), 3), dtype=float),
+        atom_maps,
+        atom_images,
+    )
+    return PeriodicBondOrbitClosure(source_records, symmetry).close(selected)
 
 
 class NodeEdgeDecomposer:
@@ -54,125 +90,185 @@ class NodeEdgeDecomposer:
 
     def decompose(self) -> NodeEdgeDecompositionResult:
         """Run the node/edge decomposition workflow."""
+        metal_ids, organic_ids, boundary_pairs = self._roles()
+        source_bonds = periodic_bonds(self.atoms, self.bonds)
+        symmetry = AtomicSymmetry.detect(self.atoms)
+        closure = PeriodicBondOrbitClosure(source_bonds, symmetry)
+        cuts, organic_cuts = self._periodic_cuts(
+            metal_ids,
+            organic_ids,
+            source_bonds,
+            closure,
+        )
+        builder, groups, records = self._build_groups(
+            metal_ids,
+            organic_ids,
+            boundary_pairs,
+            source_bonds,
+            cuts,
+            organic_cuts,
+        )
+        self._assign_topology(groups.all(), records, source_bonds)
+        groups, records = self._absorb_terminal(builder, groups, records)
+        vertices, edges = self._assign_topology(
+            groups.all(),
+            records,
+            source_bonds,
+        )
+        return NodeEdgeDecompositionResult(
+            name=self.cif.stem,
+            cell_parameters=tuple(
+                float(value) for value in cell_to_cellpar(self.atoms.cell)
+            ),
+            topology_vertices=vertices,
+            topology_edges=edges,
+            metal_node_fragments=groups.metal,
+            organic_node_fragments=groups.organic,
+            edge_fragments=groups.edges,
+            bound_linker_fragments=groups.bound,
+            solvent_mode=self.solvent_mode,
+            solvent=self.solvent,
+            selected_to_original=self.selected_to_original,
+            connection_records=records,
+            assembly_spacegroup=symmetry.symbol,
+            assembly_rotations=symmetry.rotations,
+            assembly_translations=symmetry.translations,
+            assembly_atom_maps=symmetry.atom_maps,
+            assembly_atom_images=symmetry.atom_images,
+        )
 
-        metal_node_indices = set(
+    def _roles(self) -> tuple[set[int], set[int], tuple[tuple[int, int], ...]]:
+        metal = set(
             NodeAtomAssigner(
                 self.symbols,
                 self.bonds,
                 absorb_one_port_regions=self.solvent_mode != "free",
             ).assign()
         )
-        organic_indices = set(range(len(self.atoms))) - metal_node_indices
-        connecting_bonds = tuple(
+        organic = set(range(len(self.atoms))) - metal
+        boundary = tuple(
             pair
             for pair in self.bonds.pairs
-            if (pair[0] in metal_node_indices) != (pair[1] in metal_node_indices)
+            if (pair[0] in metal) != (pair[1] in metal)
         )
-        source_records = periodic_bonds(self.atoms, self.bonds)
+        return metal, organic, boundary
+
+    def _build_groups(
+        self,
+        metal: set[int],
+        organic: set[int],
+        boundary_pairs: tuple[tuple[int, int], ...],
+        source: tuple[PeriodicBond, ...],
+        cuts: list[PeriodicBond],
+        organic_cuts: list[PeriodicBond],
+    ) -> tuple[FragmentBuilder, FragmentGroups, tuple[PeriodicBond, ...]]:
+        boundary_ids = set(boundary_pairs)
+        boundary = tuple(bond for bond in source if bond.pair in boundary_ids)
+        initial = tuple(sorted((*boundary, *cuts)))
+        builder = FragmentBuilder(
+            self.atoms,
+            self.bonds,
+            self.symbols,
+            x_symbol=self.x_symbol,
+            source_records=source,
+        )
+        metals = builder.build_role_fragments("node", metal, initial)
+        linkers = builder.build_role_fragments("linker", organic, initial)
+        bound, linkers = self._partition_bound_linkers(linkers)
+        for fragment in metals:
+            fragment.kind = "metal_node"
+
+        split = OrganicLinkerSplitter(
+            self.atoms,
+            self.bonds,
+            self.symbols,
+            x_symbol=self.x_symbol,
+            source_records=source,
+        ).split(
+            linkers,
+            tuple(
+                sorted(
+                    (
+                        *boundary_pairs,
+                        *(bond.pair for bond in organic_cuts),
+                    )
+                )
+            ),
+        )
+        organic_pairs = set(split.organic_connecting_bonds)
+        organic_bonds = tuple(
+            bond for bond in source if bond.pair in organic_pairs
+        )
+        records = tuple(sorted((*boundary, *organic_bonds, *cuts)))
+        groups = FragmentGroups(
+            metals,
+            split.organic_node_fragments,
+            split.edge_fragments,
+            bound,
+        )
+        return builder, groups, records
+
+    @staticmethod
+    def _absorb_terminal(
+        builder: FragmentBuilder,
+        groups: FragmentGroups,
+        records: tuple[PeriodicBond, ...],
+    ) -> tuple[FragmentGroups, tuple[PeriodicBond, ...]]:
+        metal, organic, edges, records = TerminalAbsorber(
+            builder,
+            groups.metal,
+            groups.organic,
+            groups.edges,
+            groups.bound,
+            records,
+        ).run()
+        return FragmentGroups(metal, organic, edges, groups.bound), records
+
+    def _periodic_cuts(
+        self,
+        metal_indices: set[int],
+        organic_indices: set[int],
+        source_records: tuple[PeriodicBond, ...],
+        closure: PeriodicBondOrbitClosure,
+    ) -> tuple[list[PeriodicBond], list[PeriodicBond]]:
         periodic_cuts: list[PeriodicBond] = []
         organic_periodic_cuts: list[PeriodicBond] = []
-        metal_components = connected_components(metal_node_indices, self.bonds.pairs)
-        organic_components = connected_components(organic_indices, self.bonds.pairs)
-        for components, fast in (
-            (metal_components, False),
-            (organic_components, True),
-        ):
-            for component, selection in select_periodic_component_cuts(
+        component_groups = (
+            (connected_components(metal_indices, self.bonds.pairs), False),
+            (connected_components(organic_indices, self.bonds.pairs), True),
+        )
+        for components, fast in component_groups:
+            selections = select_periodic_component_cuts(
                 self.atoms,
                 self.bonds,
                 self.symbols,
                 components,
                 source_records,
                 fast=fast,
-            ):
+            )
+            for _, selection in selections:
                 periodic_cuts.extend(selection.cuts)
                 if fast:
                     organic_periodic_cuts.extend(selection.cuts)
+        return closure.close(periodic_cuts), closure.close(organic_periodic_cuts)
 
-        boundary_pairs = set(connecting_bonds)
-        boundary_records = tuple(
-            record for record in source_records if record.pair in boundary_pairs
-        )
-        initial_connection_records = tuple(sorted((*boundary_records, *periodic_cuts)))
-
-        fragment_builder = FragmentBuilder(
-            self.atoms,
-            self.bonds,
-            self.symbols,
-            x_symbol=self.x_symbol,
-            source_records=source_records,
-        )
-        raw_metal_nodes = fragment_builder.build_role_fragments(
-            "node", metal_node_indices, initial_connection_records
-        )
-        raw_organics = fragment_builder.build_role_fragments(
-            "linker", organic_indices, initial_connection_records
-        )
-        bound_linkers, raw_organics = self._partition_bound_linkers(raw_organics)
-
-        for fragment in raw_metal_nodes:
-            fragment.kind = "metal_node"
-        metal_node_fragments = raw_metal_nodes
-        organic_split = OrganicLinkerSplitter(
-            self.atoms,
-            self.bonds,
-            self.symbols,
-            x_symbol=self.x_symbol,
-            source_records=source_records,
-        ).split(
-            raw_organics,
-            tuple(
-                sorted(
-                    (
-                        *connecting_bonds,
-                        *(record.pair for record in organic_periodic_cuts),
-                    )
-                )
-            ),
-        )
-        organic_pairs = set(organic_split.organic_connecting_bonds)
-        organic_records = tuple(
-            record for record in source_records if record.pair in organic_pairs
-        )
-        connection_records = tuple(
-            sorted((*boundary_records, *organic_records, *periodic_cuts))
-        )
-        fragments = [
-            *metal_node_fragments,
-            *organic_split.organic_node_fragments,
-            *organic_split.edge_fragments,
-            *bound_linkers,
-        ]
-        topology_vertices, topology_edges = NodeEdgeTopologyBuilder(
+    def _assign_topology(
+        self,
+        fragments: list[Fragment],
+        connection_records: tuple[PeriodicBond, ...],
+        source_records: tuple[PeriodicBond, ...],
+    ):
+        vertices, edges = NodeEdgeTopologyBuilder(
             self.atoms,
             self.bonds,
             source_records=source_records,
-        ).build(
-            fragments,
-            connection_records,
-        )
+        ).build(fragments, connection_records)
         LogicalPortAssigner(
             fragments,
             connection_records,
-            topology_edges,
+            edges,
         ).assign()
-
-        return NodeEdgeDecompositionResult(
-            name=self.cif.stem,
-            cell_parameters=tuple(
-                float(value) for value in cell_to_cellpar(self.atoms.cell)
-            ),
-            topology_vertices=topology_vertices,
-            topology_edges=topology_edges,
-            metal_node_fragments=metal_node_fragments,
-            organic_node_fragments=organic_split.organic_node_fragments,
-            edge_fragments=organic_split.edge_fragments,
-            bound_linker_fragments=bound_linkers,
-            solvent_mode=self.solvent_mode,
-            solvent=self.solvent,
-            selected_to_original=self.selected_to_original,
-            connection_records=connection_records,
-        )
+        return vertices, edges
 
     def _partition_bound_linkers(
         self,

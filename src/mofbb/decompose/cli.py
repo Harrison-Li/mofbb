@@ -7,7 +7,7 @@ import json
 import shutil
 from pathlib import Path
 
-from .decomposer import NodeEdgeDecomposer
+from mofbb.decompose.decomposer import NodeEdgeDecomposer
 
 
 def build_parser() -> argparse.ArgumentParser:

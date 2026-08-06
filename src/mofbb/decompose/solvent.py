@@ -13,10 +13,10 @@ import ase.io
 import numpy as np
 from ase.geometry import cell_to_cellpar
 
-from .assignment import NodeAtomAssigner
-from .bonding import BondNetwork, subset_bonded_structure
-from .fragments import connected_components
-from .pbc import CellShift, periodic_bonds
+from mofbb.decompose.assignment import NodeAtomAssigner
+from mofbb.decompose.bonding import BondNetwork, subset_bonded_structure
+from mofbb.decompose.fragments import connected_components
+from mofbb.decompose.pbc import CellShift, periodic_bonds
 
 SolventMode: TypeAlias = Literal["none", "free", "all"]
 ActiveSolventMode: TypeAlias = Literal["free", "all"]

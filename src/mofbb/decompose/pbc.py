@@ -11,8 +11,8 @@ from typing import TypeAlias
 import numpy as np
 from ase import Atoms
 
-from .bonding import BondNetwork
-from .constants import is_mofid_metal
+from mofbb.decompose.bonding import BondNetwork
+from mofbb.decompose.constants import is_mofid_metal
 
 CellShift: TypeAlias = tuple[int, int, int]
 

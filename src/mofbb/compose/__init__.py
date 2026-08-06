@@ -8,6 +8,7 @@ from typing import Any
 __all__ = [
     "Builder",
     "BuildingBlock",
+    "AbstractTopologyInput",
     "Database",
     "Framework",
     "LocalStructure",
@@ -20,17 +21,21 @@ __all__ = [
 ]
 
 _LAZY_EXPORTS = {
-    "Builder": (".builder", "Builder"),
-    "BuildingBlock": (".building_block", "BuildingBlock"),
-    "Database": (".database", "Database"),
-    "Framework": (".framework", "Framework"),
-    "LocalStructure": (".local_structure", "LocalStructure"),
-    "Locator": (".locator", "Locator"),
-    "Neighbor": (".neighbor", "Neighbor"),
-    "NeighborList": (".neighbor", "NeighborList"),
-    "Reconstructor": (".reconstructor", "Reconstructor"),
-    "Scaler": (".scaler", "Scaler"),
-    "Topology": (".topology", "Topology"),
+    "AbstractTopologyInput": (
+        "mofbb.compose.decomposition",
+        "AbstractTopologyInput",
+    ),
+    "Builder": ("mofbb.compose.builder", "Builder"),
+    "BuildingBlock": ("mofbb.compose.building_block", "BuildingBlock"),
+    "Database": ("mofbb.compose.database", "Database"),
+    "Framework": ("mofbb.compose.framework", "Framework"),
+    "LocalStructure": ("mofbb.compose.local_structure", "LocalStructure"),
+    "Locator": ("mofbb.compose.locator", "Locator"),
+    "Neighbor": ("mofbb.compose.neighbor", "Neighbor"),
+    "NeighborList": ("mofbb.compose.neighbor", "NeighborList"),
+    "Reconstructor": ("mofbb.compose.reconstructor", "Reconstructor"),
+    "Scaler": ("mofbb.compose.scaler", "Scaler"),
+    "Topology": ("mofbb.compose.topology", "Topology"),
 }
 
 
@@ -41,6 +46,6 @@ def __getattr__(name: str) -> Any:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
     module_name, attribute_name = _LAZY_EXPORTS[name]
-    value = getattr(import_module(module_name, __name__), attribute_name)
+    value = getattr(import_module(module_name), attribute_name)
     globals()[name] = value
     return value

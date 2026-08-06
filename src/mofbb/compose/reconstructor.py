@@ -9,8 +9,9 @@ import ase
 import numpy as np
 from ase.geometry import cellpar_to_cell
 
-from .building_block import BuildingBlock
-from .framework import Framework
+from mofbb.compose.building_block import BuildingBlock
+from mofbb.compose.framework import Framework
+from mofbb.compose.utils import wrap_fractional
 
 
 def _read_topology_geometry(path: Path) -> tuple[np.ndarray, list[np.ndarray]]:
@@ -157,7 +158,9 @@ class Reconstructor:
             cell=cell,
             pbc=True,
         )
-        atoms.set_scaled_positions(np.mod(atoms.get_scaled_positions(wrap=False), 1.0))
+        atoms.set_scaled_positions(
+            wrap_fractional(atoms.get_scaled_positions(wrap=False))
+        )
 
         sorted_bonds = sorted(bond_types_by_source_pair.items())
         bonds = np.asarray(

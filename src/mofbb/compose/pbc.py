@@ -138,7 +138,10 @@ class PBC:
         symbol_j: str,
         scale: float | None = None,
     ) -> float:
-        """Return the maximum allowed bond distance after merging the dummy x sites from scaled ASE covalent radii."""
+        """Return the maximum allowed bond distance after merging dummy sites.
+
+        The limit uses scaled ASE covalent radii.
+        """
         if scale is None:
             scale = cls.scale
 
@@ -168,7 +171,8 @@ class PBC:
                 atom_i = x_neighbors[x_i]
                 atom_j = x_neighbors[x_j]
             except KeyError as exc:
-                # No dummy connection sites, the node/edge should has more than 1 X sites, check the decomposed xyz file.
+                # No dummy connection sites: the node/edge should have more
+                # than one X site. Check the decomposed XYZ file.
                 raise ValueError(
                     f"X site {exc.args[0]} does not have a mapped neighbor."
                 ) from exc
@@ -211,12 +215,9 @@ class PBC:
             for offset, node_neighbor in enumerate(
                 topology.neighbor_list[node_index]
             ):
-                displacement = (
-                    node_neighbor.distance_vector
-                    + edge_neighbor.distance_vector
-                )
-
-                if np.linalg.norm(displacement) < 0.01:
+                if node_neighbor.index == edge_index and np.linalg.norm(
+                    node_neighbor.distance_vector + edge_neighbor.distance_vector
+                ) < 0.01:
                     permutation = permutations[node_index]
                     connection_index = (
                         node_bb.connection_point_indices[permutation][offset]

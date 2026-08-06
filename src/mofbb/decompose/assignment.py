@@ -6,8 +6,8 @@ from collections import deque
 
 import networkx as nx
 
-from .bonding import BondNetwork
-from .constants import is_mofid_metal
+from mofbb.decompose.bonding import BondNetwork
+from mofbb.decompose.constants import is_mofid_metal
 
 
 class NodeAtomAssigner:
