@@ -19,7 +19,6 @@ import ase
 import ase.io
 import numpy as np
 
-from mofbb.compose.formats.cgd import read_cgd
 from mofbb.compose.log import logger
 
 # Metal species.
@@ -146,7 +145,7 @@ def wrap_fractional(values, tolerance=1.0e-12):
 
 
 
-def read_budiling_block_xyz(bb_file):
+def read_building_block_xyz(bb_file):
     """Parse a building-block ``.xyz`` file into an :class:`ase.Atoms`.
 
     Reads an extended ``.xyz`` describing a molecular building block:
@@ -170,10 +169,6 @@ def read_budiling_block_xyz(bb_file):
         ``bond_types``. Per-atom partial charges are stored as the
         atoms' initial charges.
 
-    Notes
-    -----
-    The misspelled function name (``budiling``) is intentional and kept
-    for backward compatibility.
     """
     name = Path(bb_file).stem
 

@@ -20,7 +20,7 @@ except ImportError:  # pragma: no cover - compatibility for unusual ASE layouts
     from ase.neighborlist import neighbor_list
     from ase.utils import natural_cutoffs  # type: ignore[attr-defined]
 
-from mofbb.decompose.constants import is_mofid_metal
+from mofbb.decompose.constants import is_metal
 
 
 @dataclass(frozen=True)
@@ -391,7 +391,7 @@ def _prune_carboxylate_extra_neighbors(
             neighbor
             for neighbor in adjacency[atom_index]
             if symbols[neighbor] not in {"H", "O"}
-            and not is_mofid_metal(symbols[neighbor])
+            and not is_metal(symbols[neighbor])
         ]
         if len(extension_neighbors) <= 1:
             continue
@@ -445,7 +445,7 @@ def _prune_coordinating_oxygen_extra_neighbors(
         if symbol != "O":
             continue
         if not any(
-            is_mofid_metal(symbols[neighbor]) for neighbor in adjacency[atom_index]
+            is_metal(symbols[neighbor]) for neighbor in adjacency[atom_index]
         ):
             continue
         carbonyl_neighbors = [
@@ -461,7 +461,7 @@ def _prune_coordinating_oxygen_extra_neighbors(
         nonmetal_neighbors = [
             neighbor
             for neighbor in adjacency[atom_index]
-            if symbols[neighbor] != "H" and not is_mofid_metal(symbols[neighbor])
+            if symbols[neighbor] != "H" and not is_metal(symbols[neighbor])
         ]
         if len(nonmetal_neighbors) <= 1:
             continue
@@ -566,9 +566,9 @@ def _metal_nonmetal_pair(
     i: int,
     j: int,
 ) -> tuple[int | None, int | None]:
-    if is_mofid_metal(symbols[i]) and not is_mofid_metal(symbols[j]):
+    if is_metal(symbols[i]) and not is_metal(symbols[j]):
         return i, j
-    if is_mofid_metal(symbols[j]) and not is_mofid_metal(symbols[i]):
+    if is_metal(symbols[j]) and not is_metal(symbols[i]):
         return j, i
     return None, None
 

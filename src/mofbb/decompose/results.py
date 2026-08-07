@@ -9,20 +9,15 @@ from pathlib import Path
 
 import numpy as np
 
+from mofbb.decompose.export.cgd import CgdWriter, edge_types
+from mofbb.decompose.export.legacy import LegacyMap, fragment_instance_path
+from mofbb.decompose.export.ports import PortMapper
+from mofbb.decompose.export.symmetry import SymmetryBuilder
 from mofbb.decompose.object import Fragment, TopologyEdge, TopologyVertex
 from mofbb.decompose.pbc import PeriodicBond
 from mofbb.decompose.solvent import SolventMode, SolventRemovalResult
 from mofbb.decompose.symmetry import AtomicSymmetry, SpaceGroupOperations, TopologySymmetry
 from mofbb.decompose.topology import EdgeTopologyContractor
-from mofbb.decompose.export import (
-    CgdWriter,
-    LegacyMap,
-    PortMapper,
-    SymmetryBuilder,
-    edge_types,
-    fit_cell as _symmetry_compatible_cell_parameters,
-    fragment_instance_path,
-)
 
 
 def logical_port_partition(fragment: Fragment) -> tuple[tuple[int, ...], ...]:

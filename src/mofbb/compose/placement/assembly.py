@@ -80,7 +80,7 @@ class FrameworkAssembler:
         bond_types = []
         for raw_edge_index in self.topology.edge_indices:
             edge_index = int(raw_edge_index)
-            x_i, x_j = self.pbc._find_matched_x_sites(
+            x_i, x_j = self.pbc.find_matched_x_sites(
                 self.source_topology,
                 self.blocks,
                 self.permutations,

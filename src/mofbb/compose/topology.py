@@ -9,7 +9,6 @@ edge types, exposes each slot's local structure for the
 populates it with real building blocks.
 """
 import copy
-import functools
 import os
 import sys
 import traceback
@@ -19,10 +18,10 @@ import ase
 import ase.visualize
 import numpy as np
 
+from mofbb.compose.formats.cgd import read_cgd
 from mofbb.compose.local_structure import LocalStructure
 from mofbb.compose.log import logger
 from mofbb.compose.neighbor import NeighborList
-from mofbb.compose.utils import read_cgd
 
 
 class Topology:
@@ -401,27 +400,15 @@ class Topology:
         return self._edge_types
 
     @property
-    def n_all_points(self):
-        """Return the total number of slots in the net.
-
-        Returns
-        -------
-        int
-            Count of all atoms in ``self.atoms``, i.e. nodes plus
-            edge-centers.
-        """
-        return len(self.atoms)
-
-    @property
     def n_slots(self):
-        """Return the number of fillable slots (alias of ``n_all_points``).
+        """Return the number of fillable slots.
 
         Returns
         -------
         int
             Total node and edge-center slots a building block can occupy.
         """
-        return self.n_all_points
+        return len(self.atoms)
 
     @property
     def node_indices(self):
@@ -1000,86 +987,95 @@ class Topology:
                 out.append(inner)
             return out
 
-        # Alias for print function.
-        p = functools.partial(print, file=file)
+        print("=" * 79, file=file)
+        print("Topology %s" % self.name, file=file)
+        print("Spacegroup: %s" % self.spacegroup, file=file)
+        print("-" * 79, file=file)
 
-        p("=" * 79)
-        p("Topology %s" % self.name)
-        p("Spacegroup: %s" % self.spacegroup)
-        p("-" * 79)
-
-        p(
+        print(
             "# of slots: %d (%d nodes, %d edges)"
-            % (self.n_slots, self.n_nodes, self.n_edges)
+            % (self.n_slots, self.n_nodes, self.n_edges),
+            file=file,
         )
-        p("# of node types: %d" % self.n_node_types)
-        p("# of edge types: %d" % self.n_edge_types)
-        p("")
+        print("# of node types: %d" % self.n_node_types, file=file)
+        print("# of edge types: %d" % self.n_edge_types, file=file)
+        print("", file=file)
 
-        p("-" * 79)
-        p("Node type information")
-        p("-" * 79)
+        print("-" * 79, file=file)
+        print("Node type information", file=file)
+        print("-" * 79, file=file)
         for t, cn in zip(self.unique_node_types, self.unique_cn):
-            p("Node type: %d, CN: %d" % (t, cn))
+            print("Node type: %d, CN: %d" % (t, cn), file=file)
             indices = np.argwhere(self.node_types == t).reshape(-1).tolist()
             split_indices = split_list(indices, 10)
-            p("  slot indices: %s" % comma_numbers(split_indices[0]))
+            print(
+                "  slot indices: %s" % comma_numbers(split_indices[0]),
+                file=file,
+            )
             for indices in split_indices[1:]:
-                p("                %s" % comma_numbers(indices))
-        p("")
+                print("                %s" % comma_numbers(indices), file=file)
+        print("", file=file)
 
-        p("-" * 79)
-        p("Edge type information (adjacent node types) ")
-        p("-" * 79)
+        print("-" * 79, file=file)
+        print("Edge type information (adjacent node types) ", file=file)
+        print("-" * 79, file=file)
         for t in self.unique_edge_types:
-            p("Edge type: (%d, %d)" % (*t,))
+            print("Edge type: (%d, %d)" % (*t,), file=file)
             condition = self.edge_types == t
             condition = np.all(condition, axis=1)
             indices = np.argwhere(condition).reshape(-1).tolist()
             split_indices = split_list(indices, 10)
-            p("  slot indices: %s" % comma_numbers(split_indices[0]))
+            print(
+                "  slot indices: %s" % comma_numbers(split_indices[0]),
+                file=file,
+            )
             for indices in split_indices[1:]:
-                p("                %s" % comma_numbers(indices))
+                print("                %s" % comma_numbers(indices), file=file)
 
         if symmetry_edge_type:
-            p("")
-            p("-" * 79)
-            p("Edge type information (symmetry) ")
-            p("-" * 79)
+            print("", file=file)
+            print("-" * 79, file=file)
+            print("Edge type information (symmetry) ", file=file)
+            print("-" * 79, file=file)
             for t in np.unique(-self.node_types[self.edge_indices]):
                 t = -t
-                p("Edge type: %d" % t)
+                print("Edge type: %d" % t, file=file)
                 condition = self.node_types == t
                 indices = np.argwhere(condition).reshape(-1).tolist()
                 split_indices = split_list(indices, 10)
-                p("  slot indices: %s" % comma_numbers(split_indices[0]))
+                print(
+                    "  slot indices: %s" % comma_numbers(split_indices[0]),
+                    file=file,
+                )
                 for indices in split_indices[1:]:
-                    p("                %s" % comma_numbers(indices))
+                    print("                %s" % comma_numbers(indices), file=file)
 
         if slot_info:
-            p("")
-            p("-" * 79)
-            p("Slot information")
-            p("-" * 79)
+            print("", file=file)
+            print("-" * 79, file=file)
+            print("Slot information", file=file)
+            print("-" * 79, file=file)
             for i in range(self.n_slots):
-                p("[Slot %d]" % i, end=" ")
+                print("[Slot %d]" % i, end=" ", file=file)
                 adjacent_slot_indices = comma_numbers(
                     [n.index for n in self.neighbor_list[i]]
                 )
                 if i in self.node_indices:
                     cn = self.cn[i]
-                    p(
+                    print(
                         "node type: %d, CN: %d, adjecent slot: %s"
-                        % (self.node_types[i], cn, adjacent_slot_indices)
+                        % (self.node_types[i], cn, adjacent_slot_indices),
+                        file=file,
                     )
                 if i in self.edge_indices:
-                    p(
+                    print(
                         "edge type: (%d, %d) or %d, adjecent slot: %s"
                         % (
                             *self.edge_types[i],
                             self.node_types[i],
                             adjacent_slot_indices,
-                        )
+                        ),
+                        file=file,
                     )
 
-        p("=" * 79)
+        print("=" * 79, file=file)

@@ -18,7 +18,7 @@ from mofbb.compose.local_structure import LocalStructure
 from mofbb.compose.log import logger
 from mofbb.compose.utils import (
     METAL_LIKE,
-    read_budiling_block_xyz,
+    read_building_block_xyz,
     write_molecule_cif,
 )
 
@@ -153,7 +153,7 @@ class BuildingBlock:
 
     def __init__(self, bb_file, local_structure_func=None):
         """Read a building block from an ``.xyz`` file."""
-        self.atoms = read_budiling_block_xyz(bb_file)
+        self.atoms = read_building_block_xyz(bb_file)
         self.name = self.atoms.info["name"]
         self.connection_point_indices = np.array(self.atoms.info["cpi"])
         self._bonds = self.atoms.info["bonds"]

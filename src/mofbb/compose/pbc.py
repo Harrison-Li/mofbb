@@ -197,7 +197,7 @@ class PBC:
             if distance > limit
         ]
 
-    def _find_matched_x_sites(
+    def find_matched_x_sites(
         self,
         topology,
         bbs,
@@ -233,8 +233,8 @@ class PBC:
         return tuple(matched)
 
     @staticmethod
-    def _connection_port(
-        bb, # building block
+    def connection_port(
+        bb,  # building block
         x_index: int,
     ) -> tuple[str, int, float]:
         """Return an X site's anchor symbol, anchor index, and cap length."""

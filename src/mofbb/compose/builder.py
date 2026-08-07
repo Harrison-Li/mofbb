@@ -8,7 +8,10 @@ import numpy as np
 from mofbb.compose.edge import Edge
 from mofbb.compose.locator import Locator
 from mofbb.compose.pbc import PBC
-from mofbb.compose.placement import BlockPlacement, CellClosure, FrameworkAssembler, SlotAssignment
+from mofbb.compose.placement.assembly import FrameworkAssembler
+from mofbb.compose.placement.blocks import BlockPlacement
+from mofbb.compose.placement.closure import CellClosure
+from mofbb.compose.placement.slots import SlotAssignment
 from mofbb.compose.scaler import Scaler
 
 

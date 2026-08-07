@@ -10,7 +10,7 @@ from ase.geometry import cell_to_cellpar
 
 from mofbb.decompose.assignment import NodeAtomAssigner
 from mofbb.decompose.bonding import read_bonded_structure
-from mofbb.decompose.cleanup import TerminalAbsorber
+from mofbb.decompose.cleanup.terminal import TerminalAbsorber
 from mofbb.decompose.fragments import FragmentBuilder, connected_components
 from mofbb.decompose.linker import OrganicLinkerSplitter
 from mofbb.decompose.object import Fragment

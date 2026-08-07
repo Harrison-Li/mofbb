@@ -12,7 +12,7 @@ import numpy as np
 from ase import Atoms
 
 from mofbb.decompose.bonding import BondNetwork
-from mofbb.decompose.constants import is_mofid_metal
+from mofbb.decompose.constants import is_metal
 
 CellShift: TypeAlias = tuple[int, int, int]
 
@@ -350,8 +350,8 @@ class PeriodicCutSelector:
         left, right = self.symbols[record.i], self.symbols[record.j]
         if "H" in {left, right}:
             return 4
-        left_metal = is_mofid_metal(left)
-        right_metal = is_mofid_metal(right)
+        left_metal = is_metal(left)
+        right_metal = is_metal(right)
         if left_metal and right_metal:
             return 0
         if left_metal != right_metal and ({left, right} & {"O", "N", "S"}):

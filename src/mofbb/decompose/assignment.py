@@ -7,7 +7,7 @@ from collections import deque
 import networkx as nx
 
 from mofbb.decompose.bonding import BondNetwork
-from mofbb.decompose.constants import is_mofid_metal
+from mofbb.decompose.constants import is_metal
 
 
 class NodeAtomAssigner:
@@ -69,7 +69,7 @@ class NodeAtomAssigner:
         return frozenset(nodes)
 
     def _seed_node_atoms(self) -> set[int]:
-        nodes = {i for i, symbol in enumerate(self.symbols) if is_mofid_metal(symbol)}
+        nodes = {i for i, symbol in enumerate(self.symbols) if is_metal(symbol)}
         for metal in list(nodes):
             nodes.update(self.bonds.adjacency[metal])
         return nodes
@@ -222,7 +222,7 @@ class NodeAtomAssigner:
     def _calculate_nonmetal_ring(self, a: int, b: int) -> set[int]:
         graph = nx.Graph()
         for i, j in self.bonds.pairs:
-            if is_mofid_metal(self.symbols[i]) or is_mofid_metal(self.symbols[j]):
+            if is_metal(self.symbols[i]) or is_metal(self.symbols[j]):
                 continue
             if {i, j} == {a, b}:
                 continue

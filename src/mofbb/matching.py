@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Literal
 
 import networkx as nx
 
-from mofbb.decompose.constants import is_mofid_metal
+from mofbb.decompose.constants import is_metal
 
 if TYPE_CHECKING:
     from mofbb.compose.building_block import BuildingBlock
@@ -92,7 +92,7 @@ class BuildingBlockGraph:
             if symbols.count("X") == 2:
                 kind = "edge"
             elif any(
-                symbol != "X" and is_mofid_metal(symbol)
+                symbol != "X" and is_metal(symbol)
                 for symbol in symbols
             ):
                 kind = "metal_node"

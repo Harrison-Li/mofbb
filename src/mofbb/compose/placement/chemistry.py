@@ -115,14 +115,14 @@ class PortRules:
         block = self.blocks[edge]
         if block is None:
             return True
-        node_x = self.pbc._find_matched_x_sites(
+        node_x = self.pbc.find_matched_x_sites(
             self.topology,
             placed,
             perms,
             edge,
         )
         node_symbols = [
-            self.pbc._connection_port(placed[near.index], x)[0]
+            self.pbc.connection_port(placed[near.index], x)[0]
             for near, x in zip(
                 self.topology.neighbor_list[edge],
                 node_x,
@@ -154,7 +154,7 @@ class PortRules:
         """Reject assigned ports that predict forbidden or overlong bonds."""
         for raw_edge in self.topology.edge_indices:
             edge = int(raw_edge)
-            node_x_i, node_x_j = self.pbc._find_matched_x_sites(
+            node_x_i, node_x_j = self.pbc.find_matched_x_sites(
                 self.topology,
                 placed,
                 perms,
@@ -173,8 +173,8 @@ class PortRules:
                     (block, int(edge_x_j), node_j, node_x_j),
                 )
             for left, x_i, right, x_j in pairs:
-                symbol_i, _, cap_i = self.pbc._connection_port(left, x_i)
-                symbol_j, _, cap_j = self.pbc._connection_port(right, x_j)
+                symbol_i, _, cap_i = self.pbc.connection_port(left, x_i)
+                symbol_j, _, cap_j = self.pbc.connection_port(right, x_j)
                 if self.pbc.is_carbon_metal_pair(symbol_i, symbol_j):
                     raise ValueError(
                         "Forbidden fused-bond chemistry rejected assembly: "

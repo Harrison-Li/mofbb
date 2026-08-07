@@ -19,7 +19,7 @@ class BlockPlacement:
     ----------
     assignment : SlotAssignment
         Completed slot-assignment stage with symmetry and port information.
-    closure : FixedCellClosure
+    closure : CellClosure
         Completed closure stage with the current blocks and permutations.
     scaler, edge_factory
         Geometry helpers used when the source cell was not closed directly.
@@ -147,7 +147,7 @@ class BlockPlacement:
         neighbor_i, neighbor_j = self.topology.neighbor_list[edge_index]
         block_i = self.blocks[neighbor_i.index]
         block_j = self.blocks[neighbor_j.index]
-        x_i, x_j = self.pbc._find_matched_x_sites(
+        x_i, x_j = self.pbc.find_matched_x_sites(
             self.source_topology, self.blocks, self.permutations, edge_index
         )
         point_i = block_i.atoms.positions[x_i]

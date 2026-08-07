@@ -30,7 +30,7 @@ MOFID_NONMETALS: frozenset[str] = frozenset(
 )
 
 
-def is_mofid_metal(symbol: str) -> bool:
+def is_metal(symbol: str) -> bool:
     """Return whether MOFid classifies an element as a metal."""
 
     return symbol not in MOFID_NONMETALS

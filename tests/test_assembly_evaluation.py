@@ -23,15 +23,10 @@ evaluation = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = evaluation
 SPEC.loader.exec_module(evaluation)
 
-bond_network_from_pairs = evaluation.bond_network_from_pairs
-component_rank_profile = evaluation.component_rank_profile
-connectivity_report = evaluation.connectivity_report
-graphs_are_isomorphic = evaluation.graphs_are_isomorphic
-rotate_building_block = evaluation.rotate_building_block
 from mofbb.compose import Builder, BuildingBlock, Locator, Topology
-from mofbb.compose.fixed_cell import FixedCellClosure
 from mofbb.compose.locator import find_best_permutation
 from mofbb.compose.pbc import PBC
+from mofbb.compose.placement.closure import CellClosure
 from mofbb.decompose.object import TopologyEdge, TopologyVertex
 from mofbb.decompose.results import _write_topology_cgd
 
@@ -187,7 +182,7 @@ def test_rigid_bb_rotation_preserves_centroid_and_internal_distances(
     initial_centroid = block.centroid.copy()
     initial_distances = block.atoms.get_all_distances()
 
-    matrix = rotate_building_block(
+    matrix = evaluation.rotate_building_block(
         block,
         Rotation.from_euler("xyz", [31.0, -17.0, 73.0], degrees=True),
     )
@@ -207,7 +202,7 @@ def test_high_coordination_locator_is_rotation_invariant(tmp_path: Path) -> None
     target = block.local_structure()
     reference, reference_permutation, _ = Locator().locate(target, block, 3)
     rotated = block.copy()
-    rotate_building_block(
+    evaluation.rotate_building_block(
         rotated,
         Rotation.from_euler("xyz", [41.0, -23.0, 67.0], degrees=True),
     )
@@ -316,7 +311,7 @@ def test_joint_edge_orientation_finds_topology_only_port_assignment(
         overlap_scale=0.0,
     )
     for index, block in enumerate((left, right, edge), start=1):
-        rotate_building_block(
+        evaluation.rotate_building_block(
             block,
             Rotation.from_rotvec(np.array([0.2, -0.3, 0.4]) * index),
         )
@@ -361,7 +356,7 @@ def test_joint_direct_edge_assignment_avoids_carbon_metal(
 
 
 def test_port_milp_uses_current_global_gap_costs() -> None:
-    closure = object.__new__(FixedCellClosure)
+    closure = object.__new__(CellClosure)
     closure.slot_indices = [0, 1]
     closure.slot_offsets = {0: 0, 1: 1}
     closure.connections = [(0, 0, 1, 0, np.zeros(3))]
@@ -390,7 +385,7 @@ def test_port_milp_uses_current_global_gap_costs() -> None:
 
 
 def test_fixed_cell_pose_fit_jointly_rotates_and_translates_nodes() -> None:
-    closure = object.__new__(FixedCellClosure)
+    closure = object.__new__(CellClosure)
     closure.slot_indices = closure.node_indices = [0, 1]
     closure.edge_indices = []
     closure.slot_offsets = {0: 0, 1: 1}
@@ -441,24 +436,24 @@ def test_element_graph_isomorphism_detects_rewiring_with_equal_counts() -> None:
         cell=[10.0, 10.0, 10.0],
         pbc=True,
     )
-    reference = bond_network_from_pairs(
+    reference = evaluation.bond_network_from_pairs(
         atoms,
         [(0, 1), (1, 2), (2, 3)],
         ["S", "S", "S"],
     )
-    rewired = bond_network_from_pairs(
+    rewired = evaluation.bond_network_from_pairs(
         atoms,
         [(0, 2), (2, 1), (1, 3)],
         ["S", "S", "S"],
     )
 
     assert len(reference.pairs) == len(rewired.pairs)
-    assert not graphs_are_isomorphic(atoms, reference, atoms, rewired)
-    assert not graphs_are_isomorphic(
+    assert not evaluation.graphs_are_isomorphic(atoms, reference, atoms, rewired)
+    assert not evaluation.graphs_are_isomorphic(
         atoms, reference, atoms, rewired, include_bond_types=True
     )
 
-    report = connectivity_report(atoms, reference, atoms, rewired)
+    report = evaluation.connectivity_report(atoms, reference, atoms, rewired)
     assert report["atom_count_match"]
     assert report["bond_count_match"]
     assert not report["element_graph_isomorphic"]
@@ -477,7 +472,7 @@ def test_periodic_rank_profile_distinguishes_3d_from_finite_network() -> None:
         cell=[10.0, 10.0, 10.0],
         pbc=True,
     )
-    finite = bond_network_from_pairs(
+    finite = evaluation.bond_network_from_pairs(
         atoms,
         [(0, 1), (0, 2), (0, 3)],
         ["S", "S", "S"],
@@ -506,8 +501,8 @@ def test_periodic_rank_profile_distinguishes_3d_from_finite_network() -> None:
         bond_types=bond_types,
     )
 
-    assert component_rank_profile(atoms, finite) == [0]
-    assert component_rank_profile(atoms, periodic) == [3]
+    assert evaluation.component_rank_profile(atoms, finite) == [0]
+    assert evaluation.component_rank_profile(atoms, periodic) == [3]
 
 
 def test_writer_emits_source_subgroup_and_retains_net_group(tmp_path: Path):
