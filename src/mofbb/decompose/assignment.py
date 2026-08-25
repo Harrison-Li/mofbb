@@ -228,10 +228,9 @@ class NodeAtomAssigner:
                 continue
             graph.add_edge(i, j)
 
-        try:
-            path = nx.shortest_path(graph, a, b)
-        except (nx.NetworkXNoPath, nx.NodeNotFound):
+        if a not in graph or b not in graph or not nx.has_path(graph, a, b):
             return set()
+        path = nx.shortest_path(graph, a, b)
 
         if len(path) > 6:
             return set()

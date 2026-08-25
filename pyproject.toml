@@ -11,11 +11,14 @@ requires-python = ">=3.10"
 authors = [{name = "Bo Li"}]
 dependencies = [
   "ase>=3.22",
+  "igraph>=0.11",
   "networkx>=3.0",
   "numpy>=1.23",
   "pymatgen>=2024.1",
   "scipy>=1.10",
   "spglib>=2.0",
+  "sympy>=1.12",
+  "threadpoolctl>=3.1",
 ]
 
 [project.optional-dependencies]

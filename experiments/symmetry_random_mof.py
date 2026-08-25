@@ -40,6 +40,12 @@ POINT_GROUP_TOLERANCE = 0.3
 POINT_GROUP_EIGEN_TOLERANCE = 0.01
 POINT_GROUP_MATRIX_TOLERANCE = 0.1
 EDGE_POINT_GROUP = "D*h"
+GRAPH_SYMMETRY_BASIS = "element_and_bond_labeled_graph_automorphism"
+GRAPH_SYMMETRY_FIELDS = (
+    "symmetry_basis",
+    "graph_port_automorphism_order",
+    "graph_supports_port_point_group",
+)
 
 
 @dataclass(frozen=True)
@@ -72,6 +78,9 @@ class BlockRecord:
     molecular_point_group: str
     chirality: str
     linker_end_equivalence: str
+    symmetry_basis: str | None
+    graph_port_automorphism_order: int | None
+    graph_supports_port_point_group: str | None
     sha256: str
 
 
@@ -117,7 +126,7 @@ def configure_quiet_builder_logging() -> None:
 def load_block_pools(
     config: GenerationConfig,
 ) -> tuple[dict[tuple[str, int, str], list[BlockRecord]], Counter[str]]:
-    """Load blocks whose port and molecular symmetries strictly agree."""
+    """Load symmetry-eligible blocks, bucketed by geometric port point group."""
 
     pools: dict[tuple[str, int, str], list[BlockRecord]] = defaultdict(list)
     skipped: Counter[str] = Counter()
@@ -129,10 +138,25 @@ def load_block_pools(
                 num_atoms = int(row["num_atoms"])
                 path = Path(row["output_path"])
                 point_group = row["port_point_group"]
-                molecular_group = row["molecular_point_group"]
             except (KeyError, TypeError, ValueError):
                 skipped["malformed_manifest_row"] += 1
                 continue
+
+            graph_fields_present = any(field in row for field in GRAPH_SYMMETRY_FIELDS)
+            graph_metadata: tuple[str, int, str] | None = None
+            if graph_fields_present:
+                try:
+                    basis = row["symmetry_basis"].strip()
+                    graph_order = int(row["graph_port_automorphism_order"])
+                    supports_value = (
+                        row["graph_supports_port_point_group"].strip().lower()
+                    )
+                    if supports_value not in {"true", "false", "unclassified"}:
+                        raise ValueError
+                    graph_metadata = (basis, graph_order, supports_value)
+                except (KeyError, AttributeError, TypeError, ValueError):
+                    skipped["malformed_graph_symmetry"] += 1
+                    continue
 
             if row.get("classification_status") != "complete":
                 skipped["incomplete_symmetry_classification"] += 1
@@ -147,26 +171,39 @@ def load_block_pools(
             if num_atoms > atom_limit:
                 skipped["atom_limit"] += 1
                 continue
-            if (
-                point_group in {"C1", "unclassified"}
-                or molecular_group in {"C1", "unclassified"}
-            ):
-                skipped["trivial_or_unclassified_symmetry"] += 1
-                continue
+            if graph_metadata is not None:
+                basis, graph_order, graph_supports_port_group = graph_metadata
+                if basis != GRAPH_SYMMETRY_BASIS:
+                    skipped["unsupported_symmetry_basis"] += 1
+                    continue
+                # Reversal is an independent placement orientation for an
+                # edge.  Only nodes are globally gated by their intrinsic
+                # induced port action here.
+                if kind != "edge":
+                    if graph_order <= 1:
+                        skipped["trivial_graph_port_automorphism"] += 1
+                        continue
+                    if graph_supports_port_group != "true":
+                        skipped["graph_does_not_support_port_point_group"] += 1
+                        continue
+            else:
+                # Legacy cache manifests contain only conformer-derived fields.
+                # Their accepted rows were already symmetry-filtered by the cache
+                # producer, so retain them without re-imposing molecular equality.
+                basis = None
+                graph_order = None
+                graph_supports_port_group = None
+                if point_group in {"C1", "unclassified"}:
+                    skipped["legacy_trivial_or_unclassified_port_symmetry"] += 1
+                    continue
             if kind == "edge" and (
                 coordination != 2
                 or point_group != EDGE_POINT_GROUP
-                or molecular_group != EDGE_POINT_GROUP
-                or row.get("chirality") != "achiral"
-                or row.get("linker_end_equivalence") != "equivalent"
             ):
                 skipped["edge_symmetry"] += 1
                 continue
             if kind != "edge" and coordination < 3:
                 skipped["node_coordination"] += 1
-                continue
-            if kind != "edge" and point_group != molecular_group:
-                skipped["node_symmetry_mismatch"] += 1
                 continue
 
             record = BlockRecord(
@@ -177,9 +214,14 @@ def load_block_pools(
                 num_atoms=num_atoms,
                 coordination=coordination,
                 port_point_group=point_group,
-                molecular_point_group=molecular_group,
-                chirality=row["chirality"],
-                linker_end_equivalence=row["linker_end_equivalence"],
+                molecular_point_group=row.get("molecular_point_group", "unclassified"),
+                chirality=row.get("chirality", "unclassified"),
+                linker_end_equivalence=row.get(
+                    "linker_end_equivalence", "unclassified"
+                ),
+                symmetry_basis=basis,
+                graph_port_automorphism_order=graph_order,
+                graph_supports_port_point_group=graph_supports_port_group,
                 sha256=row["xyz_sha256"],
             )
             pools[(kind, coordination, point_group)].append(record)
@@ -681,9 +723,11 @@ def generate(config: GenerationConfig) -> list[dict]:
             "topology_dir": str(config.topology_dir),
             "output": str(config.output),
             "selection_rule": (
-                "node CN, port point group, and molecular point group must exactly "
-                "match the topology site; linkers must have D*h port and molecular "
-                "symmetry, achirality, and equivalent ends"
+                "blocks require a nontrivial element-and-bond-labeled graph port "
+                "automorphism supporting their geometric port point group; nodes "
+                "are bucketed by CN and port point group, while linkers require "
+                "CN2, D*h port symmetry, and graph-equivalent ends; conformer "
+                "molecular point group and chirality are diagnostic only"
             ),
         },
         "failures": failures,

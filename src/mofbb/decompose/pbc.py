@@ -54,10 +54,6 @@ class PeriodicCutSelection:
     cuts: tuple[PeriodicBond, ...]
 
 
-class _DisconnectedComponentError(ValueError):
-    """Raised when excluded bonds split a requested component."""
-
-
 def periodic_bonds(atoms: Atoms, bonds: BondNetwork) -> tuple[PeriodicBond, ...]:
     """Return source bonds annotated with integer cell translations."""
 
@@ -123,7 +119,7 @@ def analyze_component(
 
     if set(offsets) != selected:
         missing = sorted(selected - set(offsets))
-        raise _DisconnectedComponentError(
+        raise ValueError(
             f"Periodic component is disconnected; missing atoms {missing}."
         )
 
@@ -153,6 +149,26 @@ def _cell_shift_rank(vectors: tuple[CellShift, ...]) -> int:
             return 3
         return 2
     return 1
+
+
+def _is_connected(
+    atom_indices: set[int],
+    records: tuple[PeriodicBond, ...],
+    excluded: frozenset[PeriodicBond],
+) -> bool:
+    selected = set(atom_indices)
+    reached = {min(selected)}
+    while True:
+        expanded = reached.copy()
+        for record in records:
+            if record not in excluded:
+                if record.i in reached:
+                    expanded.add(record.j)
+                if record.j in reached:
+                    expanded.add(record.i)
+        if expanded == reached:
+            return reached == selected
+        reached = expanded
 
 
 def connection_shift(
@@ -213,12 +229,12 @@ class PeriodicCutSelector:
                     raise ValueError(
                         "Periodic cut search exceeded its candidate bound."
                     )
-                try:
-                    residual = analyze_component(
-                        atom_indices, component_records, frozenset(candidate)
-                    )
-                except _DisconnectedComponentError:
+                excluded = frozenset(candidate)
+                if not _is_connected(atom_indices, component_records, excluded):
                     continue
+                residual = analyze_component(
+                    atom_indices, component_records, excluded
+                )
                 if residual.rank == 0:
                     valid.append((tuple(candidate), residual))
             if valid:

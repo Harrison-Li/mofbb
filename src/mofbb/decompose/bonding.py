@@ -14,11 +14,7 @@ import ase.io
 import networkx as nx
 import numpy as np
 
-try:  # ASE has moved this helper across versions.
-    from ase.neighborlist import natural_cutoffs, neighbor_list
-except ImportError:  # pragma: no cover - compatibility for unusual ASE layouts
-    from ase.neighborlist import neighbor_list
-    from ase.utils import natural_cutoffs  # type: ignore[attr-defined]
+from ase.neighborlist import natural_cutoffs, neighbor_list
 
 from mofbb.decompose.constants import is_metal
 

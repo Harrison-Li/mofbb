@@ -6,11 +6,7 @@ from pymatgen.core import Element
 
 
 class PBC:
-    """
-    Utilities for validating connections under periodic boundary conditions.
-
-    Distances are evaluated using ASE's minimum-image convention.
-    """
+    """Utilities for validating connections under periodic boundary conditions."""
 
     scale = 1.2
     tolerance = 0.3
@@ -39,13 +35,7 @@ class PBC:
         atoms,
         scale: float | None = None,
     ) -> list[tuple[int, int, float, float]]:
-        """Return atom pairs closer than their smaller covalent radius.
-
-        Candidate pairs are found with ASE's periodic neighbor list and then
-        filtered using the strict overlap criterion
-        ``distance < scale * min(radius_i, radius_j)``. For a pair with
-        multiple periodic images, only its shortest contact is returned.
-        """
+        """Return atom pairs closer than their smaller covalent radius."""
         if scale is None:
             scale = cls.overlap_scale
         scale = float(scale)
@@ -96,7 +86,7 @@ class PBC:
 
     @staticmethod
     def is_carbon_metal_pair(symbol_i: str, symbol_j: str) -> bool:
-        """Return whether a proposed bond directly joins carbon to a metal."""
+        """Return whether a proposed bond joins carbon to boron or a metal."""
         if symbol_i == "C":
             other = symbol_j
         elif symbol_j == "C":
@@ -104,10 +94,7 @@ class PBC:
         else:
             return False
 
-        try:
-            return bool(Element(other).is_metal)
-        except ValueError as exc:
-            raise ValueError(f"Unknown chemical symbol: {other!r}") from exc
+        return other == "B" or bool(Element(other).is_metal)
 
     @classmethod
     def calc_x_mid(
@@ -138,18 +125,12 @@ class PBC:
         symbol_j: str,
         scale: float | None = None,
     ) -> float:
-        """Return the maximum allowed bond distance after merging dummy sites.
-
-        The limit uses scaled ASE covalent radii.
-        """
+        """Return the maximum allowed bond distance after merging dummy sites."""
         if scale is None:
             scale = cls.scale
 
-        try:
-            radius_i = covalent_radii[atomic_numbers[symbol_i]]
-            radius_j = covalent_radii[atomic_numbers[symbol_j]]
-        except KeyError as exc:
-            raise ValueError(f"Unknown chemical symbol: {exc.args[0]!r}") from exc
+        radius_i = covalent_radii[atomic_numbers[symbol_i]]
+        radius_j = covalent_radii[atomic_numbers[symbol_j]]
 
         return float(scale * (radius_i + radius_j))
 
@@ -167,16 +148,8 @@ class PBC:
 
         atom_pairs = []
         for x_i, x_j in x_pairs:
-            try:
-                atom_i = x_neighbors[x_i]
-                atom_j = x_neighbors[x_j]
-            except KeyError as exc:
-                # No dummy connection sites: the node/edge should have more
-                # than one X site. Check the decomposed XYZ file.
-                raise ValueError(
-                    f"X site {exc.args[0]} does not have a mapped neighbor."
-                ) from exc
-
+            atom_i = x_neighbors[x_i]
+            atom_j = x_neighbors[x_j]
             atom_pairs.append((atom_i, atom_j))
 
         pair_indices = np.asarray(atom_pairs, dtype=int).reshape(-1, 2)

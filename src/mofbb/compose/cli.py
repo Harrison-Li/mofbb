@@ -7,8 +7,7 @@ from pathlib import Path
 
 from mofbb.compose.builder import Builder
 from mofbb.compose.building_block import BuildingBlock
-from mofbb.compose.decomposition import AbstractTopologyInput
-from mofbb.compose.reconstructor import Reconstructor
+from mofbb.compose.reconstructor import AbstractTopologyInput, Reconstructor
 from mofbb.compose.topology import Topology
 
 NodeAssignment = tuple[int, Path]
@@ -16,24 +15,13 @@ EdgeAssignment = tuple[tuple[int, int], Path]
 
 
 def _parse_node_assignment(value: str) -> NodeAssignment:
-    try:
-        raw_type, raw_path = value.split("=", maxsplit=1)
-        node_type = int(raw_type)
-    except (ValueError, TypeError) as exc:
-        raise argparse.ArgumentTypeError(
-            "node building blocks must use TYPE=PATH"
-        ) from exc
-    return node_type, Path(raw_path)
+    raw_type, raw_path = value.split("=", maxsplit=1)
+    return int(raw_type), Path(raw_path)
 
 
 def _parse_edge_assignment(value: str) -> EdgeAssignment:
-    try:
-        raw_types, raw_path = value.split("=", maxsplit=1)
-        left, right = (int(item) for item in raw_types.split(",", maxsplit=1))
-    except (ValueError, TypeError) as exc:
-        raise argparse.ArgumentTypeError(
-            "edge building blocks must use LEFT_TYPE,RIGHT_TYPE=PATH"
-        ) from exc
+    raw_types, raw_path = value.split("=", maxsplit=1)
+    left, right = (int(item) for item in raw_types.split(",", maxsplit=1))
     return tuple(sorted((left, right))), Path(raw_path)
 
 
@@ -159,57 +147,52 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    try:
-        if args.source.is_dir():
-            if args.node_bb or args.edge_bb:
-                raise ValueError(
-                    "Building-block assignments cannot be used with a "
-                    "decomposition directory."
-                )
-            if args.abstract_topology:
-                abstract = AbstractTopologyInput.from_directory(args.source)
-                framework = Builder().build(
-                    abstract.topology,
-                    abstract.blocks(),
-                    accuracy=args.accuracy,
-                    tolerance=args.x_mid_tolerance,
-                    scale=args.fused_bond_scale,
-                    overlap_scale=args.atomic_overlap_scale,
-                    wrap=not args.no_wrap,
-                )
-            else:
-                framework = Reconstructor(args.source).reconstruct()
-        else:
-            if args.abstract_topology:
-                raise ValueError(
-                    "--abstract-topology requires a decomposition directory."
-                )
-            if not args.node_bb:
-                raise ValueError(
-                    "At least one --node-bb assignment is required for a CGD file."
-                )
-            topology = Topology(args.source)
-            node_bbs = _load_assignments(args.node_bb)
-            edge_bbs = _load_assignments(args.edge_bb)
-            _validate_node_assignments(topology, node_bbs)
-            framework = Builder().build_by_type(
-                topology,
-                node_bbs,
-                edge_bbs,
+    if args.source.is_dir():
+        if args.node_bb or args.edge_bb:
+            raise ValueError(
+                "Building-block assignments cannot be used with a "
+                "decomposition directory."
+            )
+        if args.abstract_topology:
+            abstract = AbstractTopologyInput.from_directory(args.source)
+            framework = Builder().build(
+                abstract.topology,
+                abstract.blocks(),
                 accuracy=args.accuracy,
                 tolerance=args.x_mid_tolerance,
                 scale=args.fused_bond_scale,
                 overlap_scale=args.atomic_overlap_scale,
                 wrap=not args.no_wrap,
             )
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        framework.write_cif(args.output)
-    except (OSError, ValueError) as exc:
-        parser.error(str(exc))
+        else:
+            framework = Reconstructor(args.source).reconstruct()
+    else:
+        if args.abstract_topology:
+            raise ValueError(
+                "--abstract-topology requires a decomposition directory."
+            )
+        if not args.node_bb:
+            raise ValueError(
+                "At least one --node-bb assignment is required for a CGD file."
+            )
+        topology = Topology(args.source)
+        node_bbs = _load_assignments(args.node_bb)
+        edge_bbs = _load_assignments(args.edge_bb)
+        _validate_node_assignments(topology, node_bbs)
+        framework = Builder().build_by_type(
+            topology,
+            node_bbs,
+            edge_bbs,
+            accuracy=args.accuracy,
+            tolerance=args.x_mid_tolerance,
+            scale=args.fused_bond_scale,
+            overlap_scale=args.atomic_overlap_scale,
+            wrap=not args.no_wrap,
+        )
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    framework.write_cif(args.output)
 
     output = args.output.with_suffix(".cif")
-    if not output.exists():
-        parser.error(f"Composition did not produce {output}.")
     print(f"Wrote composed framework to {output}")
     return 0
 

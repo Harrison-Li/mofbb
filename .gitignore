@@ -213,6 +213,7 @@ notebook/
 # self make
 /logs
 /outputs
+/10k_mofs/
 /docs
 /.worktrees/
 .DS_store

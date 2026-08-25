@@ -1,22 +1,12 @@
-"""Cell rescaling that fits a net to its building blocks.
-https://github.com/Sangwon91/PORMAKE/blob/main/src/pormake/scaler.py
-This module defines :class:`Scaler`, the geometry-optimization stage of
-the build pipeline. An abstract net has arbitrary edge lengths, so before
-real molecular fragments can be placed the unit cell and slot positions
-must be resized to match the actual sizes of the chosen building blocks.
-:class:`Scaler` formulates that as a least-squares problem over node-edge
-angles and lengths and solves it with SciPy's L-BFGS-B optimizer.
-"""
+"""Cell rescaling that fits a net to its building blocks."""
 from collections import defaultdict
 from itertools import product
 
 import numpy as np
 import scipy as sp
 
-from mofbb.compose.log import logger
 from mofbb.compose.symmetry_scaling import SymmetryReducedParameterization
 from mofbb.compose.utils import wrap_fractional
-
 
 def _objective_value_and_gradient(
     scaled_positions,
@@ -63,81 +53,14 @@ def _objective_value_and_gradient(
 
 
 class Scaler:
-    """Resize an abstract net so chosen building blocks fit without strain.
-
-    A :class:`~pormake.topology.Topology` read from a ``.cgd`` file is a
-    purely abstract net: its unit cell and node spacing are arbitrary
-    and do not reflect the real sizes of the molecular fragments that
-    will be placed on it. ``Scaler`` solves that mismatch. Given the
-    building blocks assigned to each node and edge, it rescales the
-    topology's unit cell and node positions so that node-to-node
-    distances and inter-edge angles agree with the actual building-block
-    geometry. Producing a net whose dimensions match the fragments is
-    what makes the final framework chemically reasonable rather than
-    distorted.
-
-    Internally, :meth:`scale` derives a set of target dot products
-    between connection-point vectors (encoding both bond lengths and
-    angles) from the building blocks, then runs an L-BFGS-B geometry
-    optimization over crystallographically independent node displacements
-    and point-group-invariant cell strains to match those targets. It
-    finishes by rebuilding the topology's neighbor list with the
-    rescaled edge geometry.
-
-    Parameters
-    ----------
-    length_weight : float, optional
-        Relative weight given to length (self dot-product) terms versus
-        angle (cross dot-product) terms in the optimization objective.
-        Values above 1 emphasize matching edge lengths over angles.
-
-    Attributes
-    ----------
-    length_weight : float
-        The stored length-versus-angle weighting used by :meth:`scale`.
-    """
+    """Resize an abstract net so chosen building blocks fit without strain."""
 
     def __init__(self, length_weight=1.0):
         """Store the length-versus-angle weighting for the objective."""
         self.length_weight = length_weight
 
     def scale(self, topology, bbs, perms, return_result=False):
-        """Rescale a topology to match its assigned building blocks.
-
-        Forms length/angle targets from the building blocks placed on
-        each node and edge, then optimizes the scaled atomic positions
-        and the unit-cell matrix so the net's geometry matches those
-        targets. The returned topology is a rescaled copy whose neighbor
-        list has been rebuilt with the new edge centers, ready for the
-        builder to assemble the final framework. Both edge lengths and
-        node-edge-node angles are optimized simultaneously.
-
-        Parameters
-        ----------
-        topology : pormake.topology.Topology
-            The abstract net to rescale. Not modified in place.
-        bbs : list of pormake.building_block.BuildingBlock or None
-            Building blocks indexed by slot. Node slots must hold a
-            building block; edge slots may be ``None`` when no edge
-            building block is present.
-        perms : list
-            Per-node connection-point permutations, indexed by slot,
-            describing how each building block's connection points map
-            onto the node's edges.
-        return_result : bool, optional
-            If ``True``, also return the raw SciPy optimization result.
-
-        Returns
-        -------
-        scaled_topology : pormake.topology.Topology
-            A rescaled copy of ``topology`` with updated cell, positions,
-            and neighbor list.
-        result : scipy.optimize.OptimizeResult
-            The optimizer result, returned only when ``return_result``
-            is ``True``.
-        """
-        logger.debug("Scaler.scale starts.")
-
+        """Rescale a topology to match its assigned building blocks."""
         # Get pairs of bond indices and images (periodic boundary) and
         pairs = []
         images = []
@@ -289,15 +212,6 @@ class Scaler:
 
         target_dots = np.sum(target_ij_vec * target_ik_vec, axis=-1)
 
-        # Get max / min ratio of edge length.
-        lengths = np.sqrt(target_dots[weights > 1.1])
-        # for l in lengths:
-        #    logger.info("Length: %.3f", l)
-        max_len = np.max(lengths)
-        min_len = np.min(lengths)
-        ratio = max_len / min_len
-        logger.debug("Max min ratio of edge length: %.3f", ratio)
-
         # Normalize target dots. This enhances the optimization convegences.
         max_dot = np.mean(np.abs(target_dots))
         target_dots /= max_dot
@@ -346,12 +260,6 @@ class Scaler:
         bounds = list(parameterization.position_bounds)
         bounds.extend([(None, None)] * parameterization.n_cell_parameters)
 
-        logger.info(
-            "Topology optimization starts with %d node and %d cell variables.",
-            parameterization.n_node_parameters,
-            parameterization.n_cell_parameters,
-        )
-        # Perform optimization.
         result = sp.optimize.minimize(
             x0=x0,
             fun=fun_and_jac,
@@ -365,11 +273,6 @@ class Scaler:
         c, _ = parameterization.cell.cell_and_derivatives(cell_parameters)
         s = topology.atoms.get_scaled_positions(wrap=False)
         s[node_indices] = parameterization.positions(node_parameters)
-
-        logger.info("MESSAGE: %s", result.message)
-        logger.info("SUCCESS: %s", result.success)
-        logger.info("ITER: %s", result.nit)
-        logger.info("OBJ: %.3f", result.fun)
 
         # Update neigbors list in topology.
         new_data = [[] for _ in range(topology.n_slots)]

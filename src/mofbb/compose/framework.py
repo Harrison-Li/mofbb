@@ -1,62 +1,13 @@
-"""Represent and serialize the final assembled porous framework.
-
-https://github.com/Sangwon91/PORMAKE/blob/main/src/pormake/framework.py
-"""
+"""Assembled framework model and CIF writer."""
 
 import copy
-import os
-import traceback
 from pathlib import Path
 
-import ase
-import ase.visualize
 import numpy as np
 from ase.geometry import find_mic
 
-from mofbb.compose.log import logger
-
-
 class Framework:
-    """Hold a fully assembled periodic framework and write it to CIF.
-
-    Bundles the geometry, bonding, and build metadata produced at the
-    end of an assembly run into one object so the result can be
-    inspected, visualized, and serialized. Bonds are tracked explicitly
-    (rather than re-derived from distances) because the builder knows
-    exactly which atoms were fused when the "X" connection points were
-    removed, which a distance-based guess could get wrong.
-
-    Parameters
-    ----------
-    atoms : ase.Atoms
-        Atoms of the assembled framework, carrying the unit cell,
-        periodic boundary conditions, and per-atom partial charges.
-    bonds : numpy.ndarray
-        Integer array of shape ``(n_bonds, 2)`` listing bonded atom
-        index pairs.
-    bond_types : list of str
-        Chemical bond type label for each entry in ``bonds`` (e.g.
-        ``"S"`` for single).
-    info : dict
-        Build provenance: the (scaled) ``topology``, the list of
-        ``located_bbs``, the chosen ``permutations``, the scaler's
-        ``relax_obj`` value, and the ``max_rmsd``/``mean_rmsd`` of the
-        node placements. Used when writing CIF comments.
-    wrap : bool, optional
-        If ``True`` (default), fold atoms into the unit cell by exact lattice
-        translations via :meth:`wrap` on construction.
-
-    Attributes
-    ----------
-    atoms : ase.Atoms
-        A copy of the input atoms (possibly wrapped).
-    bonds : numpy.ndarray
-        A copy of the input bond pairs.
-    bond_types : list of str
-        A deep copy of the input bond type labels.
-    info : dict
-        A deep copy of the input build metadata.
-    """
+    """Hold a fully assembled periodic framework and write it to CIF."""
 
     def __init__(self, atoms, bonds, bond_types, info, wrap=True):
         """Store copies of the geometry, bonds, and metadata."""
@@ -70,68 +21,22 @@ class Framework:
             self.wrap()
 
     def wrap(self):
-        """Fold atoms into ``[0, 1)`` using only lattice translations.
-
-        Fractional coordinates are reduced by their integer floor. Unlike
-        boundary nudging, this leaves exact special positions unchanged and
-        therefore cannot lower crystallographic symmetry. Modifies
-        ``self.atoms`` in place.
-        """
+        """Fold atoms into ``[0, 1)`` using only lattice translations."""
 
         scaled = self.atoms.get_scaled_positions(wrap=False)
         self.atoms.set_scaled_positions(scaled - np.floor(scaled))
 
     def write_cif(self, filename):
-        """Write the framework to a CIF file.
-
-        Public, fault-tolerant entry point for serialization. It
-        normalizes the path, appends a ``.cif`` suffix when missing, and
-        delegates the actual formatting to :meth:`_write_cif`. If writing
-        raises, the error is logged and the partially written, invalid
-        file is removed so no corrupt CIF is left behind.
-
-        Parameters
-        ----------
-        filename : str or pathlib.Path
-            Destination path. A ``.cif`` suffix is added if absent.
-        """
+        """Write the framework to a CIF file."""
         path = Path(filename).resolve()
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Add suffix if not exists.
         if path.suffix != ".cif":
             path = path.with_suffix(".cif")
-
-        try:
-            self._write_cif(path)
-        except Exception as e:
-            logger.error(e)
-            logger.error(
-                "CIF writing fails with error: %s",
-                traceback.format_exc(),
-            )
-            # Remove invalid cif file.
-            logger.error("Remove invalid CIF: %s", path)
-            os.remove(str(path))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._write_cif(path)
+        return path
 
     def _write_cif(self, path):
-        """Emit the framework as a P1 CIF at ``path``.
-
-        Writes the full CIF document: provenance comments (topology,
-        building blocks, relaxation objective, RMSD statistics), the P1
-        symmetry block, cell lengths and angles, the atom-site loop with
-        fractional coordinates and partial charges, and a bond loop. For
-        bonds, a neighbor-list search recovers each pair's minimum-image
-        distance and the periodic image of the second atom; bonds that
-        cross a cell boundary are tagged with a ``1_pqr`` symmetry code
-        encoding that image so the periodic connectivity is preserved.
-
-        Parameters
-        ----------
-        path : pathlib.Path
-            Destination file path (already resolved and suffixed by
-            :meth:`write_cif`).
-        """
+        """Emit the framework as a P1 CIF at ``path``."""
         stem = path.stem.replace(" ", "_")
 
         with path.open("w") as f:
@@ -268,11 +173,151 @@ class Framework:
                         )
                     )
 
-    def view(self, *args, **kwargs):
-        """Open the framework atoms in an ASE viewer.
+class FrameworkAssembler:
+    """Merge placed blocks, fuse their connection points, and validate geometry."""
 
-        Thin convenience wrapper around :func:`ase.visualize.view` for
-        quick visual inspection of the assembled structure. Positional
-        and keyword arguments are forwarded unchanged to ASE.
-        """
-        ase.visualize.view(self.atoms, *args, **kwargs)
+    def __init__(self, assignment, placement, overlap_scale):
+        self.topology = placement.topology
+        self.source_topology = assignment.topology
+        self.blocks = placement.blocks
+        self.permutations = placement.permutations
+        self.pbc = assignment.pbc
+        self.x_tolerance = placement.port_tolerance
+        self.bond_scale = placement.bond_scale
+        self.overlap_scale = overlap_scale
+
+    def build(self, info, *, wrap=True):
+        """Return the final framework after removing all dummy X atoms."""
+        sizes = [0 if block is None else block.n_atoms for block in self.blocks]
+        offsets = np.cumsum([0, *sizes[:-1]], dtype=int)
+        block_bonds = np.concatenate(
+            [
+                block.bonds + offset
+                for offset, block in zip(offsets, self.blocks, strict=True)
+                if block is not None
+            ],
+            axis=0,
+        )
+        block_bond_types = [
+            bond_type
+            for block in self.blocks
+            if block is not None
+            for bond_type in block.bond_types
+        ]
+        connection_bonds, connection_bond_types = self._connection_bonds(offsets)
+        all_bonds = np.concatenate(
+            [block_bonds, np.asarray(connection_bonds, dtype=int)],
+            axis=0,
+        )
+        all_bond_types = block_bond_types + connection_bond_types
+
+        block_atoms = [block.atoms for block in self.blocks if block is not None]
+        atoms = sum(block_atoms[1:], block_atoms[0])
+        atoms.set_pbc(True)
+        atoms.set_cell(self.topology.atoms.cell)
+        self._validate_x_pairs(atoms, connection_bonds)
+        bonds, bond_types = self._fuse_x_atoms(
+            atoms,
+            all_bonds,
+            all_bond_types,
+            connection_bonds,
+        )
+        self._validate_overlaps(atoms)
+        return Framework(atoms, bonds, bond_types, info=info, wrap=wrap)
+
+    def _connection_bonds(self, offsets):
+        bonds = []
+        bond_types = []
+        for raw_edge_index in self.topology.edge_indices:
+            edge_index = int(raw_edge_index)
+            x_i, x_j = self.pbc.find_matched_x_sites(
+                self.source_topology,
+                self.blocks,
+                self.permutations,
+                edge_index,
+            )
+            neighbor_i, neighbor_j = self.topology.neighbor_list[edge_index]
+            x_i += offsets[neighbor_i.index]
+            x_j += offsets[neighbor_j.index]
+
+            edge = self.blocks[edge_index]
+            if edge is None:
+                bonds.append((x_i, x_j))
+                bond_types.append("S")
+                continue
+
+            edge_x = (
+                edge.connection_point_indices[self.permutations[edge_index]]
+                + offsets[edge_index]
+            )
+            bonds.extend(((edge_x[0], x_i), (edge_x[1], x_j)))
+            bond_types.extend(("S", "S"))
+
+        return bonds, bond_types
+
+    def _validate_x_pairs(self, atoms, x_pairs):
+        failures = self.pbc.calc_x_mid(atoms, x_pairs, self.x_tolerance)
+        if failures:
+            x_i, x_j, distance = failures[0]
+            raise ValueError(
+                "Geometric quality gate rejected assembly: "
+                f"X atoms {x_i}-{x_j} are {distance:.3f} Å apart."
+            )
+
+    def _fuse_x_atoms(self, atoms, bonds, bond_types, x_pairs):
+        symbols = np.asarray(atoms.get_chemical_symbols())
+        is_x = symbols == "X"
+        new_indices = np.full(len(atoms), -1, dtype=int)
+        new_indices[~is_x] = np.arange(np.count_nonzero(~is_x))
+
+        x_x_bonds = []
+        x_neighbors = {}
+        fused_bonds = []
+        fused_bond_types = []
+        for (atom_i, atom_j), bond_type in zip(bonds, bond_types, strict=True):
+            atom_i = int(atom_i)
+            atom_j = int(atom_j)
+            if is_x[atom_i] and is_x[atom_j]:
+                x_x_bonds.append((atom_i, atom_j))
+            elif is_x[atom_i]:
+                x_neighbors[atom_i] = atom_j
+            elif is_x[atom_j]:
+                x_neighbors[atom_j] = atom_i
+            else:
+                fused_bonds.append((atom_i, atom_j))
+                fused_bond_types.append(bond_type)
+
+        failures = self.pbc.calc_fail_connection(
+            atoms,
+            x_pairs,
+            x_neighbors,
+            self.bond_scale,
+        )
+        if failures:
+            atom_i, atom_j, distance, limit = failures[0]
+            raise ValueError(
+                "Fused-bond quality gate rejected assembly: "
+                f"atoms {atom_i}-{atom_j} are {distance:.3f} Å apart; "
+                f"limit {limit:.3f} Å."
+            )
+
+        for x_i, x_j in x_x_bonds:
+            fused_bonds.append((x_neighbors[x_i], x_neighbors[x_j]))
+            fused_bond_types.append("S")
+
+        fused_bonds = np.asarray(
+            [(new_indices[i], new_indices[j]) for i, j in fused_bonds],
+            dtype=int,
+        )
+        del atoms[is_x.tolist()]
+        return fused_bonds, fused_bond_types
+
+    def _validate_overlaps(self, atoms):
+        overlaps = self.pbc.calc_atomic_overlaps(atoms, scale=self.overlap_scale)
+        if overlaps:
+            atom_i, atom_j, distance, limit = overlaps[0]
+            raise ValueError(
+                "Atomic-overlap quality gate rejected assembly: "
+                f"atoms {atom_i}-{atom_j} are {distance:.3f} Å apart; "
+                f"minimum {limit:.3f} Å."
+            )

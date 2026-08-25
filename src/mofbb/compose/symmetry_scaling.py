@@ -230,15 +230,7 @@ class InvariantCellParameterization:
 
     @staticmethod
     def grad(cell_grad, derivatives):
-        """Project a full cell gradient onto reduced strain parameters.
-
-        For the cell matrix ``A(s)``, ``derivatives[k, i, j]`` stores
-        ``d A[i, j] / d s[k]`` and ``cell_grad[i, j]`` stores
-        ``d L / d A[i, j]``. The chain rule therefore gives the reduced
-        gradient required by the optimizer:
-
-        ``d L / d s[k] = sum_ij derivatives[k, i, j] * cell_grad[i, j]``.
-        """
+        """Project a full cell gradient onto reduced strain parameters."""
 
         return np.einsum("kij,ij->k", derivatives, cell_grad)
 
@@ -255,12 +247,7 @@ class SymmetryReducedParameterization:
         if not len(self.node_indices):
             raise ValueError("A topology must contain at least one node.")
 
-        try:
-            self.operations = Symmetry.topology_operation_data(topology)[1]
-        except Exception as error:
-            raise ValueError(
-                f"Cannot construct declared space group {topology.spacegroup!r}."
-            ) from error
+        self.operations = Symmetry.topology_operation_data(topology)[1]
 
         self.rotations = np.asarray(
             [operation.rotation_matrix for operation in self.operations],

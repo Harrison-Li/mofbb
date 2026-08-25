@@ -288,16 +288,13 @@ class SymmetryBuilder:
         rotation: np.ndarray,
         shift: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray] | None:
-        try:
-            node_map = np.asarray(
-                [
-                    self.node_ids[frag_map[self._key(node)]]
-                    for node in self.nodes
-                ],
-                dtype=int,
-            )
-        except KeyError:
+        keys = [self._key(node) for node in self.nodes]
+        if any(key not in frag_map for key in keys):
             return None
+        node_map = np.asarray(
+            [self.node_ids[frag_map[key]] for key in keys],
+            dtype=int,
+        )
         if len(np.unique(node_map)) != len(self.nodes):
             return None
         differences = (

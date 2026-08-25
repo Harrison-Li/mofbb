@@ -607,9 +607,16 @@ X  0.50 0 0
         {tuple(topology.unique_edge_types[0]): BuildingBlock(edge_path)},
         accuracy=3,
         overlap_scale=0.0,
+        strict_symmetry=True,
     )
 
     assert framework.info["fixed_cell_closed"]
+    diagnostics = framework.info["symmetry_placement_diagnostics"]
+    assert all(
+        item["covariant"] and item["compatible"]
+        for kind in ("nodes", "edges")
+        for item in diagnostics[kind]
+    )
     fractional = framework.atoms.get_scaled_positions(wrap=True)
     symbols = np.asarray(framework.atoms.get_chemical_symbols())
     for symbol in np.unique(symbols):

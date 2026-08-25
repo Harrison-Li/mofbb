@@ -4,26 +4,136 @@ from __future__ import annotations
 
 import numpy as np
 import scipy.optimize
+from scipy.spatial.transform import Rotation
 
-from mofbb.compose.placement.direct import DirectEdgeRepair
-from mofbb.compose.placement.ports import PortSolver
-from mofbb.compose.placement.pose import PoseFit
+from mofbb.compose.placement.ports import DirectEdgeRepair, PortSolver
+
+
+class PoseFit:
+    """Fit symmetry-linked rotations and translations in a fixed cell."""
+
+    def __init__(self, cell):
+        self.cell = cell
+
+    def params(self):
+        job = self.cell
+        ids, frames, count = {}, {}, 0
+        for orbits, covariant in (
+            (job.symmetry.node_orbits, job.covariant_node_orbits),
+            (job.symmetry.edge_orbits, job.covariant_edge_orbits),
+        ):
+            for orbit in orbits:
+                members = [int(i) for i in orbit.members if int(i) in job.slot_offsets]
+                if not members:
+                    continue
+                if orbit.representative not in covariant:
+                    for member in members:
+                        ids[member], frames[member] = count, np.eye(3)
+                        count += 1
+                    continue
+                variable = count
+                count += 1
+                for member in members:
+                    ids[member] = variable
+                    frames[member] = (
+                        np.eye(3)
+                        if member == orbit.representative
+                        else job.symmetry.transform(
+                            job.symmetry.operation(orbit, member), job.original_cell
+                        )
+                    )
+        return ids, frames, count
+
+    def moves(self):
+        job = self.cell
+        ids, count = {}, 0
+        expanded = "symmetry_operations" in job.topology.atoms.info
+        anchor = job.node_indices[0] if expanded else None
+        for orbits, covariant in (
+            (job.symmetry.node_orbits if expanded else (), job.covariant_node_orbits),
+            (job.symmetry.edge_orbits, job.covariant_edge_orbits),
+        ):
+            for orbit in orbits:
+                members = [int(i) for i in orbit.members if int(i) in job.slot_offsets]
+                if not members:
+                    continue
+                if orbit.representative in covariant:
+                    if anchor not in members:
+                        ids.update({member: count for member in members})
+                        count += 1
+                    continue
+                for member in members:
+                    if member != anchor:
+                        ids[member] = count
+                        count += 1
+        return ids, count
+
+    def fit(self, perms, centers, blocks):
+        job = self.cell
+        atom_pos = [
+            np.round(blocks[slot].atoms.positions - blocks[slot].centroid, 10)
+            for slot in job.slot_indices
+        ]
+        points = [
+            atom_pos[i][blocks[slot].connection_point_indices]
+            for i, slot in enumerate(job.slot_indices)
+        ]
+        rotation_ids, frames, rotation_count = self.params()
+        move_ids, move_count = self.moves()
+        rotation_size = 3 * rotation_count
+
+        def rotations(values):
+            raw = values[:rotation_size].reshape(-1, 3)
+            return Rotation.from_rotvec(
+                [
+                    round(np.linalg.det(frames[slot]))
+                    * frames[slot].T
+                    @ raw[rotation_ids[slot]]
+                    for slot in job.slot_indices
+                ]
+            )
+
+        def residual(values):
+            fitted = rotations(values)
+            moves = np.zeros((len(job.slot_indices), 3))
+            raw = values[rotation_size:].reshape(-1, 3)
+            for slot, variable in move_ids.items():
+                moves[job.slot_offsets[slot]] = frames[slot].T @ raw[variable]
+            return np.asarray(
+                [
+                    centers[job.slot_offsets[right]]
+                    + moves[job.slot_offsets[right]]
+                    + image
+                    + fitted[job.slot_offsets[right]].apply(
+                        points[job.slot_offsets[right]][perms[right][right_x]]
+                    )
+                    - centers[job.slot_offsets[left]]
+                    - moves[job.slot_offsets[left]]
+                    - fitted[job.slot_offsets[left]].apply(
+                        points[job.slot_offsets[left]][perms[left][left_x]]
+                    )
+                    for left, left_x, right, right_x, image in job.connections
+                ]
+            ).ravel()
+
+        result = scipy.optimize.least_squares(
+            residual,
+            np.zeros(rotation_size + 3 * move_count),
+            max_nfev=50,
+        )
+        fitted = rotations(result.x)
+        for index, slot in enumerate(job.slot_indices):
+            atom_pos[index] = fitted[index].apply(atom_pos[index])
+            points[index] = atom_pos[index][blocks[slot].connection_point_indices]
+        raw = result.x[rotation_size:].reshape(-1, 3)
+        for slot, variable in move_ids.items():
+            centers[job.slot_offsets[slot]] += frames[slot].T @ raw[variable]
+        gaps = np.linalg.norm(residual(np.zeros_like(result.x)).reshape(-1, 3), axis=1)
+        return result, gaps, atom_pos, points
 
 
 class CellClosure:
-    """Repair port assignments and close eligible structures in their source cell.
-
-    Direct node-to-node edges first receive a joint binary assignment so every
-    node uses each port exactly once and forbidden carbon-metal or overlong
-    connections are excluded. For eligible expanded topologies, a nonlinear
-    rigid-pose fit then attempts to close all assigned ports without changing
-    the declared cell. If no candidate closes within tolerance, the caller can
-    safely continue through the ordinary cell-scaling path.
-
-    The class mutates the supplied block and permutation lists only when a port
-    repair or successful closure is found. :meth:`run` returns this stage with
-    the current blocks, optional SciPy fit, and explicit ``closed`` flag.
-    """
+    """Repair port assignments and close eligible structures in their source cell."""
 
     def __init__(self, assignment, edge_factory, *, tolerance, bond_scale):
         self.topology = assignment.topology

@@ -4,26 +4,11 @@ from __future__ import annotations
 
 import numpy as np
 
+from mofbb.compose.placement.errors import SymmetryCompatibilityError
+
 
 class BlockPlacement:
-    """Scale the topology, then place node and edge blocks in the final cell.
-
-    Slot assignment determines which ports correspond before this class runs.
-    ``BlockPlacement`` reuses those permutations after scaling, propagates a
-    representative pose across symmetry-compatible orbits, and falls back to
-    independent placement when a site stabilizer or propagated edge misses its
-    target ports. The fallback decisions and edge-frame diagnostics are written
-    into the shared diagnostics dictionaries returned to :class:`Builder`.
-
-    Parameters
-    ----------
-    assignment : SlotAssignment
-        Completed slot-assignment stage with symmetry and port information.
-    closure : CellClosure
-        Completed closure stage with the current blocks and permutations.
-    scaler, edge_factory
-        Geometry helpers used when the source cell was not closed directly.
-    """
+    """Scale the topology, then place node and edge blocks in the final cell."""
 
     def __init__(self, assignment, closure, scaler, edge_factory):
         self.source_topology = assignment.topology
@@ -43,12 +28,15 @@ class BlockPlacement:
         self.port_tolerance = closure.tolerance
         self.bond_scale = closure.bond_scale
         self.symmetry_tolerance = assignment.sym_tol
+        self.strict_symmetry = assignment.strict_symmetry
         self.edge_targets = {}
         self.edge_frame_diagnostics = []
 
     def run(self):
         """Place all blocks in the final cell and return this stage."""
         self._prepare_topology()
+        if self.fixed_cell_closed and self.strict_symmetry:
+            self._validate_fixed_cell_symmetry()
         self.rmsds = np.asarray(self._place_nodes())
         self._place_edges()
         return self
@@ -68,6 +56,71 @@ class BlockPlacement:
                 self.source_topology, self.topology, self.permutations, self.symmetry
             ).build()
 
+    def _reject_symmetry(self, reason, kind, orbit, diagnostic=None, member=None):
+        raise SymmetryCompatibilityError(
+            reason,
+            kind=kind,
+            representative=orbit.representative,
+            member=member,
+            diagnostic=diagnostic,
+        )
+
+    def _validate_fixed_cell_symmetry(self):
+        """Audit final closure poses that otherwise skip placement checks."""
+        cell = np.asarray(self.topology.atoms.cell, dtype=float)
+        orbit_groups = (
+            (
+                "node",
+                self.symmetry.node_orbits,
+                self.covariant_node_orbits,
+                self.symmetry_diagnostics["nodes"],
+            ),
+            (
+                "edge",
+                self.symmetry.edge_orbits,
+                self.covariant_edge_orbits,
+                self.symmetry_diagnostics["edges"],
+            ),
+        )
+        for kind, orbits, covariant_orbits, diagnostics in orbit_groups:
+            for orbit in orbits:
+                occupied = [
+                    int(member)
+                    for member in orbit.members
+                    if self.blocks[int(member)] is not None
+                ]
+                if not occupied:
+                    continue
+                representative = orbit.representative
+                if representative not in covariant_orbits:
+                    self._reject_symmetry(
+                        "orbit_not_covariant",
+                        kind,
+                        orbit,
+                    )
+                diagnostic = self.symmetry.diagnose(
+                    orbit,
+                    self.blocks[representative],
+                    self.permutations[representative],
+                    cell,
+                    self.symmetry_tolerance,
+                )
+                diagnostic.update({"kind": kind, "covariant": True})
+                diagnostics.append(diagnostic)
+                if not diagnostic["compatible"]:
+                    diagnostic.update(
+                        {
+                            "covariant": False,
+                            "reason": "final_stabilizer_incompatible",
+                        }
+                    )
+                    self._reject_symmetry(
+                        diagnostic["reason"],
+                        kind,
+                        orbit,
+                        diagnostic,
+                    )
+
     def _place_nodes(self):
         if self.fixed_cell_closed:
             return [0.0] * len(self.topology.node_indices)
@@ -76,6 +129,12 @@ class BlockPlacement:
         for orbit in self.symmetry.node_orbits:
             representative = orbit.representative
             if representative not in self.covariant_node_orbits:
+                if self.strict_symmetry:
+                    self._reject_symmetry(
+                        "orbit_not_covariant",
+                        "node",
+                        orbit,
+                    )
                 rmsds.extend(self._place_node_orbit_independently(orbit))
                 continue
 
@@ -91,6 +150,13 @@ class BlockPlacement:
                 diagnostic.update(
                     {"covariant": False, "reason": "final_stabilizer_incompatible"}
                 )
+                if self.strict_symmetry:
+                    self._reject_symmetry(
+                        diagnostic["reason"],
+                        "node",
+                        orbit,
+                        diagnostic,
+                    )
                 rmsds.extend(self._place_node_orbit_independently(orbit, force=True))
                 continue
 
@@ -127,14 +193,7 @@ class BlockPlacement:
         return rmsds
 
     def _image(self, neighbor_i, neighbor_j, inverse_cell):
-        """Return the periodic image offset between two edge neighbors.
-
-        The neighbor distance vectors include the lattice translation used by
-        the topology edge. Subtracting the Cartesian displacement of the two
-        stored node positions and converting the remainder to fractional
-        coordinates recovers that integer cell translation. Edge placement
-        uses it to construct an unwrapped target across a periodic boundary.
-        """
+        """Return the periodic image offset between two edge neighbors."""
         displacement = neighbor_j.distance_vector - neighbor_i.distance_vector
         positions = self.topology.atoms.positions
         return (
@@ -202,6 +261,12 @@ class BlockPlacement:
             if not members:
                 continue
             if representative not in self.covariant_edge_orbits:
+                if self.strict_symmetry:
+                    self._reject_symmetry(
+                        "orbit_not_covariant",
+                        "edge",
+                        orbit,
+                    )
                 for member in members:
                     self._place_edge_independently(member, cell, inverse_cell)
                 continue
@@ -226,6 +291,13 @@ class BlockPlacement:
         self.symmetry_diagnostics["edges"].append(diagnostic)
         if not diagnostic["compatible"]:
             diagnostic.update({"covariant": False, "reason": "stabilizer_incompatible"})
+            if self.strict_symmetry:
+                self._reject_symmetry(
+                    diagnostic["reason"],
+                    "edge",
+                    orbit,
+                    diagnostic,
+                )
             self.blocks[representative] = edge
             self.edge_frame_diagnostics.append(
                 self._edge_frame_diagnostic(
@@ -262,6 +334,22 @@ class BlockPlacement:
             )
             if member != representative and residual > self.port_tolerance:
                 fallback_members.append(member)
+                if self.strict_symmetry:
+                    diagnostic.update(
+                        {
+                            "covariant": False,
+                            "reason": "propagated_port_mismatch",
+                            "fallback_members": fallback_members,
+                            "propagated_port_residual": residual,
+                        }
+                    )
+                    self._reject_symmetry(
+                        diagnostic["reason"],
+                        "edge",
+                        orbit,
+                        diagnostic,
+                        member,
+                    )
                 self._place_edge_independently(member, cell, inverse_cell)
                 continue
 

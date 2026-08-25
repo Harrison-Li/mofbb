@@ -7,9 +7,10 @@ from threading import RLock
 from weakref import WeakKeyDictionary
 
 import numpy as np
+from scipy.optimize import linear_sum_assignment, minimize_scalar
+from scipy.spatial.transform import Rotation
 
 from mofbb.compose.symmetry_scaling import Symmetry
-from mofbb.compose.placement.stabilizer import StabilizerFit
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +22,119 @@ class SlotOrbit:
     members: np.ndarray
     operations: np.ndarray
     stabilizers: np.ndarray
+
+
+class StabilizerFit:
+    """Measure site-symmetry residuals and optimize linker torsion."""
+
+    def __init__(self, symmetry):
+        self.symmetry = symmetry
+
+    def diagnose(self, orbit, block, permutation, cell, tolerance):
+        if tolerance <= 0:
+            raise ValueError("Stabilizer tolerance must be positive.")
+        positions = block.atoms.positions - block.centroid
+        symbols = np.asarray(block.atoms.get_chemical_symbols())
+        ports = np.asarray(block.connection_point_indices, int)
+        permutation = np.asarray(permutation, int)
+        atom_error = port_error = 0.0
+        for raw_operation in orbit.stabilizers:
+            operation = int(raw_operation)
+            moved = positions @ self.symmetry.transform(operation, cell)
+            atom_error = max(atom_error, self.species_error(moved, positions, symbols))
+            offsets = self.symmetry.offset_map(
+                orbit.representative, orbit.representative, operation
+            )
+            if permutation.shape != offsets.shape:
+                raise ValueError(
+                    f"Slot {orbit.representative} has {len(offsets)} neighbors, "
+                    f"but permutation shape is {permutation.shape}."
+                )
+            source = ports[permutation]
+            target = ports[permutation[offsets]]
+            errors = np.linalg.norm(moved[source] - positions[target], axis=1)
+            port_error = max(port_error, float(np.max(errors, initial=0)))
+        return {
+            "tag": int(orbit.tag),
+            "representative": int(orbit.representative),
+            "orbit_size": int(len(orbit.members)),
+            "stabilizer_order": int(len(orbit.stabilizers)),
+            "tolerance": float(tolerance),
+            "max_atom_residual": float(atom_error),
+            "max_port_residual": float(port_error),
+            "compatible": max(atom_error, port_error) <= tolerance,
+        }
+
+    def fit(self, orbit, block, permutation, cell, tolerance):
+        if not block.is_edge:
+            raise ValueError("Stabilizer torsion optimization requires an edge.")
+        base = self.diagnose(orbit, block, permutation, cell, tolerance)
+        error = max(base["max_atom_residual"], base["max_port_residual"])
+        base.update(
+            torsion_optimized=False,
+            torsion_angle_degrees=0.0,
+            best_torsion_residual=float(error),
+        )
+        if base["compatible"] or len(orbit.stabilizers) == 1:
+            return block, base
+
+        permutation = np.asarray(permutation, int)
+        ports = block.connection_points[permutation]
+        axis = ports[1] - ports[0]
+        axis /= np.linalg.norm(axis)
+        center = block.centroid
+        positions = block.atoms.positions - center
+        trial = block.copy()
+
+        def evaluate(angle):
+            angle = float(angle % self.symmetry.tau)
+            moved = Rotation.from_rotvec(angle * axis).apply(positions) + center
+            trial.atoms.set_positions(moved)
+            report = self.diagnose(orbit, trial, permutation, cell, tolerance)
+            residual = max(report["max_atom_residual"], report["max_port_residual"])
+            return float(residual), moved, report, angle
+
+        step = self.symmetry.tau / self.symmetry.torsion_steps
+        samples = [evaluate(index * step) for index in range(self.symmetry.torsion_steps)]
+        minimum = min(sample[0] for sample in samples)
+        best = min(
+            (sample for sample in samples if sample[0] <= minimum + 1.0e-10),
+            key=lambda sample: sample[3],
+        )
+        if best[0] > tolerance:
+            result = minimize_scalar(
+                lambda angle: evaluate(angle)[0],
+                bounds=(best[3] - step, best[3] + step),
+                method="bounded",
+                options={"xatol": 1.0e-5, "maxiter": 24},
+            )
+            best = min(best, evaluate(result.x), key=lambda sample: sample[0])
+        base["best_torsion_residual"] = best[0]
+        if best[0] > tolerance:
+            return block, base
+        fitted = block.copy()
+        fitted.atoms.set_positions(best[1])
+        report = best[2]
+        report.update(
+            torsion_optimized=True,
+            torsion_angle_degrees=float(np.degrees(best[3])),
+            best_torsion_residual=best[0],
+        )
+        return fitted, report
+
+    @staticmethod
+    def species_error(moved, reference, symbols):
+        error = 0.0
+        for symbol in np.unique(symbols):
+            indices = np.flatnonzero(symbols == symbol)
+            distances = np.linalg.norm(
+                moved[indices, None] - reference[None, indices], axis=2
+            )
+            rows, columns = linear_sum_assignment(distances)
+            error = max(
+                error, float(np.max(distances[rows, columns], initial=0))
+            )
+        return error
 
 
 class SymmetryPlacement:
@@ -216,13 +330,7 @@ class SymmetryPlacement:
 
         for op_index, mapping in enumerate(self.operation_mappings):
             for source, target in enumerate(mapping):
-                try:
-                    self.offset_map(source, int(target), op_index)
-                except ValueError as error:
-                    raise ValueError(
-                        f"Operation {op_index} maps slot {source} to {target}, "
-                        "but does not preserve its neighbors."
-                    ) from error
+                self.offset_map(source, int(target), op_index)
 
     def make_orbits(self, slots):
         """Build crystallographic orbits for topology slots."""

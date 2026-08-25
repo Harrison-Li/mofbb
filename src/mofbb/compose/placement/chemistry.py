@@ -3,10 +3,79 @@
 from __future__ import annotations
 
 import itertools
+from functools import cache
 
 import numpy as np
 
-from mofbb.compose.locator import PortAssignmentError
+from mofbb.matching import BuildingBlockGraph, compare_building_blocks
+
+
+class BlockGroups:
+    """Compare the rigid templates assigned within one symmetry orbit."""
+
+    def __init__(self, blocks, symmetry, fixed):
+        self.blocks = blocks
+        self.symmetry = symmetry
+        self.fixed = fixed
+
+    @cache
+    def same(self, left, right):
+        if left is right or left is None or right is None:
+            return left is right
+        if (
+            left.atoms.get_chemical_symbols()
+            == right.atoms.get_chemical_symbols()
+            and np.array_equal(left.connection_point_indices, right.connection_point_indices)
+            and np.array_equal(left.bonds, right.bonds)
+            and np.array_equal(left.bond_types, right.bond_types)
+            and np.allclose(
+                left.atoms.positions - left.centroid,
+                right.atoms.positions - right.centroid,
+                atol=1.0e-8,
+            )
+        ):
+            return True
+        match = compare_building_blocks(
+            BuildingBlockGraph.from_building_block(left),
+            BuildingBlockGraph.from_building_block(right),
+            require_kind=False,
+            require_bond_types=True,
+        )
+        if not match.matched:
+            return False
+        atom_map = dict(match.mapping)
+        order = np.asarray([atom_map[i] for i in range(len(left.atoms))])
+        mapped_x = {atom_map[int(i)] for i in left.connection_point_indices}
+        if mapped_x != set(right.connection_point_indices) or not np.allclose(
+            left.atoms.get_initial_charges(),
+            right.atoms.get_initial_charges()[order],
+        ):
+            return False
+        left_pos = left.atoms.positions - left.centroid
+        right_pos = right.atoms.positions[order] - right.centroid
+        source, _, target = np.linalg.svd(right_pos.T @ left_pos)
+        rotation = source @ target
+        if np.linalg.det(rotation) < 0:
+            source[:, -1] *= -1
+            rotation = source @ target
+        error = np.linalg.norm(right_pos @ rotation - left_pos, axis=1)
+        return bool(np.max(error, initial=0) <= 1.0e-6)
+
+    def one(self, orbit):
+        representative = self.blocks[orbit.representative]
+        return all(
+            self.same(representative, self.blocks[int(member)])
+            for member in orbit.members
+        )
+
+    def perm(self, orbit):
+        source = min(
+            (int(member) for member in orbit.members if int(member) in self.fixed),
+            default=None,
+        )
+        if source is None:
+            return None
+        return self.symmetry.to_representative(orbit, source, self.fixed[source])
 
 
 class PortRules:
@@ -265,15 +334,12 @@ class PortRules:
 
             key = (node, allowed.tobytes())
             if key not in cache:
-                try:
-                    cache[key] = self.locator.locate(
-                        self.topology.local_structure(node),
-                        self.blocks[node],
-                        allowed=allowed,
-                    )[2]
-                except PortAssignmentError:
-                    cache[key] = None
-            if cache[key] is None:
-                return None
+                if not self.locator.has_compatible_permutation(allowed):
+                    return None
+                cache[key] = self.locator.locate(
+                    self.topology.local_structure(node),
+                    self.blocks[node],
+                    allowed=allowed,
+                )[2]
             score += cache[key]
         return score
