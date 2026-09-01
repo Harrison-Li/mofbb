@@ -7,18 +7,37 @@ from mofbb.compose.locator import Locator
 from mofbb.compose.pbc import PBC
 from mofbb.compose.framework import FrameworkAssembler
 from mofbb.compose.placement.blocks import BlockPlacement
-from mofbb.compose.placement.closure import CellClosure
+from mofbb.compose.node_lattice import NodeLatticeOptimizer
+from mofbb.compose.placement.fixed_cell import FixedCellFrameworkFitter
 from mofbb.compose.placement.slots import SlotAssignment
-from mofbb.compose.scaler import Scaler
 
 
 class Builder:
     """Assemble building blocks on a topology."""
 
-    def __init__(self, locator=None, scaler=None):
-        """Store the locator and scaler, creating defaults if needed."""
+    def __init__(self, locator=None, geometry_optimizer=None, *, scaler=None):
+        """Store placement helpers, creating defaults when needed."""
+        if geometry_optimizer is not None and scaler is not None:
+            raise ValueError(
+                "Pass geometry_optimizer or the legacy scaler argument, not both."
+            )
         self.locator = locator if locator is not None else Locator()
-        self.scaler = scaler if scaler is not None else Scaler()
+        if geometry_optimizer is None:
+            geometry_optimizer = scaler
+        self.geometry_optimizer = (
+            geometry_optimizer
+            if geometry_optimizer is not None
+            else NodeLatticeOptimizer()
+        )
+
+    @property
+    def scaler(self):
+        """Compatibility alias for :attr:`geometry_optimizer`."""
+        return self.geometry_optimizer
+
+    @scaler.setter
+    def scaler(self, value):
+        self.geometry_optimizer = value
 
     def make_bbs_by_type(self, topology, node_bbs, edge_bbs=None):
         """Expand type-keyed blocks into independent per-slot copies."""
@@ -82,7 +101,7 @@ class Builder:
         symmetry_tolerance=0.1,
         strict_symmetry=False,
     ):
-        """Run assignment, closure, placement, scaling, and assembly."""
+        """Run assignment, fixed-cell fitting, geometry optimization, and assembly."""
         overlap_scale = float(overlap_scale)
         symmetry_tolerance = float(symmetry_tolerance)
         if permutations is None:
@@ -97,17 +116,21 @@ class Builder:
             sym_tol=symmetry_tolerance,
             strict_symmetry=strict_symmetry,
         ).run()
-        closure = CellClosure(
+        fixed_cell_fit = FixedCellFrameworkFitter(
             assignment,
             Edge,
             tolerance=tolerance,
             bond_scale=scale,
         ).run()
-        assignment.validate_connections(closure.blocks, closure.permutations, scale)
+        assignment.validate_connections(
+            fixed_cell_fit.blocks,
+            fixed_cell_fit.permutations,
+            scale,
+        )
         placement = BlockPlacement(
             assignment,
-            closure,
-            self.scaler,
+            fixed_cell_fit,
+            self.geometry_optimizer,
             Edge,
         ).run()
         symmetry_diagnostics = assignment.diag
@@ -117,17 +140,27 @@ class Builder:
         symmetry_diagnostics["edges"].sort(
             key=lambda item: item["representative"]
         )
+        # Preserve the old diagnostic key at the external result boundary.
+        for category in ("nodes", "edges"):
+            for diagnostic in symmetry_diagnostics[category]:
+                if "symmetry_propagated" in diagnostic:
+                    diagnostic["covariant"] = diagnostic["symmetry_propagated"]
+
         info = {
             "topology": placement.topology,
             "located_bbs": placement.blocks,
             "permutations": placement.permutations,
-            "relax_obj": placement.scaling_result.fun,
+            "geometry_optimization_objective": (
+                placement.geometry_optimization_result.fun
+            ),
+            "relax_obj": placement.geometry_optimization_result.fun,
             "max_rmsd": np.max(placement.rmsds),
             "mean_rmsd": np.mean(placement.rmsds),
             "tolerance": tolerance,
             "scale": scale,
             "overlap_scale": overlap_scale,
-            "fixed_cell_closed": closure.closed,
+            "fixed_cell_fitted": fixed_cell_fit.fitted,
+            "fixed_cell_closed": fixed_cell_fit.fitted,
             "edge_frame_diagnostics": placement.edge_frame_diagnostics,
             "symmetry_placement_diagnostics": symmetry_diagnostics,
             "strict_symmetry": bool(strict_symmetry),

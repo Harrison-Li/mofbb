@@ -154,11 +154,10 @@ class FragmentBuilder:
         source_records: tuple[PeriodicBond, ...],
         internal_cuts: frozenset[PeriodicBond],
     ) -> ComponentPeriodicity:
-        return analyze_component(
-            component,
-            source_records,
-            excluded=internal_cuts,
-        )
+        frame = analyze_component(component, source_records, excluded=internal_cuts)
+        if frame.rank != 0:
+            raise ValueError("Cannot materialize a periodic fragment; cut it first.")
+        return frame
 
     def _internal_bonds(
         self,

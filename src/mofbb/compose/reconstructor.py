@@ -53,28 +53,26 @@ class Reconstructor:
         data = json.loads(self.map_path.read_text(encoding="utf-8"))
         topology = data["topology"]
         topology_path = topology.get("path")
-        if topology_path:
-            cell, vertices = _read_topology_geometry(
-                self.decomposition_dir / topology_path
-            )
-        else:
-            cell = cellpar_to_cell(topology["cell"])
-            vertices = []
         slots = sorted(data["slots"], key=lambda slot: slot["slot_id"])
         exact_vertices = [slot.get("exact_frac_position") for slot in slots]
         if all(vertex is not None for vertex in exact_vertices):
+            cell = cellpar_to_cell(topology["cell"])
             vertices = [np.asarray(vertex, dtype=float) for vertex in exact_vertices]
         elif any(vertex is not None for vertex in exact_vertices):
             raise ValueError(
                 "Reconstruction slots must either all define "
                 "exact_frac_position or all use topology NODE positions."
             )
-        elif not topology_path:
+        elif topology_path:
+            cell, vertices = _read_topology_geometry(
+                self.decomposition_dir / topology_path
+            )
+        else:
             raise ValueError(
                 "Reconstruction requires exact slot positions when topology "
                 "output is disabled."
             )
-        elif len(slots) != len(vertices):
+        if len(slots) != len(vertices):
             raise ValueError(
                 f"Reconstruction map has {len(slots)} slots, but topology has "
                 f"{len(vertices)} vertices."

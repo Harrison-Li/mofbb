@@ -43,7 +43,9 @@ class BondNetwork:
 def build_bond_network(atoms: ase.Atoms, scale: float = 1.2) -> BondNetwork:
     """Build a minimum-image bond graph from covalent cutoffs."""
 
-    cutoffs = [scale * cutoff for cutoff in natural_cutoffs(atoms)]
+    base_cutoffs = natural_cutoffs(atoms)
+    cutoffs = [scale * cutoff for cutoff in base_cutoffs]
+    symbols = atoms.get_chemical_symbols()
     i_list, j_list, d_list = neighbor_list(
         "ijD", atoms, cutoff=cutoffs, self_interaction=False
     )
@@ -56,6 +58,13 @@ def build_bond_network(atoms: ase.Atoms, scale: float = 1.2) -> BondNetwork:
             continue
         a, b = sorted((atom_i, atom_j))
         pair_vector = np.array(vector if atom_i == a else -vector, dtype=float)
+        # Scaling is needed for metal-ligand bonds, but over-bonds M···M contacts.
+        if (
+            is_metal(symbols[a])
+            and is_metal(symbols[b])
+            and np.linalg.norm(pair_vector) > base_cutoffs[a] + base_cutoffs[b]
+        ):
+            continue
         previous = vector_by_pair.get((a, b))
         if previous is None or np.linalg.norm(pair_vector) < np.linalg.norm(previous):
             vector_by_pair[(a, b)] = pair_vector

@@ -79,7 +79,7 @@ class BlockGroups:
 
 
 class PortRules:
-    """Centralize chemistry checks shared by placement and cell closure."""
+    """Centralize chemistry checks shared by placement and fixed-cell fitting."""
 
     def __init__(
         self,

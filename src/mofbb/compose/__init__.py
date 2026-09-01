@@ -11,6 +11,7 @@ __all__ = [
     "AbstractTopologyInput",
     "Framework",
     "Locator",
+    "NodeLatticeOptimizer",
     "Reconstructor",
     "Scaler",
     "Topology",
@@ -22,6 +23,10 @@ _LAZY_EXPORTS = {
     "BuildingBlock": ("mofbb.compose.building_block", "BuildingBlock"),
     "Framework": ("mofbb.compose.framework", "Framework"),
     "Locator": ("mofbb.compose.locator", "Locator"),
+    "NodeLatticeOptimizer": (
+        "mofbb.compose.node_lattice",
+        "NodeLatticeOptimizer",
+    ),
     "Reconstructor": ("mofbb.compose.reconstructor", "Reconstructor"),
     "Scaler": ("mofbb.compose.scaler", "Scaler"),
     "Topology": ("mofbb.compose.topology", "Topology"),

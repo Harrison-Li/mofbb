@@ -2,10 +2,96 @@
   "bb_groups": [
     {
       "bb_id": "metal_node_group_01",
-      "cn": 12,
-      "formula": "C12H12O30X12Zn6",
+      "cn": 16,
+      "count": 2,
+      "fingerprint": "32c8a2f8fa3d60bc",
+      "formula": "C12H12O30X16Zn6",
+      "fragment_indices": [
+        1,
+        2
+      ],
+      "group": 1,
       "kind": "metal_node",
+      "logical_cn": 14,
+      "logical_kind": "metal_node",
+      "logical_port_sizes": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+        2
+      ],
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "size": 1
+        },
+        {
+          "logical_port_id": 1,
+          "size": 1
+        },
+        {
+          "logical_port_id": 2,
+          "size": 1
+        },
+        {
+          "logical_port_id": 3,
+          "size": 1
+        },
+        {
+          "logical_port_id": 4,
+          "size": 1
+        },
+        {
+          "logical_port_id": 5,
+          "size": 1
+        },
+        {
+          "logical_port_id": 6,
+          "size": 1
+        },
+        {
+          "logical_port_id": 7,
+          "size": 1
+        },
+        {
+          "logical_port_id": 8,
+          "size": 1
+        },
+        {
+          "logical_port_id": 9,
+          "size": 1
+        },
+        {
+          "logical_port_id": 10,
+          "size": 1
+        },
+        {
+          "logical_port_id": 11,
+          "size": 1
+        },
+        {
+          "logical_port_id": 12,
+          "size": 2
+        },
+        {
+          "logical_port_id": 13,
+          "size": 2
+        }
+      ],
+      "num_atoms": 76,
+      "num_x": 16,
       "path": "bbs/metal_node_group_01.xyz",
+      "physical_cn": 16,
       "x_sites": [
         {
           "site_id": 0,
@@ -54,15 +140,71 @@
         {
           "site_id": 11,
           "x_index": 71
+        },
+        {
+          "site_id": 12,
+          "x_index": 72
+        },
+        {
+          "site_id": 13,
+          "x_index": 73
+        },
+        {
+          "site_id": 14,
+          "x_index": 74
+        },
+        {
+          "site_id": 15,
+          "x_index": 75
         }
       ]
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
+      "count": 6,
+      "fingerprint": "e8712fd52f702531",
       "formula": "C6S4X4",
+      "fragment_indices": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "group": 1,
       "kind": "organic_node",
+      "logical_cn": 4,
+      "logical_kind": "organic_node",
+      "logical_port_sizes": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "size": 1
+        },
+        {
+          "logical_port_id": 1,
+          "size": 1
+        },
+        {
+          "logical_port_id": 2,
+          "size": 1
+        },
+        {
+          "logical_port_id": 3,
+          "size": 1
+        }
+      ],
+      "num_atoms": 14,
+      "num_x": 4,
       "path": "bbs/organic_node_group_01.xyz",
+      "physical_cn": 4,
       "x_sites": [
         {
           "site_id": 0,
@@ -85,9 +227,57 @@
     {
       "bb_id": "edge_group_01",
       "cn": 2,
+      "count": 24,
+      "fingerprint": "506b382afa009087",
       "formula": "C6H4X2",
+      "fragment_indices": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "group": 1,
       "kind": "edge",
+      "logical_cn": 2,
+      "logical_kind": "edge",
+      "logical_port_sizes": [
+        1,
+        1
+      ],
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "size": 1
+        },
+        {
+          "logical_port_id": 1,
+          "size": 1
+        }
+      ],
+      "num_atoms": 12,
+      "num_x": 2,
       "path": "bbs/edge_group_01.xyz",
+      "physical_cn": 2,
       "x_sites": [
         {
           "site_id": 0,
@@ -109,17 +299,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 30,
+          "internal_source_index": 12,
           "slot_id": 9,
           "x_index": 10
         },
         {
+          "external_source_index": 12,
+          "internal_source_index": 30,
           "slot_id": 0,
           "x_index": 60
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         12,
         30
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -130,17 +334,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 31,
+          "internal_source_index": 13,
           "slot_id": 13,
           "x_index": 10
         },
         {
+          "external_source_index": 13,
+          "internal_source_index": 31,
           "slot_id": 0,
           "x_index": 61
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         13,
         31
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -151,17 +369,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 32,
+          "internal_source_index": 14,
           "slot_id": 17,
           "x_index": 10
         },
         {
+          "external_source_index": 14,
+          "internal_source_index": 32,
           "slot_id": 0,
           "x_index": 62
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         14,
         32
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -172,17 +404,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 33,
+          "internal_source_index": 15,
           "slot_id": 21,
           "x_index": 10
         },
         {
+          "external_source_index": 15,
+          "internal_source_index": 33,
           "slot_id": 1,
           "x_index": 60
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         15,
         33
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -193,17 +439,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 34,
+          "internal_source_index": 16,
           "slot_id": 25,
           "x_index": 10
         },
         {
+          "external_source_index": 16,
+          "internal_source_index": 34,
           "slot_id": 1,
           "x_index": 61
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        -1
+      ],
       "source_cut_bond": [
         16,
         34
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -214,17 +474,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 35,
+          "internal_source_index": 17,
           "slot_id": 29,
           "x_index": 10
         },
         {
+          "external_source_index": 17,
+          "internal_source_index": 35,
           "slot_id": 1,
           "x_index": 62
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         17,
         35
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -235,17 +509,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 72,
+          "internal_source_index": 18,
           "slot_id": 2,
           "x_index": 10
         },
         {
+          "external_source_index": 18,
+          "internal_source_index": 72,
           "slot_id": 9,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        1,
+        1,
+        0
+      ],
       "source_cut_bond": [
         18,
         72
+      ],
+      "source_cut_shift": [
+        1,
+        0,
+        0
       ]
     },
     {
@@ -256,17 +544,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 73,
+          "internal_source_index": 19,
           "slot_id": 3,
           "x_index": 10
         },
         {
+          "external_source_index": 19,
+          "internal_source_index": 73,
           "slot_id": 13,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        -1,
+        0,
+        0
+      ],
       "source_cut_bond": [
         19,
         73
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -277,17 +579,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 74,
+          "internal_source_index": 20,
           "slot_id": 4,
           "x_index": 10
         },
         {
+          "external_source_index": 20,
+          "internal_source_index": 74,
           "slot_id": 17,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        0,
+        -1,
+        0
+      ],
       "source_cut_bond": [
         20,
         74
+      ],
+      "source_cut_shift": [
+        0,
+        -1,
+        0
       ]
     },
     {
@@ -298,17 +614,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 75,
+          "internal_source_index": 21,
           "slot_id": 5,
           "x_index": 10
         },
         {
+          "external_source_index": 21,
+          "internal_source_index": 75,
           "slot_id": 21,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        -1,
+        -1,
+        0
+      ],
       "source_cut_bond": [
         21,
         75
+      ],
+      "source_cut_shift": [
+        -1,
+        0,
+        0
       ]
     },
     {
@@ -319,17 +649,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 76,
+          "internal_source_index": 22,
           "slot_id": 6,
           "x_index": 10
         },
         {
+          "external_source_index": 22,
+          "internal_source_index": 76,
           "slot_id": 25,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        1,
+        0,
+        0
+      ],
       "source_cut_bond": [
         22,
         76
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -340,17 +684,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 77,
+          "internal_source_index": 23,
           "slot_id": 7,
           "x_index": 10
         },
         {
+          "external_source_index": 23,
+          "internal_source_index": 77,
           "slot_id": 29,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        0,
+        1,
+        0
+      ],
       "source_cut_bond": [
         23,
         77
+      ],
+      "source_cut_shift": [
+        0,
+        1,
+        0
       ]
     },
     {
@@ -361,17 +719,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 162,
+          "internal_source_index": 24,
           "slot_id": 2,
           "x_index": 11
         },
         {
+          "external_source_index": 24,
+          "internal_source_index": 162,
           "slot_id": 10,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        1,
+        0,
+        0
+      ],
       "source_cut_bond": [
         24,
         162
+      ],
+      "source_cut_shift": [
+        1,
+        0,
+        0
       ]
     },
     {
@@ -382,17 +754,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 163,
+          "internal_source_index": 25,
           "slot_id": 3,
           "x_index": 11
         },
         {
+          "external_source_index": 25,
+          "internal_source_index": 163,
           "slot_id": 14,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        0,
+        1,
+        0
+      ],
       "source_cut_bond": [
         25,
         163
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -403,17 +789,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 164,
+          "internal_source_index": 26,
           "slot_id": 4,
           "x_index": 11
         },
         {
+          "external_source_index": 26,
+          "internal_source_index": 164,
           "slot_id": 18,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        -1,
+        -1,
+        0
+      ],
       "source_cut_bond": [
         26,
         164
+      ],
+      "source_cut_shift": [
+        0,
+        -1,
+        0
       ]
     },
     {
@@ -424,17 +824,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 165,
+          "internal_source_index": 27,
           "slot_id": 5,
           "x_index": 11
         },
         {
+          "external_source_index": 27,
+          "internal_source_index": 165,
           "slot_id": 22,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        -1,
+        0,
+        0
+      ],
       "source_cut_bond": [
         27,
         165
+      ],
+      "source_cut_shift": [
+        -1,
+        0,
+        0
       ]
     },
     {
@@ -445,17 +859,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 166,
+          "internal_source_index": 28,
           "slot_id": 6,
           "x_index": 11
         },
         {
+          "external_source_index": 28,
+          "internal_source_index": 166,
           "slot_id": 26,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        0,
+        -1,
+        0
+      ],
       "source_cut_bond": [
         28,
         166
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -466,17 +894,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 167,
+          "internal_source_index": 29,
           "slot_id": 7,
           "x_index": 11
         },
         {
+          "external_source_index": 29,
+          "internal_source_index": 167,
           "slot_id": 30,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        1,
+        1,
+        0
+      ],
       "source_cut_bond": [
         29,
         167
+      ],
+      "source_cut_shift": [
+        0,
+        1,
+        0
       ]
     },
     {
@@ -487,17 +929,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 186,
+          "internal_source_index": 36,
           "slot_id": 2,
           "x_index": 12
         },
         {
+          "external_source_index": 36,
+          "internal_source_index": 186,
           "slot_id": 11,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        0,
+        1,
+        0
+      ],
       "source_cut_bond": [
         36,
         186
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -508,17 +964,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 187,
+          "internal_source_index": 37,
           "slot_id": 3,
           "x_index": 12
         },
         {
+          "external_source_index": 37,
+          "internal_source_index": 187,
           "slot_id": 15,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        -1,
+        0,
+        0
+      ],
       "source_cut_bond": [
         37,
         187
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -529,17 +999,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 188,
+          "internal_source_index": 38,
           "slot_id": 4,
           "x_index": 12
         },
         {
+          "external_source_index": 38,
+          "internal_source_index": 188,
           "slot_id": 19,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         38,
         188
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -550,17 +1034,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 189,
+          "internal_source_index": 39,
           "slot_id": 5,
           "x_index": 12
         },
         {
+          "external_source_index": 39,
+          "internal_source_index": 189,
           "slot_id": 23,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        0,
+        -1,
+        0
+      ],
       "source_cut_bond": [
         39,
         189
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -571,17 +1069,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 190,
+          "internal_source_index": 40,
           "slot_id": 6,
           "x_index": 12
         },
         {
+          "external_source_index": 40,
+          "internal_source_index": 190,
           "slot_id": 27,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        1,
+        0,
+        0
+      ],
       "source_cut_bond": [
         40,
         190
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -592,17 +1104,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 191,
+          "internal_source_index": 41,
           "slot_id": 7,
           "x_index": 12
         },
         {
+          "external_source_index": 41,
+          "internal_source_index": 191,
           "slot_id": 31,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         41,
         191
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -613,17 +1139,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 102,
+          "internal_source_index": 78,
           "slot_id": 11,
           "x_index": 11
         },
         {
+          "external_source_index": 78,
+          "internal_source_index": 102,
           "slot_id": 1,
           "x_index": 63
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        -1
+      ],
       "source_cut_bond": [
         78,
         102
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -634,17 +1174,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 103,
+          "internal_source_index": 79,
           "slot_id": 15,
           "x_index": 11
         },
         {
+          "external_source_index": 79,
+          "internal_source_index": 103,
           "slot_id": 1,
           "x_index": 64
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         79,
         103
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -655,17 +1209,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 104,
+          "internal_source_index": 80,
           "slot_id": 19,
           "x_index": 11
         },
         {
+          "external_source_index": 80,
+          "internal_source_index": 104,
           "slot_id": 1,
           "x_index": 65
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        -1
+      ],
       "source_cut_bond": [
         80,
         104
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -676,17 +1244,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 105,
+          "internal_source_index": 81,
           "slot_id": 23,
           "x_index": 11
         },
         {
+          "external_source_index": 81,
+          "internal_source_index": 105,
           "slot_id": 0,
           "x_index": 63
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         81,
         105
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -697,17 +1279,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 106,
+          "internal_source_index": 82,
           "slot_id": 27,
           "x_index": 11
         },
         {
+          "external_source_index": 82,
+          "internal_source_index": 106,
           "slot_id": 0,
           "x_index": 64
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         82,
         106
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -718,17 +1314,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 107,
+          "internal_source_index": 83,
           "slot_id": 31,
           "x_index": 11
         },
         {
+          "external_source_index": 83,
+          "internal_source_index": 107,
           "slot_id": 0,
           "x_index": 65
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         83,
         107
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -739,17 +1349,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 150,
+          "internal_source_index": 90,
           "slot_id": 2,
           "x_index": 13
         },
         {
+          "external_source_index": 90,
+          "internal_source_index": 150,
           "slot_id": 8,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         90,
         150
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -760,17 +1384,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 151,
+          "internal_source_index": 91,
           "slot_id": 3,
           "x_index": 13
         },
         {
+          "external_source_index": 91,
+          "internal_source_index": 151,
           "slot_id": 12,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        0,
+        1,
+        0
+      ],
       "source_cut_bond": [
         91,
         151
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -781,17 +1419,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 152,
+          "internal_source_index": 92,
           "slot_id": 4,
           "x_index": 13
         },
         {
+          "external_source_index": 92,
+          "internal_source_index": 152,
           "slot_id": 16,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        -1,
+        0,
+        0
+      ],
       "source_cut_bond": [
         92,
         152
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -802,17 +1454,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 153,
+          "internal_source_index": 93,
           "slot_id": 5,
           "x_index": 13
         },
         {
+          "external_source_index": 93,
+          "internal_source_index": 153,
           "slot_id": 20,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         93,
         153
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -823,17 +1489,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 154,
+          "internal_source_index": 94,
           "slot_id": 6,
           "x_index": 13
         },
         {
+          "external_source_index": 94,
+          "internal_source_index": 154,
           "slot_id": 24,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        0,
+        -1,
+        0
+      ],
       "source_cut_bond": [
         94,
         154
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -844,17 +1524,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 155,
+          "internal_source_index": 95,
           "slot_id": 7,
           "x_index": 13
         },
         {
+          "external_source_index": 95,
+          "internal_source_index": 155,
           "slot_id": 28,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        1,
+        0,
+        1
+      ],
       "source_cut_bond": [
         95,
         155
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -865,17 +1559,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 138,
+          "internal_source_index": 96,
           "slot_id": 1,
           "x_index": 66
         },
         {
+          "external_source_index": 96,
+          "internal_source_index": 138,
           "slot_id": 8,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        1
+      ],
       "source_cut_bond": [
         96,
         138
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -886,17 +1594,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 139,
+          "internal_source_index": 97,
           "slot_id": 1,
           "x_index": 67
         },
         {
+          "external_source_index": 97,
+          "internal_source_index": 139,
           "slot_id": 12,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         97,
         139
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -907,17 +1629,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 140,
+          "internal_source_index": 98,
           "slot_id": 1,
           "x_index": 68
         },
         {
+          "external_source_index": 98,
+          "internal_source_index": 140,
           "slot_id": 16,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        1
+      ],
       "source_cut_bond": [
         98,
         140
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -928,17 +1664,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 141,
+          "internal_source_index": 99,
           "slot_id": 0,
           "x_index": 66
         },
         {
+          "external_source_index": 99,
+          "internal_source_index": 141,
           "slot_id": 20,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         99,
         141
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -949,17 +1699,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 142,
+          "internal_source_index": 100,
           "slot_id": 0,
           "x_index": 67
         },
         {
+          "external_source_index": 100,
+          "internal_source_index": 142,
           "slot_id": 24,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         100,
         142
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -970,17 +1734,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 143,
+          "internal_source_index": 101,
           "slot_id": 0,
           "x_index": 68
         },
         {
+          "external_source_index": 101,
+          "internal_source_index": 143,
           "slot_id": 28,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        1
+      ],
       "source_cut_bond": [
         101,
         143
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -991,17 +1769,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 126,
+          "internal_source_index": 108,
           "slot_id": 10,
           "x_index": 11
         },
         {
+          "external_source_index": 108,
+          "internal_source_index": 126,
           "slot_id": 0,
           "x_index": 69
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         108,
         126
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -1012,17 +1804,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 127,
+          "internal_source_index": 109,
           "slot_id": 14,
           "x_index": 11
         },
         {
+          "external_source_index": 109,
+          "internal_source_index": 127,
           "slot_id": 0,
           "x_index": 70
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         109,
         127
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -1033,17 +1839,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 128,
+          "internal_source_index": 110,
           "slot_id": 18,
           "x_index": 11
         },
         {
+          "external_source_index": 110,
+          "internal_source_index": 128,
           "slot_id": 0,
           "x_index": 71
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         110,
         128
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -1054,17 +1874,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 129,
+          "internal_source_index": 111,
           "slot_id": 22,
           "x_index": 11
         },
         {
+          "external_source_index": 111,
+          "internal_source_index": 129,
           "slot_id": 1,
           "x_index": 69
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         111,
         129
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -1075,17 +1909,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 130,
+          "internal_source_index": 112,
           "slot_id": 26,
           "x_index": 11
         },
         {
+          "external_source_index": 112,
+          "internal_source_index": 130,
           "slot_id": 1,
           "x_index": 70
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        -1
+      ],
       "source_cut_bond": [
         112,
         130
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -1096,29 +1944,856 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 131,
+          "internal_source_index": 113,
           "slot_id": 30,
           "x_index": 11
         },
         {
+          "external_source_index": 113,
+          "internal_source_index": 131,
           "slot_id": 1,
           "x_index": 71
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         113,
         131
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "edge_id": 48,
+      "endpoint_slots": [
+        0,
+        0
+      ],
+      "endpoint_x_sites": [
+        {
+          "external_source_index": 413,
+          "internal_source_index": 348,
+          "slot_id": 0,
+          "x_index": 72
+        },
+        {
+          "external_source_index": 348,
+          "internal_source_index": 413,
+          "slot_id": 0,
+          "x_index": 73
+        }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        1
+      ],
+      "source_cut_bond": [
+        348,
+        413
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        -1
+      ]
+    },
+    {
+      "edge_id": 49,
+      "endpoint_slots": [
+        1,
+        1
+      ],
+      "endpoint_x_sites": [
+        {
+          "external_source_index": 410,
+          "internal_source_index": 351,
+          "slot_id": 1,
+          "x_index": 72
+        },
+        {
+          "external_source_index": 351,
+          "internal_source_index": 410,
+          "slot_id": 1,
+          "x_index": 73
+        }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        1
+      ],
+      "source_cut_bond": [
+        351,
+        410
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "edge_id": 50,
+      "endpoint_slots": [
+        1,
+        1
+      ],
+      "endpoint_x_sites": [
+        {
+          "external_source_index": 415,
+          "internal_source_index": 392,
+          "slot_id": 1,
+          "x_index": 74
+        },
+        {
+          "external_source_index": 392,
+          "internal_source_index": 415,
+          "slot_id": 1,
+          "x_index": 75
+        }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        -1
+      ],
+      "source_cut_bond": [
+        392,
+        415
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "edge_id": 51,
+      "endpoint_slots": [
+        0,
+        0
+      ],
+      "endpoint_x_sites": [
+        {
+          "external_source_index": 418,
+          "internal_source_index": 395,
+          "slot_id": 0,
+          "x_index": 74
+        },
+        {
+          "external_source_index": 395,
+          "internal_source_index": 418,
+          "slot_id": 0,
+          "x_index": 75
+        }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        -1
+      ],
+      "source_cut_bond": [
+        395,
+        418
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     }
   ],
-  "schema_version": 1,
+  "schema_version": 2,
   "slots": [
     {
       "bb_id": "metal_node_group_01",
-      "cn": 12,
-      "debug_instance": "metal_nodes/metal_node_001.xyz",
-      "formula": "C12H12O30X12Zn6",
+      "cn": 16,
+      "exact_frac_position": [
+        0.33333333333333326,
+        0.6666666666666666,
+        0.5167781666666669
+      ],
+      "exact_instance_path": "metal_nodes/metal_node_001.xyz",
       "kind": "metal_node",
+      "logical_kind": "metal_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            60
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 3,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            69
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 6,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            61
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 7,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            70
+          ]
+        },
+        {
+          "logical_port_id": 4,
+          "neighbor_index": 10,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            62
+          ]
+        },
+        {
+          "logical_port_id": 5,
+          "neighbor_index": 11,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            71
+          ]
+        },
+        {
+          "logical_port_id": 6,
+          "neighbor_index": 13,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            66
+          ]
+        },
+        {
+          "logical_port_id": 7,
+          "neighbor_index": 16,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            63
+          ]
+        },
+        {
+          "logical_port_id": 8,
+          "neighbor_index": 17,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            67
+          ]
+        },
+        {
+          "logical_port_id": 9,
+          "neighbor_index": 20,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            64
+          ]
+        },
+        {
+          "logical_port_id": 10,
+          "neighbor_index": 21,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            68
+          ]
+        },
+        {
+          "logical_port_id": 11,
+          "neighbor_index": 24,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            65
+          ]
+        },
+        {
+          "logical_port_id": 12,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            -1
+          ],
+          "x_indices": [
+            72,
+            75
+          ]
+        },
+        {
+          "logical_port_id": 13,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            73,
+            74
+          ]
+        }
+      ],
       "slot_id": 0,
+      "source_image_offsets": [
+        [
+          30,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          31,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          32,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          99,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          100,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          101,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          105,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          106,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          107,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          126,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          127,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          128,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          303,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          304,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          305,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          315,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          316,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          317,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          333,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          334,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          335,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          339,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          340,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          341,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          348,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          349,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          350,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          354,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          355,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          356,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          363,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          364,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          365,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          369,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          370,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          371,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          375,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          376,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          377,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          381,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          382,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          383,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          387,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          388,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          389,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          393,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          394,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          395,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          399,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          400,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          401,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          405,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          406,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          407,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          411,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          412,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          413,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          417,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          418,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          419,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         30,
         31,
@@ -1180,15 +2855,692 @@
         417,
         418,
         419
-      ]
+      ],
+      "topology_slot": {
+        "index": 0,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "metal_node_group_01",
-      "cn": 12,
-      "debug_instance": "metal_nodes/metal_node_002.xyz",
-      "formula": "C12H12O30X12Zn6",
+      "cn": 16,
+      "exact_frac_position": [
+        0.6666666666666665,
+        0.33333333333333326,
+        0.01677816666666665
+      ],
+      "exact_instance_path": "metal_nodes/metal_node_002.xyz",
       "kind": "metal_node",
+      "logical_kind": "metal_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            66
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 4,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            63
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 5,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            67
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 8,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            64
+          ]
+        },
+        {
+          "logical_port_id": 4,
+          "neighbor_index": 9,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            68
+          ]
+        },
+        {
+          "logical_port_id": 5,
+          "neighbor_index": 12,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            65
+          ]
+        },
+        {
+          "logical_port_id": 6,
+          "neighbor_index": 14,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            60
+          ]
+        },
+        {
+          "logical_port_id": 7,
+          "neighbor_index": 15,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            69
+          ]
+        },
+        {
+          "logical_port_id": 8,
+          "neighbor_index": 18,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            61
+          ]
+        },
+        {
+          "logical_port_id": 9,
+          "neighbor_index": 19,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            70
+          ]
+        },
+        {
+          "logical_port_id": 10,
+          "neighbor_index": 22,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            62
+          ]
+        },
+        {
+          "logical_port_id": 11,
+          "neighbor_index": 23,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            71
+          ]
+        },
+        {
+          "logical_port_id": 12,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            -1
+          ],
+          "x_indices": [
+            72,
+            75
+          ]
+        },
+        {
+          "logical_port_id": 13,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            73,
+            74
+          ]
+        }
+      ],
       "slot_id": 1,
+      "source_image_offsets": [
+        [
+          33,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          34,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          35,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          96,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          97,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          98,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          102,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          103,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          104,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          129,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          130,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          131,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          300,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          301,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          302,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          312,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          313,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          314,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          330,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          331,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          332,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          336,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          337,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          338,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          351,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          352,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          353,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          357,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          358,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          359,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          360,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          361,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          362,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          366,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          367,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          368,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          372,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          373,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          374,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          378,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          379,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          380,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          384,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          385,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          386,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          390,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          391,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          392,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          396,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          397,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          398,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          402,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          403,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          404,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          408,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          409,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          410,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          414,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          415,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          416,
+          [
+            0,
+            0,
+            1
+          ]
+        ]
+      ],
       "source_indices": [
         33,
         34,
@@ -1250,15 +3602,160 @@
         414,
         415,
         416
-      ]
+      ],
+      "topology_slot": {
+        "index": 1,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
-      "debug_instance": "organic_nodes/organic_node_001.xyz",
-      "formula": "C6S4X4",
+      "exact_frac_position": [
+        0.9135399999999999,
+        0.9644600000000001,
+        0.10228799999999998
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_001.xyz",
       "kind": "organic_node",
+      "logical_kind": "organic_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            13
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 2,
+          "neighbor_kind": "edge",
+          "translation": [
+            1,
+            1,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 3,
+          "neighbor_kind": "edge",
+          "translation": [
+            1,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 4,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            1,
+            0
+          ],
+          "x_indices": [
+            12
+          ]
+        }
+      ],
       "slot_id": 2,
+      "source_image_offsets": [
+        [
+          0,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          6,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          18,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          24,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          36,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          90,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          204,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          210,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          216,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          222,
+          [
+            1,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         0,
         6,
@@ -1270,15 +3767,160 @@
         210,
         216,
         222
-      ]
+      ],
+      "topology_slot": {
+        "index": 2,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
-      "debug_instance": "organic_nodes/organic_node_002.xyz",
-      "formula": "C6S4X4",
+      "exact_frac_position": [
+        0.03553999999999996,
+        0.94908,
+        0.768955
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_002.xyz",
       "kind": "organic_node",
+      "logical_kind": "organic_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 5,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            1,
+            0
+          ],
+          "x_indices": [
+            13
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 6,
+          "neighbor_kind": "edge",
+          "translation": [
+            -1,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 7,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            1,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 8,
+          "neighbor_kind": "edge",
+          "translation": [
+            -1,
+            0,
+            0
+          ],
+          "x_indices": [
+            12
+          ]
+        }
+      ],
       "slot_id": 3,
+      "source_image_offsets": [
+        [
+          1,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          7,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          19,
+          [
+            -1,
+            0,
+            0
+          ]
+        ],
+        [
+          25,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          37,
+          [
+            -1,
+            0,
+            0
+          ]
+        ],
+        [
+          91,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          205,
+          [
+            -1,
+            0,
+            0
+          ]
+        ],
+        [
+          211,
+          [
+            -1,
+            0,
+            0
+          ]
+        ],
+        [
+          217,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          223,
+          [
+            0,
+            1,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         1,
         7,
@@ -1290,15 +3932,160 @@
         211,
         217,
         223
-      ]
+      ],
+      "topology_slot": {
+        "index": 3,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
-      "debug_instance": "organic_nodes/organic_node_003.xyz",
-      "formula": "C6S4X4",
+      "exact_frac_position": [
+        0.05091999999999998,
+        0.08645999999999997,
+        0.435621
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_003.xyz",
       "kind": "organic_node",
+      "logical_kind": "organic_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 9,
+          "neighbor_kind": "edge",
+          "translation": [
+            -1,
+            0,
+            0
+          ],
+          "x_indices": [
+            13
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 10,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            -1,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 11,
+          "neighbor_kind": "edge",
+          "translation": [
+            -1,
+            -1,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 12,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            12
+          ]
+        }
+      ],
       "slot_id": 4,
+      "source_image_offsets": [
+        [
+          2,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          8,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          20,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          26,
+          [
+            -1,
+            0,
+            0
+          ]
+        ],
+        [
+          38,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          92,
+          [
+            -1,
+            0,
+            0
+          ]
+        ],
+        [
+          206,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          212,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          218,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          224,
+          [
+            -1,
+            -1,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         2,
         8,
@@ -1310,15 +4097,160 @@
         212,
         218,
         224
-      ]
+      ],
+      "topology_slot": {
+        "index": 4,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
-      "debug_instance": "organic_nodes/organic_node_004.xyz",
-      "formula": "C6S4X4",
+      "exact_frac_position": [
+        0.08646000000000001,
+        0.035539999999999974,
+        0.6022879999999999
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_004.xyz",
       "kind": "organic_node",
+      "logical_kind": "organic_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 13,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            13
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 14,
+          "neighbor_kind": "edge",
+          "translation": [
+            -1,
+            -1,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 15,
+          "neighbor_kind": "edge",
+          "translation": [
+            -1,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 16,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            -1,
+            0
+          ],
+          "x_indices": [
+            12
+          ]
+        }
+      ],
       "slot_id": 5,
+      "source_image_offsets": [
+        [
+          3,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          9,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          21,
+          [
+            0,
+            -1,
+            0
+          ]
+        ],
+        [
+          27,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          39,
+          [
+            0,
+            -1,
+            0
+          ]
+        ],
+        [
+          93,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          207,
+          [
+            0,
+            -1,
+            0
+          ]
+        ],
+        [
+          213,
+          [
+            0,
+            -1,
+            0
+          ]
+        ],
+        [
+          219,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          225,
+          [
+            -1,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         3,
         9,
@@ -1330,15 +4262,160 @@
         213,
         219,
         225
-      ]
+      ],
+      "topology_slot": {
+        "index": 5,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
-      "debug_instance": "organic_nodes/organic_node_005.xyz",
-      "formula": "C6S4X4",
+      "exact_frac_position": [
+        0.9644600000000001,
+        0.050919999999999965,
+        0.26895499999999994
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_005.xyz",
       "kind": "organic_node",
+      "logical_kind": "organic_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 17,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            -1,
+            0
+          ],
+          "x_indices": [
+            13
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 18,
+          "neighbor_kind": "edge",
+          "translation": [
+            1,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 19,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            -1,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 20,
+          "neighbor_kind": "edge",
+          "translation": [
+            1,
+            0,
+            0
+          ],
+          "x_indices": [
+            12
+          ]
+        }
+      ],
       "slot_id": 6,
+      "source_image_offsets": [
+        [
+          4,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          10,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          22,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          28,
+          [
+            0,
+            -1,
+            0
+          ]
+        ],
+        [
+          40,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          94,
+          [
+            0,
+            -1,
+            0
+          ]
+        ],
+        [
+          208,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          214,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          220,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          226,
+          [
+            0,
+            -1,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         4,
         10,
@@ -1350,15 +4427,160 @@
         214,
         220,
         226
-      ]
+      ],
+      "topology_slot": {
+        "index": 6,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
-      "debug_instance": "organic_nodes/organic_node_006.xyz",
-      "formula": "C6S4X4",
+      "exact_frac_position": [
+        0.9490799999999998,
+        0.9135399999999999,
+        0.9356209999999999
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_006.xyz",
       "kind": "organic_node",
+      "logical_kind": "organic_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 21,
+          "neighbor_kind": "edge",
+          "translation": [
+            1,
+            0,
+            1
+          ],
+          "x_indices": [
+            13
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 22,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            1,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 23,
+          "neighbor_kind": "edge",
+          "translation": [
+            1,
+            1,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 24,
+          "neighbor_kind": "edge",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            12
+          ]
+        }
+      ],
       "slot_id": 7,
+      "source_image_offsets": [
+        [
+          5,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          11,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          23,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          29,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          41,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          95,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          209,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          215,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          221,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          227,
+          [
+            1,
+            1,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         5,
         11,
@@ -1370,15 +4592,134 @@
         215,
         221,
         227
-      ]
+      ],
+      "topology_slot": {
+        "index": 7,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_001.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.7740799999999999,
+        0.6109199999999999,
+        0.139969
+      ],
+      "exact_instance_path": "edges/edge_001.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 1,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 8,
+      "source_image_offsets": [
+        [
+          66,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          132,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          138,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          144,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          150,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          156,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          252,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          258,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          270,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          276,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         66,
         132,
@@ -1390,15 +4731,134 @@
         258,
         270,
         276
-      ]
+      ],
+      "topology_slot": {
+        "index": 4,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_002.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.06274699999999998,
+        0.316958,
+        0.077315
+      ],
+      "exact_instance_path": "edges/edge_002.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 1,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            -1,
+            -1,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        }
+      ],
       "slot_id": 9,
+      "source_image_offsets": [
+        [
+          12,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          42,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          48,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          54,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          60,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          72,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          228,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          234,
+          [
+            0,
+            0,
+            -1
+          ]
+        ],
+        [
+          246,
+          [
+            -1,
+            0,
+            0
+          ]
+        ],
+        [
+          282,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         12,
         42,
@@ -1410,15 +4870,134 @@
         234,
         246,
         282
-      ]
+      ],
+      "topology_slot": {
+        "index": 5,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_003.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.07402329999999993,
+        0.7766499999999998,
+        0.151136
+      ],
+      "exact_instance_path": "edges/edge_003.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 1,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            -1,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 10,
+      "source_image_offsets": [
+        [
+          108,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          114,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          120,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          162,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          168,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          174,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          288,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          294,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          306,
+          [
+            -1,
+            0,
+            0
+          ]
+        ],
+        [
+          324,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         108,
         114,
@@ -1430,15 +5009,134 @@
         294,
         306,
         324
-      ]
+      ],
+      "topology_slot": {
+        "index": 6,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_004.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.7660640000000001,
+        0.17249599999999998,
+        0.0935017
+      ],
+      "exact_instance_path": "edges/edge_004.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 1,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            -1,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 11,
+      "source_image_offsets": [
+        [
+          78,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          84,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          180,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          186,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          192,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          198,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          240,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          264,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          318,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          342,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         78,
         84,
@@ -1450,15 +5148,134 @@
         264,
         318,
         342
-      ]
+      ],
+      "topology_slot": {
+        "index": 7,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_005.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.38908,
+        0.16315999999999997,
+        0.8066359999999999
+      ],
+      "exact_instance_path": "edges/edge_005.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 2,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            -1,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 12,
+      "source_image_offsets": [
+        [
+          67,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          133,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          139,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          145,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          151,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          157,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          253,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          259,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          271,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          277,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         67,
         133,
@@ -1470,15 +5287,134 @@
         259,
         271,
         277
-      ]
+      ],
+      "topology_slot": {
+        "index": 8,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_006.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.683042,
+        0.7457889999999999,
+        0.7439820000000001
+      ],
+      "exact_instance_path": "edges/edge_006.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 2,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            1,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        }
+      ],
       "slot_id": 13,
+      "source_image_offsets": [
+        [
+          13,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          43,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          49,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          55,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          61,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          73,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          229,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          235,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          247,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          283,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         13,
         43,
@@ -1490,15 +5426,134 @@
         235,
         247,
         283
-      ]
+      ],
+      "topology_slot": {
+        "index": 9,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_007.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.22334999999999994,
+        0.29737329999999995,
+        0.817803
+      ],
+      "exact_instance_path": "edges/edge_007.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 2,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            -1,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 14,
+      "source_image_offsets": [
+        [
+          109,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          115,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          121,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          163,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          169,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          175,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          289,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          295,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          307,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          325,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         109,
         115,
@@ -1510,15 +5565,134 @@
         295,
         307,
         325
-      ]
+      ],
+      "topology_slot": {
+        "index": 10,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_008.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.827504,
+        0.593568,
+        0.7601685999999999
+      ],
+      "exact_instance_path": "edges/edge_008.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 2,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            1,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 15,
+      "source_image_offsets": [
+        [
+          79,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          85,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          181,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          187,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          193,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          199,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          241,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          265,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          319,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          343,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         79,
         85,
@@ -1530,15 +5704,134 @@
         265,
         319,
         343
-      ]
+      ],
+      "topology_slot": {
+        "index": 11,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_009.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.8368399999999999,
+        0.22591999999999998,
+        0.47330200000000006
+      ],
+      "exact_instance_path": "edges/edge_009.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 3,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            1,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 16,
+      "source_image_offsets": [
+        [
+          68,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          134,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          140,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          146,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          152,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          158,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          254,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          260,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          272,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          278,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         68,
         134,
@@ -1550,15 +5843,134 @@
         260,
         272,
         278
-      ]
+      ],
+      "topology_slot": {
+        "index": 12,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_010.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.254211,
+        0.9372529999999999,
+        0.410648
+      ],
+      "exact_instance_path": "edges/edge_010.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 3,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            1,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        }
+      ],
       "slot_id": 17,
+      "source_image_offsets": [
+        [
+          14,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          44,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          50,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          56,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          62,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          74,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          230,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          236,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          248,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          284,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         14,
         44,
@@ -1570,15 +5982,134 @@
         236,
         248,
         284
-      ]
+      ],
+      "topology_slot": {
+        "index": 13,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_011.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.7026266999999999,
+        0.9259767,
+        0.484469
+      ],
+      "exact_instance_path": "edges/edge_011.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 3,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            1,
+            1,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 18,
+      "source_image_offsets": [
+        [
+          110,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          116,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          122,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          164,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          170,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          176,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          290,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          296,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          308,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          326,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         110,
         116,
@@ -1590,15 +6121,134 @@
         296,
         308,
         326
-      ]
+      ],
+      "topology_slot": {
+        "index": 14,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_012.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.40643199999999996,
+        0.23393599999999998,
+        0.4268347
+      ],
+      "exact_instance_path": "edges/edge_012.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 3,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 19,
+      "source_image_offsets": [
+        [
+          80,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          86,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          182,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          188,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          194,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          200,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          242,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          266,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          320,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          344,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         80,
         86,
@@ -1610,15 +6260,134 @@
         266,
         320,
         344
-      ]
+      ],
+      "topology_slot": {
+        "index": 15,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_013.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.22591999999999998,
+        0.38908,
+        0.639969
+      ],
+      "exact_instance_path": "edges/edge_013.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 4,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 20,
+      "source_image_offsets": [
+        [
+          69,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          135,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          141,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          147,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          153,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          159,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          255,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          261,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          273,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          279,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         69,
         135,
@@ -1630,15 +6399,134 @@
         261,
         273,
         279
-      ]
+      ],
+      "topology_slot": {
+        "index": 16,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_014.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.9372529999999999,
+        0.6830419999999999,
+        0.5773149999999999
+      ],
+      "exact_instance_path": "edges/edge_014.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 4,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            1,
+            1,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        }
+      ],
       "slot_id": 21,
+      "source_image_offsets": [
+        [
+          15,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          45,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          51,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          57,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          63,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          75,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          231,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          237,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          249,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          285,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         15,
         45,
@@ -1650,15 +6538,134 @@
         237,
         249,
         285
-      ]
+      ],
+      "topology_slot": {
+        "index": 17,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_015.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.9259767,
+        0.22335,
+        0.651136
+      ],
+      "exact_instance_path": "edges/edge_015.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 4,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            1,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 22,
+      "source_image_offsets": [
+        [
+          111,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          117,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          123,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          165,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          171,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          177,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          291,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          297,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          309,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          327,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         111,
         117,
@@ -1670,15 +6677,134 @@
         297,
         309,
         327
-      ]
+      ],
+      "topology_slot": {
+        "index": 18,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_016.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.23393599999999992,
+        0.8275039999999999,
+        0.5935017
+      ],
+      "exact_instance_path": "edges/edge_016.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 4,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            1,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 23,
+      "source_image_offsets": [
+        [
+          81,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          87,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          183,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          189,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          195,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          201,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          243,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          267,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          321,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          345,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         81,
         87,
@@ -1690,15 +6816,134 @@
         267,
         321,
         345
-      ]
+      ],
+      "topology_slot": {
+        "index": 19,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_017.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.6109199999999999,
+        0.8368399999999999,
+        0.306636
+      ],
+      "exact_instance_path": "edges/edge_017.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 5,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            1,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 24,
+      "source_image_offsets": [
+        [
+          70,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          136,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          142,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          148,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          154,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          160,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          256,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          262,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          274,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          280,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         70,
         136,
@@ -1710,15 +6955,134 @@
         262,
         274,
         280
-      ]
+      ],
+      "topology_slot": {
+        "index": 20,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_018.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.316958,
+        0.254211,
+        0.243982
+      ],
+      "exact_instance_path": "edges/edge_018.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 5,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            -1,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        }
+      ],
       "slot_id": 25,
+      "source_image_offsets": [
+        [
+          16,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          46,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          52,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          58,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          64,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          76,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          232,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          238,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          250,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          286,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         16,
         46,
@@ -1730,15 +7094,134 @@
         238,
         250,
         286
-      ]
+      ],
+      "topology_slot": {
+        "index": 21,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_019.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.7766500000000001,
+        0.7026266999999999,
+        0.317803
+      ],
+      "exact_instance_path": "edges/edge_019.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 5,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            1,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 26,
+      "source_image_offsets": [
+        [
+          112,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          118,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          124,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          166,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          172,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          178,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          292,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          298,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          310,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          328,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         112,
         118,
@@ -1750,15 +7233,134 @@
         298,
         310,
         328
-      ]
+      ],
+      "topology_slot": {
+        "index": 22,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_020.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.17249599999999995,
+        0.40643199999999996,
+        0.26016859999999997
+      ],
+      "exact_instance_path": "edges/edge_020.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 5,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            -1,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 27,
+      "source_image_offsets": [
+        [
+          82,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          88,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          184,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          190,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          196,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          202,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          244,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          268,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          322,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          346,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         82,
         88,
@@ -1770,15 +7372,134 @@
         268,
         322,
         346
-      ]
+      ],
+      "topology_slot": {
+        "index": 23,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_021.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.16315999999999992,
+        0.7740799999999999,
+        0.973302
+      ],
+      "exact_instance_path": "edges/edge_021.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 6,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            -1,
+            0,
+            -1
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 28,
+      "source_image_offsets": [
+        [
+          71,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          137,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          143,
+          [
+            0,
+            0,
+            -1
+          ]
+        ],
+        [
+          149,
+          [
+            0,
+            0,
+            -1
+          ]
+        ],
+        [
+          155,
+          [
+            0,
+            0,
+            -1
+          ]
+        ],
+        [
+          161,
+          [
+            0,
+            0,
+            -1
+          ]
+        ],
+        [
+          257,
+          [
+            0,
+            0,
+            -1
+          ]
+        ],
+        [
+          263,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          275,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          281,
+          [
+            0,
+            0,
+            -1
+          ]
+        ]
+      ],
       "source_indices": [
         71,
         137,
@@ -1790,15 +7511,134 @@
         263,
         275,
         281
-      ]
+      ],
+      "topology_slot": {
+        "index": 24,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_022.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.7457889999999999,
+        0.062747,
+        0.9106479999999999
+      ],
+      "exact_instance_path": "edges/edge_022.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 6,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            -1,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        }
+      ],
       "slot_id": 29,
+      "source_image_offsets": [
+        [
+          17,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          47,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          53,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          59,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          65,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          77,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          233,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          239,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          251,
+          [
+            0,
+            -1,
+            0
+          ]
+        ],
+        [
+          287,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         17,
         47,
@@ -1810,15 +7650,134 @@
         239,
         251,
         287
-      ]
+      ],
+      "topology_slot": {
+        "index": 25,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_023.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.2973733,
+        0.07402329999999999,
+        0.9844690000000001
+      ],
+      "exact_instance_path": "edges/edge_023.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 6,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            -1,
+            -1,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 30,
+      "source_image_offsets": [
+        [
+          113,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          119,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          125,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          167,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          173,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          179,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          293,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          299,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          311,
+          [
+            0,
+            -1,
+            0
+          ]
+        ],
+        [
+          329,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         113,
         119,
@@ -1830,15 +7789,134 @@
         299,
         311,
         329
-      ]
+      ],
+      "topology_slot": {
+        "index": 26,
+        "kind": "edge"
+      }
     },
     {
       "bb_id": "edge_group_01",
       "cn": 2,
-      "debug_instance": "edges/edge_024.xyz",
-      "formula": "C6H4X2",
+      "exact_frac_position": [
+        0.593568,
+        0.766064,
+        0.9268347
+      ],
+      "exact_instance_path": "edges/edge_024.xyz",
       "kind": "edge",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 6,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 31,
+      "source_image_offsets": [
+        [
+          83,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          89,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          185,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          191,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          197,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          203,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          245,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          269,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          323,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          347,
+          [
+            0,
+            0,
+            1
+          ]
+        ]
+      ],
       "source_indices": [
         83,
         89,
@@ -1850,7 +7928,11 @@
         269,
         323,
         347
-      ]
+      ],
+      "topology_slot": {
+        "index": 27,
+        "kind": "edge"
+      }
     }
   ],
   "topology": {
@@ -1863,12 +7945,6 @@
       119.99999999999999
     ],
     "kind": "node_edge_slots",
-    "path": "topology.cgd",
-    "stock_pormake_reader_safe": false
-  },
-  "validation": {
-    "all_edges_mapped": true,
-    "all_x_sites_used_once": true,
-    "duplicate_edge_warnings": []
+    "path": "topology.cgd"
   }
 }

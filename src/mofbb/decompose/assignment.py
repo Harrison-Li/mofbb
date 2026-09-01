@@ -113,11 +113,16 @@ class NodeAtomAssigner:
         nodes: set[int],
         visited_bridges: set[int],
     ) -> None:
+        neighbors = self.bonds.adjacency[oxygen]
+        if sum(is_metal(self.symbols[i]) for i in neighbors) > 1:
+            nodes.update(i for i in neighbors if self.symbols[i] == "H")
+            return
+
         attached_hydrogens: set[int] = set()
         attached_carbon: int | None = None
         metal_oxide_or_carboxylate = True
 
-        for neighbor in self.bonds.adjacency[oxygen]:
+        for neighbor in neighbors:
             if neighbor in nodes:
                 continue
 

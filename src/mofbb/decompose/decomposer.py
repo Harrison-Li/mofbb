@@ -93,12 +93,10 @@ class NodeEdgeDecomposer:
         metal_ids, organic_ids, boundary_pairs = self._roles()
         source_bonds = periodic_bonds(self.atoms, self.bonds)
         symmetry = AtomicSymmetry.detect(self.atoms)
-        closure = PeriodicBondOrbitClosure(source_bonds, symmetry)
         cuts, organic_cuts = self._periodic_cuts(
             metal_ids,
             organic_ids,
             source_bonds,
-            closure,
         )
         builder, groups, records = self._build_groups(
             metal_ids,
@@ -229,7 +227,6 @@ class NodeEdgeDecomposer:
         metal_indices: set[int],
         organic_indices: set[int],
         source_records: tuple[PeriodicBond, ...],
-        closure: PeriodicBondOrbitClosure,
     ) -> tuple[list[PeriodicBond], list[PeriodicBond]]:
         periodic_cuts: list[PeriodicBond] = []
         organic_periodic_cuts: list[PeriodicBond] = []
@@ -250,7 +247,8 @@ class NodeEdgeDecomposer:
                 periodic_cuts.extend(selection.cuts)
                 if fast:
                     organic_periodic_cuts.extend(selection.cuts)
-        return closure.close(periodic_cuts), closure.close(organic_periodic_cuts)
+        # Symmetry-closing this seam can split periodic rods into small pieces.
+        return sorted(periodic_cuts), sorted(organic_periodic_cuts)
 
     def _assign_topology(
         self,

@@ -10,7 +10,7 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment, minimize_scalar
 from scipy.spatial.transform import Rotation
 
-from mofbb.compose.symmetry_scaling import Symmetry
+from mofbb.compose.geometry_parameterization import Symmetry
 
 
 @dataclass(frozen=True, slots=True)

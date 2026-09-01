@@ -10,8 +10,83 @@ import numpy as np
 import pytest
 
 from mofbb.compose import Framework, Reconstructor
-from mofbb.decompose.bonding import read_bonded_structure
+from mofbb.decompose.assignment import NodeAtomAssigner
+from mofbb.decompose.bonding import (
+    BondNetwork,
+    build_bond_network,
+    read_bonded_structure,
+)
+from mofbb.decompose.decomposer import NodeEdgeDecomposer
+from mofbb.decompose.fragments import FragmentBuilder
 from mofbb.decompose.pbc import periodic_bonds
+
+
+def _rank_one_triangle() -> tuple[Atoms, BondNetwork]:
+    atoms = Atoms(
+        "CCC",
+        positions=[(1.0, 0.0, 0.0), (4.0, 0.0, 0.0), (8.0, 0.0, 0.0)],
+        cell=np.diag([10.0, 10.0, 10.0]),
+        pbc=True,
+    )
+    vectors = {
+        (0, 1): np.array([3.0, 0.0, 0.0]),
+        (1, 2): np.array([4.0, 0.0, 0.0]),
+        (0, 2): np.array([-3.0, 0.0, 0.0]),
+    }
+    return atoms, BondNetwork(
+        adjacency=(
+            frozenset({1, 2}),
+            frozenset({0, 2}),
+            frozenset({0, 1}),
+        ),
+        vectors=vectors,
+    )
+
+
+def test_periodic_node_keeps_one_connected_repeat() -> None:
+    atoms, bonds = _rank_one_triangle()
+    records = periodic_bonds(atoms, bonds)
+    decomposer = NodeEdgeDecomposer.__new__(NodeEdgeDecomposer)
+    decomposer.atoms = atoms
+    decomposer.bonds = bonds
+    decomposer.symbols = atoms.get_chemical_symbols()
+    cuts, _ = decomposer._periodic_cuts({0, 1, 2}, set(), records)
+    builder = FragmentBuilder(atoms, bonds, decomposer.symbols, source_records=records)
+
+    with pytest.raises(ValueError, match="periodic fragment"):
+        builder.materialize_fragment("metal_node", 1, {0, 1, 2}, ())
+    fragment = builder.materialize_fragment(
+        "metal_node", 1, {0, 1, 2}, tuple(cuts)
+    )
+
+    assert len(cuts) == 1
+    assert fragment.formula == "C3X2"
+
+
+@pytest.mark.parametrize(
+    ("symbol", "distance", "bonded"),
+    [("Ni", 2.95, False), ("Cu", 2.42, True)],
+)
+def test_inferred_metal_bonds_use_unscaled_cutoffs(
+    symbol: str, distance: float, bonded: bool
+) -> None:
+    atoms = Atoms(symbol * 2, positions=[(0, 0, 0), (distance, 0, 0)])
+    assert bool(build_bond_network(atoms).pairs) is bonded
+
+
+def test_multimetal_bridging_oxygen_stays_in_the_node() -> None:
+    symbols = ["Ni", "Ni", "O", "C"]
+    bonds = BondNetwork(
+        adjacency=(
+            frozenset({2}),
+            frozenset({2}),
+            frozenset({0, 1, 3}),
+            frozenset({2}),
+        ),
+        vectors={(0, 2): np.zeros(3), (1, 2): np.zeros(3), (2, 3): np.zeros(3)},
+    )
+
+    assert NodeAtomAssigner(symbols, bonds).assign() == frozenset({0, 1, 2})
 
 
 def _write_boundary_cif(path: Path) -> Path:
@@ -63,6 +138,10 @@ def test_reconstructor_canonicalizes_boundary_roundoff(tmp_path: Path) -> None:
     decomposition_dir = tmp_path / "decomposition"
     fragment_dir = decomposition_dir / "metal_nodes"
     fragment_dir.mkdir(parents=True)
+    (decomposition_dir / "topology.cgd").write_text(
+        "CELL 20 20 20 90 90 90\nNODE 1 1 0.25 0.25 0.25\n",
+        encoding="utf-8",
+    )
     (fragment_dir / "metal_node_001.xyz").write_text(
         "1\n\nC 0.0 0.0 0.0\n",
         encoding="utf-8",
@@ -74,6 +153,7 @@ def test_reconstructor_canonicalizes_boundary_roundoff(tmp_path: Path) -> None:
                 "topology": {
                     "kind": "node_edge_slots",
                     "cell": [10.0, 10.0, 10.0, 90.0, 90.0, 90.0],
+                    "path": "topology.cgd",
                 },
                 "bb_groups": [],
                 "slots": [
@@ -93,6 +173,7 @@ def test_reconstructor_canonicalizes_boundary_roundoff(tmp_path: Path) -> None:
 
     framework = Reconstructor(decomposition_dir).reconstruct()
 
+    assert framework.atoms.cell.lengths() == pytest.approx([10.0, 10.0, 10.0])
     assert framework.atoms.get_scaled_positions(wrap=False)[0, 2] == pytest.approx(
         0.0
     )

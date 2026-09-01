@@ -41,8 +41,8 @@ class SlotAssignment:
         for slot, perm in self.fixed.items():
             self.perms[slot] = perm.copy()
         self.placed = [None] * topology.n_slots
-        self.node_cov = set()
-        self.edge_cov = set()
+        self.symmetry_compatible_node_orbits = set()
+        self.symmetry_compatible_edge_orbits = set()
         self.diag = {
             "mapping_tolerance": self.symmetry.mapping_tolerance,
             "stabilizer_tolerance": sym_tol,
@@ -232,14 +232,14 @@ class SlotAssignment:
                         self.cell,
                     )
                 )
-            self.node_cov.add(rep)
+            self.symmetry_compatible_node_orbits.add(rep)
 
     def _place_distinct_node_templates(self, orbit):
         diagnostic = {
             "tag": orbit.tag,
             "representative": orbit.representative,
             "orbit_size": len(orbit.members),
-            "covariant": False,
+            "symmetry_propagated": False,
             "reason": "different_building_blocks",
         }
         self.diag["nodes"].append(diagnostic)
@@ -273,7 +273,7 @@ class SlotAssignment:
         diag.update(
             {
                 "kind": "node",
-                "covariant": False,
+                "symmetry_propagated": False,
                 "reason": "stabilizer_incompatible",
             }
         )
@@ -326,14 +326,14 @@ class SlotAssignment:
                     )
                 self.perms[member] = member_perm
                 self.placed[member] = block.copy()
-            self.edge_cov.add(rep)
+            self.symmetry_compatible_edge_orbits.add(rep)
 
     def _initialize_distinct_edge_templates(self, orbit):
         diagnostic = {
             "tag": orbit.tag,
             "representative": orbit.representative,
             "orbit_size": len(orbit.members),
-            "covariant": False,
+            "symmetry_propagated": False,
             "reason": "different_building_blocks_or_occupancy",
         }
         self.diag["edges"].append(diagnostic)
@@ -379,9 +379,27 @@ class SlotAssignment:
             self.topology.atoms.info.get("source_group_compatible") is False
             and not central
         ):
-            self.node_cov.clear()
-            self.edge_cov.clear()
+            self.symmetry_compatible_node_orbits.clear()
+            self.symmetry_compatible_edge_orbits.clear()
 
     def validate_connections(self, placed, perms, scale):
         """Reject assigned ports that predict forbidden or overlong bonds."""
         self.rules.validate(placed, perms, scale)
+
+    @property
+    def node_cov(self):
+        """Compatibility alias for symmetry-compatible node orbits."""
+        return self.symmetry_compatible_node_orbits
+
+    @node_cov.setter
+    def node_cov(self, value):
+        self.symmetry_compatible_node_orbits = value
+
+    @property
+    def edge_cov(self):
+        """Compatibility alias for symmetry-compatible edge orbits."""
+        return self.symmetry_compatible_edge_orbits
+
+    @edge_cov.setter
+    def edge_cov(self, value):
+        self.symmetry_compatible_edge_orbits = value

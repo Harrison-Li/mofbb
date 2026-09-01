@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mofbbr"
+name = "mofbb"
 version = "0.1.0"
 description = "MOF building-block decomposition, reconstruction, and composition."
 readme = "README.md"

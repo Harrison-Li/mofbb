@@ -2,55 +2,155 @@
   "bb_groups": [
     {
       "bb_id": "metal_node_group_01",
-      "cn": 9,
-      "formula": "C3Ni3O6X9",
+      "cn": 12,
+      "count": 6,
+      "fingerprint": "942b817c67c70dba",
+      "formula": "C3Ni3O9X12",
+      "fragment_indices": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "group": 1,
       "kind": "metal_node",
+      "logical_cn": 7,
+      "logical_kind": "metal_node",
+      "logical_port_sizes": [
+        1,
+        1,
+        1,
+        1,
+        2,
+        3,
+        3
+      ],
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "size": 1
+        },
+        {
+          "logical_port_id": 1,
+          "size": 1
+        },
+        {
+          "logical_port_id": 2,
+          "size": 1
+        },
+        {
+          "logical_port_id": 3,
+          "size": 1
+        },
+        {
+          "logical_port_id": 4,
+          "size": 2
+        },
+        {
+          "logical_port_id": 5,
+          "size": 3
+        },
+        {
+          "logical_port_id": 6,
+          "size": 3
+        }
+      ],
+      "num_atoms": 27,
+      "num_x": 12,
       "path": "bbs/metal_node_group_01.xyz",
+      "physical_cn": 12,
       "x_sites": [
         {
           "site_id": 0,
-          "x_index": 12
-        },
-        {
-          "site_id": 1,
-          "x_index": 13
-        },
-        {
-          "site_id": 2,
-          "x_index": 14
-        },
-        {
-          "site_id": 3,
           "x_index": 15
         },
         {
-          "site_id": 4,
+          "site_id": 1,
           "x_index": 16
         },
         {
-          "site_id": 5,
+          "site_id": 2,
           "x_index": 17
         },
         {
-          "site_id": 6,
+          "site_id": 3,
           "x_index": 18
         },
         {
-          "site_id": 7,
+          "site_id": 4,
           "x_index": 19
         },
         {
-          "site_id": 8,
+          "site_id": 5,
           "x_index": 20
+        },
+        {
+          "site_id": 6,
+          "x_index": 21
+        },
+        {
+          "site_id": 7,
+          "x_index": 22
+        },
+        {
+          "site_id": 8,
+          "x_index": 23
+        },
+        {
+          "site_id": 9,
+          "x_index": 24
+        },
+        {
+          "site_id": 10,
+          "x_index": 25
+        },
+        {
+          "site_id": 11,
+          "x_index": 26
         }
       ]
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
+      "count": 9,
+      "fingerprint": "0b1c2462faaac1f8",
       "formula": "C6H2X4",
+      "fragment_indices": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "group": 1,
       "kind": "organic_node",
+      "logical_cn": 2,
+      "logical_kind": "edge",
+      "logical_port_sizes": [
+        2,
+        2
+      ],
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "size": 2
+        },
+        {
+          "logical_port_id": 1,
+          "size": 2
+        }
+      ],
+      "num_atoms": 12,
+      "num_x": 4,
       "path": "bbs/organic_node_group_01.xyz",
+      "physical_cn": 4,
       "x_sites": [
         {
           "site_id": 0,
@@ -67,27 +167,6 @@
         {
           "site_id": 3,
           "x_index": 11
-        }
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "formula": "OX3",
-      "kind": "organic_node",
-      "path": "bbs/organic_node_group_02.xyz",
-      "x_sites": [
-        {
-          "site_id": 0,
-          "x_index": 1
-        },
-        {
-          "site_id": 1,
-          "x_index": 2
-        },
-        {
-          "site_id": 2,
-          "x_index": 3
         }
       ]
     }
@@ -101,17 +180,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 18,
+          "internal_source_index": 0,
           "slot_id": 0,
-          "x_index": 12
+          "x_index": 15
         },
         {
+          "external_source_index": 0,
+          "internal_source_index": 18,
           "slot_id": 6,
           "x_index": 8
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         0,
         18
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -122,1499 +215,2088 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 19,
+          "internal_source_index": 1,
           "slot_id": 1,
-          "x_index": 12
+          "x_index": 15
         },
         {
+          "external_source_index": 1,
+          "internal_source_index": 19,
           "slot_id": 6,
           "x_index": 9
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        1
+      ],
       "source_cut_bond": [
         1,
         19
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 2,
       "endpoint_slots": [
         2,
-        9
+        7
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 20,
+          "internal_source_index": 2,
           "slot_id": 2,
-          "x_index": 12
+          "x_index": 15
         },
         {
-          "slot_id": 9,
+          "external_source_index": 2,
+          "internal_source_index": 20,
+          "slot_id": 7,
           "x_index": 8
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         2,
         20
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 3,
       "endpoint_slots": [
         3,
-        9
+        7
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 21,
+          "internal_source_index": 3,
           "slot_id": 3,
-          "x_index": 12
+          "x_index": 15
         },
         {
-          "slot_id": 9,
+          "external_source_index": 3,
+          "internal_source_index": 21,
+          "slot_id": 7,
           "x_index": 9
         }
+      ],
+      "slot_translation": [
+        0,
+        1,
+        1
       ],
       "source_cut_bond": [
         3,
         21
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 4,
       "endpoint_slots": [
         4,
-        12
+        8
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 22,
+          "internal_source_index": 4,
           "slot_id": 4,
-          "x_index": 12
+          "x_index": 15
         },
         {
-          "slot_id": 12,
+          "external_source_index": 4,
+          "internal_source_index": 22,
+          "slot_id": 8,
           "x_index": 8
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         4,
         22
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 5,
       "endpoint_slots": [
         5,
-        12
+        8
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 23,
+          "internal_source_index": 5,
           "slot_id": 5,
-          "x_index": 12
+          "x_index": 15
         },
         {
-          "slot_id": 12,
+          "external_source_index": 5,
+          "internal_source_index": 23,
+          "slot_id": 8,
           "x_index": 9
         }
+      ],
+      "slot_translation": [
+        -1,
+        0,
+        1
       ],
       "source_cut_bond": [
         5,
         23
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 6,
       "endpoint_slots": [
         4,
-        15
+        9
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 24,
+          "internal_source_index": 6,
           "slot_id": 4,
-          "x_index": 13
+          "x_index": 16
         },
         {
-          "slot_id": 15,
+          "external_source_index": 6,
+          "internal_source_index": 24,
+          "slot_id": 9,
           "x_index": 8
         }
+      ],
+      "slot_translation": [
+        1,
+        0,
+        0
       ],
       "source_cut_bond": [
         6,
         24
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 7,
       "endpoint_slots": [
         3,
-        15
+        9
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 25,
+          "internal_source_index": 7,
           "slot_id": 3,
-          "x_index": 13
+          "x_index": 16
         },
         {
-          "slot_id": 15,
+          "external_source_index": 7,
+          "internal_source_index": 25,
+          "slot_id": 9,
           "x_index": 9
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         7,
         25
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 8,
       "endpoint_slots": [
         0,
-        18
+        10
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 26,
+          "internal_source_index": 8,
           "slot_id": 0,
-          "x_index": 13
+          "x_index": 16
         },
         {
-          "slot_id": 18,
+          "external_source_index": 8,
+          "internal_source_index": 26,
+          "slot_id": 10,
           "x_index": 8
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         8,
         26
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 9,
       "endpoint_slots": [
         5,
-        18
+        10
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 27,
+          "internal_source_index": 9,
           "slot_id": 5,
-          "x_index": 13
+          "x_index": 16
         },
         {
-          "slot_id": 18,
+          "external_source_index": 9,
+          "internal_source_index": 27,
+          "slot_id": 10,
           "x_index": 9
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         9,
         27
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 10,
       "endpoint_slots": [
         2,
-        21
+        11
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 28,
+          "internal_source_index": 10,
           "slot_id": 2,
-          "x_index": 13
+          "x_index": 16
         },
         {
-          "slot_id": 21,
+          "external_source_index": 10,
+          "internal_source_index": 28,
+          "slot_id": 11,
           "x_index": 8
         }
+      ],
+      "slot_translation": [
+        0,
+        -1,
+        0
       ],
       "source_cut_bond": [
         10,
         28
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 11,
       "endpoint_slots": [
         1,
-        21
+        11
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 29,
+          "internal_source_index": 11,
           "slot_id": 1,
-          "x_index": 13
+          "x_index": 16
         },
         {
-          "slot_id": 21,
+          "external_source_index": 11,
+          "internal_source_index": 29,
+          "slot_id": 11,
           "x_index": 9
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         11,
         29
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 12,
       "endpoint_slots": [
         2,
-        24
+        12
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 30,
+          "internal_source_index": 12,
           "slot_id": 2,
-          "x_index": 14
+          "x_index": 17
         },
         {
-          "slot_id": 24,
+          "external_source_index": 12,
+          "internal_source_index": 30,
+          "slot_id": 12,
           "x_index": 8
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         12,
         30
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 13,
       "endpoint_slots": [
         5,
-        24
+        12
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 31,
+          "internal_source_index": 13,
           "slot_id": 5,
-          "x_index": 14
+          "x_index": 17
         },
         {
-          "slot_id": 24,
+          "external_source_index": 13,
+          "internal_source_index": 31,
+          "slot_id": 12,
           "x_index": 9
         }
+      ],
+      "slot_translation": [
+        -1,
+        0,
+        0
       ],
       "source_cut_bond": [
         13,
         31
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 14,
       "endpoint_slots": [
         4,
-        27
+        13
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 32,
+          "internal_source_index": 14,
           "slot_id": 4,
-          "x_index": 14
+          "x_index": 17
         },
         {
-          "slot_id": 27,
+          "external_source_index": 14,
+          "internal_source_index": 32,
+          "slot_id": 13,
           "x_index": 8
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         14,
         32
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 15,
       "endpoint_slots": [
         1,
-        27
+        13
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 33,
+          "internal_source_index": 15,
           "slot_id": 1,
-          "x_index": 14
+          "x_index": 17
         },
         {
-          "slot_id": 27,
+          "external_source_index": 15,
+          "internal_source_index": 33,
+          "slot_id": 13,
           "x_index": 9
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         15,
         33
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 16,
       "endpoint_slots": [
         0,
-        30
+        14
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 34,
+          "internal_source_index": 16,
           "slot_id": 0,
-          "x_index": 14
+          "x_index": 17
         },
         {
-          "slot_id": 30,
+          "external_source_index": 16,
+          "internal_source_index": 34,
+          "slot_id": 14,
           "x_index": 8
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         16,
         34
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 17,
       "endpoint_slots": [
         3,
-        30
+        14
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 35,
+          "internal_source_index": 17,
           "slot_id": 3,
-          "x_index": 14
+          "x_index": 17
         },
         {
-          "slot_id": 30,
+          "external_source_index": 17,
+          "internal_source_index": 35,
+          "slot_id": 14,
           "x_index": 9
         }
+      ],
+      "slot_translation": [
+        0,
+        1,
+        0
       ],
       "source_cut_bond": [
         17,
         35
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 18,
       "endpoint_slots": [
         6,
-        7
+        1
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 144,
+          "internal_source_index": 36,
           "slot_id": 6,
           "x_index": 10
         },
         {
-          "slot_id": 7,
-          "x_index": 1
+          "external_source_index": 36,
+          "internal_source_index": 144,
+          "slot_id": 1,
+          "x_index": 18
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         36,
         144
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 19,
       "endpoint_slots": [
         6,
-        8
+        0
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 145,
+          "internal_source_index": 37,
           "slot_id": 6,
           "x_index": 11
         },
         {
-          "slot_id": 8,
-          "x_index": 1
+          "external_source_index": 37,
+          "internal_source_index": 145,
+          "slot_id": 0,
+          "x_index": 18
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        -1
       ],
       "source_cut_bond": [
         37,
         145
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 20,
       "endpoint_slots": [
-        9,
-        10
+        7,
+        3
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 9,
+          "external_source_index": 146,
+          "internal_source_index": 38,
+          "slot_id": 7,
           "x_index": 10
         },
         {
-          "slot_id": 10,
-          "x_index": 1
+          "external_source_index": 38,
+          "internal_source_index": 146,
+          "slot_id": 3,
+          "x_index": 18
         }
+      ],
+      "slot_translation": [
+        0,
+        -1,
+        0
       ],
       "source_cut_bond": [
         38,
         146
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 21,
       "endpoint_slots": [
-        9,
-        11
+        7,
+        2
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 9,
+          "external_source_index": 147,
+          "internal_source_index": 39,
+          "slot_id": 7,
           "x_index": 11
         },
         {
-          "slot_id": 11,
-          "x_index": 1
+          "external_source_index": 39,
+          "internal_source_index": 147,
+          "slot_id": 2,
+          "x_index": 18
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        -1
       ],
       "source_cut_bond": [
         39,
         147
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 22,
       "endpoint_slots": [
-        12,
-        13
+        8,
+        5
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 12,
+          "external_source_index": 148,
+          "internal_source_index": 40,
+          "slot_id": 8,
           "x_index": 10
         },
         {
-          "slot_id": 13,
-          "x_index": 1
+          "external_source_index": 40,
+          "internal_source_index": 148,
+          "slot_id": 5,
+          "x_index": 18
         }
+      ],
+      "slot_translation": [
+        1,
+        0,
+        0
       ],
       "source_cut_bond": [
         40,
         148
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 23,
       "endpoint_slots": [
-        12,
-        14
+        8,
+        4
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 12,
+          "external_source_index": 149,
+          "internal_source_index": 41,
+          "slot_id": 8,
           "x_index": 11
         },
         {
-          "slot_id": 14,
-          "x_index": 1
+          "external_source_index": 41,
+          "internal_source_index": 149,
+          "slot_id": 4,
+          "x_index": 18
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        -1
       ],
       "source_cut_bond": [
         41,
         149
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 24,
       "endpoint_slots": [
-        15,
-        16
+        9,
+        3
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 15,
+          "external_source_index": 150,
+          "internal_source_index": 42,
+          "slot_id": 9,
           "x_index": 10
         },
         {
-          "slot_id": 16,
-          "x_index": 1
+          "external_source_index": 42,
+          "internal_source_index": 150,
+          "slot_id": 3,
+          "x_index": 19
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         42,
         150
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 25,
       "endpoint_slots": [
-        15,
-        17
+        9,
+        4
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 15,
+          "external_source_index": 151,
+          "internal_source_index": 43,
+          "slot_id": 9,
           "x_index": 11
         },
         {
-          "slot_id": 17,
-          "x_index": 1
+          "external_source_index": 43,
+          "internal_source_index": 151,
+          "slot_id": 4,
+          "x_index": 19
         }
+      ],
+      "slot_translation": [
+        -1,
+        0,
+        -1
       ],
       "source_cut_bond": [
         43,
         151
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 26,
       "endpoint_slots": [
-        18,
-        19
+        10,
+        5
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 18,
+          "external_source_index": 152,
+          "internal_source_index": 44,
+          "slot_id": 10,
           "x_index": 10
         },
         {
-          "slot_id": 19,
-          "x_index": 1
+          "external_source_index": 44,
+          "internal_source_index": 152,
+          "slot_id": 5,
+          "x_index": 19
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         44,
         152
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 27,
       "endpoint_slots": [
-        18,
-        20
+        10,
+        0
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 18,
+          "external_source_index": 153,
+          "internal_source_index": 45,
+          "slot_id": 10,
           "x_index": 11
         },
         {
-          "slot_id": 20,
-          "x_index": 1
+          "external_source_index": 45,
+          "internal_source_index": 153,
+          "slot_id": 0,
+          "x_index": 19
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        -1
       ],
       "source_cut_bond": [
         45,
         153
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 28,
       "endpoint_slots": [
-        21,
-        22
+        11,
+        1
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 21,
+          "external_source_index": 154,
+          "internal_source_index": 46,
+          "slot_id": 11,
           "x_index": 10
         },
         {
-          "slot_id": 22,
-          "x_index": 1
+          "external_source_index": 46,
+          "internal_source_index": 154,
+          "slot_id": 1,
+          "x_index": 19
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         46,
         154
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 29,
       "endpoint_slots": [
-        21,
-        23
+        11,
+        2
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 21,
+          "external_source_index": 155,
+          "internal_source_index": 47,
+          "slot_id": 11,
           "x_index": 11
         },
         {
-          "slot_id": 23,
-          "x_index": 1
+          "external_source_index": 47,
+          "internal_source_index": 155,
+          "slot_id": 2,
+          "x_index": 19
         }
+      ],
+      "slot_translation": [
+        0,
+        1,
+        -1
       ],
       "source_cut_bond": [
         47,
         155
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 30,
       "endpoint_slots": [
-        24,
-        25
+        12,
+        5
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 24,
+          "external_source_index": 156,
+          "internal_source_index": 48,
+          "slot_id": 12,
           "x_index": 10
         },
         {
-          "slot_id": 25,
-          "x_index": 1
+          "external_source_index": 48,
+          "internal_source_index": 156,
+          "slot_id": 5,
+          "x_index": 20
         }
+      ],
+      "slot_translation": [
+        1,
+        0,
+        1
       ],
       "source_cut_bond": [
         48,
         156
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 31,
       "endpoint_slots": [
-        24,
-        26
+        12,
+        2
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 24,
+          "external_source_index": 157,
+          "internal_source_index": 49,
+          "slot_id": 12,
           "x_index": 11
         },
         {
-          "slot_id": 26,
-          "x_index": 1
+          "external_source_index": 49,
+          "internal_source_index": 157,
+          "slot_id": 2,
+          "x_index": 20
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         49,
         157
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 32,
       "endpoint_slots": [
-        27,
-        28
+        13,
+        1
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 27,
+          "external_source_index": 158,
+          "internal_source_index": 50,
+          "slot_id": 13,
           "x_index": 10
         },
         {
-          "slot_id": 28,
-          "x_index": 1
+          "external_source_index": 50,
+          "internal_source_index": 158,
+          "slot_id": 1,
+          "x_index": 20
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        1
       ],
       "source_cut_bond": [
         50,
         158
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 33,
       "endpoint_slots": [
-        27,
-        29
+        13,
+        4
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 27,
+          "external_source_index": 159,
+          "internal_source_index": 51,
+          "slot_id": 13,
           "x_index": 11
         },
         {
-          "slot_id": 29,
-          "x_index": 1
+          "external_source_index": 51,
+          "internal_source_index": 159,
+          "slot_id": 4,
+          "x_index": 20
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         51,
         159
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 34,
       "endpoint_slots": [
-        30,
-        31
+        14,
+        3
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 30,
+          "external_source_index": 160,
+          "internal_source_index": 52,
+          "slot_id": 14,
           "x_index": 10
         },
         {
-          "slot_id": 31,
-          "x_index": 1
+          "external_source_index": 52,
+          "internal_source_index": 160,
+          "slot_id": 3,
+          "x_index": 20
         }
+      ],
+      "slot_translation": [
+        0,
+        -1,
+        1
       ],
       "source_cut_bond": [
         52,
         160
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 35,
       "endpoint_slots": [
-        30,
-        32
+        14,
+        0
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 30,
+          "external_source_index": 161,
+          "internal_source_index": 53,
+          "slot_id": 14,
           "x_index": 11
         },
         {
-          "slot_id": 32,
-          "x_index": 1
+          "external_source_index": 53,
+          "internal_source_index": 161,
+          "slot_id": 0,
+          "x_index": 20
         }
+      ],
+      "slot_translation": [
+        0,
+        0,
+        0
       ],
       "source_cut_bond": [
         53,
         161
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 36,
       "endpoint_slots": [
-        1,
-        7
+        3,
+        3
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 1,
-          "x_index": 15
+          "external_source_index": 115,
+          "internal_source_index": 96,
+          "slot_id": 3,
+          "x_index": 21
         },
         {
-          "slot_id": 7,
-          "x_index": 2
+          "external_source_index": 96,
+          "internal_source_index": 115,
+          "slot_id": 3,
+          "x_index": 22
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        -1
+      ],
       "source_cut_bond": [
-        90,
-        144
+        96,
+        115
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 37,
       "endpoint_slots": [
-        1,
-        22
+        3,
+        3
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 1,
-          "x_index": 16
+          "external_source_index": 160,
+          "internal_source_index": 96,
+          "slot_id": 3,
+          "x_index": 23
         },
         {
-          "slot_id": 22,
-          "x_index": 2
+          "external_source_index": 96,
+          "internal_source_index": 160,
+          "slot_id": 3,
+          "x_index": 24
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        -1
+      ],
       "source_cut_bond": [
-        90,
-        154
+        96,
+        160
+      ],
+      "source_cut_shift": [
+        0,
+        1,
+        0
       ]
     },
     {
       "edge_id": 38,
       "endpoint_slots": [
-        0,
-        8
+        4,
+        4
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 0,
-          "x_index": 15
+          "external_source_index": 130,
+          "internal_source_index": 97,
+          "slot_id": 4,
+          "x_index": 21
         },
         {
-          "slot_id": 8,
-          "x_index": 2
+          "external_source_index": 97,
+          "internal_source_index": 130,
+          "slot_id": 4,
+          "x_index": 22
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        -1
+      ],
       "source_cut_bond": [
-        91,
-        145
+        97,
+        130
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 39,
       "endpoint_slots": [
-        0,
-        32
+        5,
+        5
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 0,
-          "x_index": 16
+          "external_source_index": 117,
+          "internal_source_index": 98,
+          "slot_id": 5,
+          "x_index": 21
         },
         {
-          "slot_id": 32,
-          "x_index": 2
+          "external_source_index": 98,
+          "internal_source_index": 117,
+          "slot_id": 5,
+          "x_index": 22
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        -1
+      ],
       "source_cut_bond": [
-        91,
-        161
+        98,
+        117
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 40,
       "endpoint_slots": [
-        3,
-        10
+        5,
+        5
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 3,
-          "x_index": 15
+          "external_source_index": 156,
+          "internal_source_index": 98,
+          "slot_id": 5,
+          "x_index": 23
         },
         {
-          "slot_id": 10,
-          "x_index": 2
+          "external_source_index": 98,
+          "internal_source_index": 156,
+          "slot_id": 5,
+          "x_index": 24
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        -1
+      ],
       "source_cut_bond": [
-        92,
-        146
+        98,
+        156
+      ],
+      "source_cut_shift": [
+        -1,
+        0,
+        0
       ]
     },
     {
       "edge_id": 41,
       "endpoint_slots": [
-        3,
-        16
+        0,
+        0
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 3,
-          "x_index": 16
+          "external_source_index": 126,
+          "internal_source_index": 99,
+          "slot_id": 0,
+          "x_index": 21
         },
         {
-          "slot_id": 16,
-          "x_index": 2
+          "external_source_index": 99,
+          "internal_source_index": 126,
+          "slot_id": 0,
+          "x_index": 22
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        -1
+      ],
       "source_cut_bond": [
-        92,
-        150
+        99,
+        126
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 42,
       "endpoint_slots": [
-        2,
-        11
+        1,
+        1
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 2,
-          "x_index": 15
+          "external_source_index": 119,
+          "internal_source_index": 100,
+          "slot_id": 1,
+          "x_index": 21
         },
         {
-          "slot_id": 11,
-          "x_index": 2
+          "external_source_index": 100,
+          "internal_source_index": 119,
+          "slot_id": 1,
+          "x_index": 22
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        -1
+      ],
       "source_cut_bond": [
-        93,
-        147
+        100,
+        119
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 43,
       "endpoint_slots": [
-        2,
-        26
+        1,
+        1
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 2,
-          "x_index": 16
+          "external_source_index": 158,
+          "internal_source_index": 100,
+          "slot_id": 1,
+          "x_index": 23
         },
         {
-          "slot_id": 26,
-          "x_index": 2
+          "external_source_index": 100,
+          "internal_source_index": 158,
+          "slot_id": 1,
+          "x_index": 24
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        -1
+      ],
       "source_cut_bond": [
-        93,
-        157
+        100,
+        158
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 44,
       "endpoint_slots": [
-        5,
-        13
+        2,
+        2
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 5,
-          "x_index": 15
+          "external_source_index": 128,
+          "internal_source_index": 101,
+          "slot_id": 2,
+          "x_index": 21
         },
         {
-          "slot_id": 13,
-          "x_index": 2
+          "external_source_index": 101,
+          "internal_source_index": 128,
+          "slot_id": 2,
+          "x_index": 22
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        -1
+      ],
       "source_cut_bond": [
-        94,
-        148
+        101,
+        128
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 45,
       "endpoint_slots": [
         5,
-        19
+        5
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 131,
+          "internal_source_index": 102,
           "slot_id": 5,
-          "x_index": 16
+          "x_index": 25
         },
         {
-          "slot_id": 19,
-          "x_index": 2
+          "external_source_index": 102,
+          "internal_source_index": 131,
+          "slot_id": 5,
+          "x_index": 26
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        1
+      ],
       "source_cut_bond": [
-        94,
-        152
+        102,
+        131
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 46,
       "endpoint_slots": [
-        4,
-        14
+        2,
+        2
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 4,
-          "x_index": 15
+          "external_source_index": 120,
+          "internal_source_index": 103,
+          "slot_id": 2,
+          "x_index": 23
         },
         {
-          "slot_id": 14,
-          "x_index": 2
+          "external_source_index": 103,
+          "internal_source_index": 120,
+          "slot_id": 2,
+          "x_index": 24
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        1
+      ],
       "source_cut_bond": [
-        95,
-        149
+        103,
+        120
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 47,
       "endpoint_slots": [
-        4,
-        29
+        2,
+        2
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 4,
-          "x_index": 16
+          "external_source_index": 155,
+          "internal_source_index": 103,
+          "slot_id": 2,
+          "x_index": 25
         },
         {
-          "slot_id": 29,
-          "x_index": 2
+          "external_source_index": 103,
+          "internal_source_index": 155,
+          "slot_id": 2,
+          "x_index": 26
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        1
+      ],
       "source_cut_bond": [
-        95,
-        159
+        103,
+        155
+      ],
+      "source_cut_shift": [
+        0,
+        -1,
+        0
       ]
     },
     {
       "edge_id": 48,
       "endpoint_slots": [
-        3,
-        16
+        1,
+        1
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 3,
-          "x_index": 17
+          "external_source_index": 127,
+          "internal_source_index": 104,
+          "slot_id": 1,
+          "x_index": 25
         },
         {
-          "slot_id": 16,
-          "x_index": 3
+          "external_source_index": 104,
+          "internal_source_index": 127,
+          "slot_id": 1,
+          "x_index": 26
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        1
+      ],
       "source_cut_bond": [
-        96,
-        150
+        104,
+        127
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 49,
       "endpoint_slots": [
-        3,
-        31
+        4,
+        4
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 3,
-          "x_index": 18
+          "external_source_index": 122,
+          "internal_source_index": 105,
+          "slot_id": 4,
+          "x_index": 23
         },
         {
-          "slot_id": 31,
-          "x_index": 2
+          "external_source_index": 105,
+          "internal_source_index": 122,
+          "slot_id": 4,
+          "x_index": 24
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        1
+      ],
       "source_cut_bond": [
-        96,
-        160
+        105,
+        122
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 50,
       "endpoint_slots": [
         4,
-        14
+        4
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 151,
+          "internal_source_index": 105,
           "slot_id": 4,
-          "x_index": 17
+          "x_index": 25
         },
         {
-          "slot_id": 14,
-          "x_index": 3
+          "external_source_index": 105,
+          "internal_source_index": 151,
+          "slot_id": 4,
+          "x_index": 26
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        1
+      ],
       "source_cut_bond": [
-        97,
-        149
+        105,
+        151
+      ],
+      "source_cut_shift": [
+        1,
+        0,
+        0
       ]
     },
     {
       "edge_id": 51,
       "endpoint_slots": [
-        4,
-        17
+        3,
+        3
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 4,
-          "x_index": 18
+          "external_source_index": 129,
+          "internal_source_index": 106,
+          "slot_id": 3,
+          "x_index": 25
         },
         {
-          "slot_id": 17,
-          "x_index": 2
+          "external_source_index": 106,
+          "internal_source_index": 129,
+          "slot_id": 3,
+          "x_index": 26
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        1
+      ],
       "source_cut_bond": [
-        97,
-        151
+        106,
+        129
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 52,
       "endpoint_slots": [
-        5,
-        19
+        0,
+        0
       ],
       "endpoint_x_sites": [
         {
-          "slot_id": 5,
-          "x_index": 17
+          "external_source_index": 124,
+          "internal_source_index": 107,
+          "slot_id": 0,
+          "x_index": 23
         },
         {
-          "slot_id": 19,
-          "x_index": 3
+          "external_source_index": 107,
+          "internal_source_index": 124,
+          "slot_id": 0,
+          "x_index": 24
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        1
+      ],
       "source_cut_bond": [
-        98,
-        152
+        107,
+        124
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
       "edge_id": 53,
       "endpoint_slots": [
-        5,
-        25
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 5,
-          "x_index": 18
-        },
-        {
-          "slot_id": 25,
-          "x_index": 2
-        }
-      ],
-      "source_cut_bond": [
-        98,
-        156
-      ]
-    },
-    {
-      "edge_id": 54,
-      "endpoint_slots": [
         0,
-        8
+        0
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 153,
+          "internal_source_index": 107,
           "slot_id": 0,
-          "x_index": 17
+          "x_index": 25
         },
         {
-          "slot_id": 8,
-          "x_index": 3
+          "external_source_index": 107,
+          "internal_source_index": 153,
+          "slot_id": 0,
+          "x_index": 26
         }
       ],
-      "source_cut_bond": [
-        99,
-        145
-      ]
-    },
-    {
-      "edge_id": 55,
-      "endpoint_slots": [
+      "slot_translation": [
         0,
-        20
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 0,
-          "x_index": 18
-        },
-        {
-          "slot_id": 20,
-          "x_index": 2
-        }
-      ],
-      "source_cut_bond": [
-        99,
-        153
-      ]
-    },
-    {
-      "edge_id": 56,
-      "endpoint_slots": [
-        1,
-        22
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 1,
-          "x_index": 17
-        },
-        {
-          "slot_id": 22,
-          "x_index": 3
-        }
-      ],
-      "source_cut_bond": [
-        100,
-        154
-      ]
-    },
-    {
-      "edge_id": 57,
-      "endpoint_slots": [
-        1,
-        28
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 1,
-          "x_index": 18
-        },
-        {
-          "slot_id": 28,
-          "x_index": 2
-        }
-      ],
-      "source_cut_bond": [
-        100,
-        158
-      ]
-    },
-    {
-      "edge_id": 58,
-      "endpoint_slots": [
-        2,
-        11
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 2,
-          "x_index": 17
-        },
-        {
-          "slot_id": 11,
-          "x_index": 3
-        }
-      ],
-      "source_cut_bond": [
-        101,
-        147
-      ]
-    },
-    {
-      "edge_id": 59,
-      "endpoint_slots": [
-        2,
-        23
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 2,
-          "x_index": 18
-        },
-        {
-          "slot_id": 23,
-          "x_index": 2
-        }
-      ],
-      "source_cut_bond": [
-        101,
-        155
-      ]
-    },
-    {
-      "edge_id": 60,
-      "endpoint_slots": [
-        5,
-        13
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 5,
-          "x_index": 19
-        },
-        {
-          "slot_id": 13,
-          "x_index": 3
-        }
-      ],
-      "source_cut_bond": [
-        102,
-        148
-      ]
-    },
-    {
-      "edge_id": 61,
-      "endpoint_slots": [
-        5,
-        25
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 5,
-          "x_index": 20
-        },
-        {
-          "slot_id": 25,
-          "x_index": 3
-        }
-      ],
-      "source_cut_bond": [
-        102,
-        156
-      ]
-    },
-    {
-      "edge_id": 62,
-      "endpoint_slots": [
-        2,
-        23
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 2,
-          "x_index": 19
-        },
-        {
-          "slot_id": 23,
-          "x_index": 3
-        }
-      ],
-      "source_cut_bond": [
-        103,
-        155
-      ]
-    },
-    {
-      "edge_id": 63,
-      "endpoint_slots": [
-        2,
-        26
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 2,
-          "x_index": 20
-        },
-        {
-          "slot_id": 26,
-          "x_index": 3
-        }
-      ],
-      "source_cut_bond": [
-        103,
-        157
-      ]
-    },
-    {
-      "edge_id": 64,
-      "endpoint_slots": [
-        1,
-        7
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 1,
-          "x_index": 19
-        },
-        {
-          "slot_id": 7,
-          "x_index": 3
-        }
-      ],
-      "source_cut_bond": [
-        104,
-        144
-      ]
-    },
-    {
-      "edge_id": 65,
-      "endpoint_slots": [
-        1,
-        28
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 1,
-          "x_index": 20
-        },
-        {
-          "slot_id": 28,
-          "x_index": 3
-        }
-      ],
-      "source_cut_bond": [
-        104,
-        158
-      ]
-    },
-    {
-      "edge_id": 66,
-      "endpoint_slots": [
-        4,
-        17
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 4,
-          "x_index": 19
-        },
-        {
-          "slot_id": 17,
-          "x_index": 3
-        }
-      ],
-      "source_cut_bond": [
-        105,
-        151
-      ]
-    },
-    {
-      "edge_id": 67,
-      "endpoint_slots": [
-        4,
-        29
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 4,
-          "x_index": 20
-        },
-        {
-          "slot_id": 29,
-          "x_index": 3
-        }
-      ],
-      "source_cut_bond": [
-        105,
-        159
-      ]
-    },
-    {
-      "edge_id": 68,
-      "endpoint_slots": [
-        3,
-        10
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 3,
-          "x_index": 19
-        },
-        {
-          "slot_id": 10,
-          "x_index": 3
-        }
-      ],
-      "source_cut_bond": [
-        106,
-        146
-      ]
-    },
-    {
-      "edge_id": 69,
-      "endpoint_slots": [
-        3,
-        31
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 3,
-          "x_index": 20
-        },
-        {
-          "slot_id": 31,
-          "x_index": 3
-        }
-      ],
-      "source_cut_bond": [
-        106,
-        160
-      ]
-    },
-    {
-      "edge_id": 70,
-      "endpoint_slots": [
         0,
-        20
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 0,
-          "x_index": 19
-        },
-        {
-          "slot_id": 20,
-          "x_index": 3
-        }
+        1
       ],
       "source_cut_bond": [
         107,
         153
-      ]
-    },
-    {
-      "edge_id": 71,
-      "endpoint_slots": [
+      ],
+      "source_cut_shift": [
         0,
-        32
-      ],
-      "endpoint_x_sites": [
-        {
-          "slot_id": 0,
-          "x_index": 20
-        },
-        {
-          "slot_id": 32,
-          "x_index": 3
-        }
-      ],
-      "source_cut_bond": [
-        107,
-        161
+        0,
+        0
       ]
     }
   ],
-  "schema_version": 1,
+  "schema_version": 2,
   "slots": [
     {
       "bb_id": "metal_node_group_01",
-      "cn": 9,
-      "debug_instance": "metal_nodes/metal_node_001.xyz",
-      "formula": "C3Ni3O6X9",
+      "cn": 12,
+      "exact_frac_position": [
+        0.3333332666666667,
+        0.3333332666666668,
+        0.7057312666666665
+      ],
+      "exact_instance_path": "metal_nodes/metal_node_001.xyz",
       "kind": "metal_node",
+      "logical_kind": "metal_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            -1
+          ],
+          "x_indices": [
+            22,
+            23,
+            25
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            21,
+            24,
+            26
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 1,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            15
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 1,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            18
+          ]
+        },
+        {
+          "logical_port_id": 4,
+          "neighbor_index": 5,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            16
+          ]
+        },
+        {
+          "logical_port_id": 5,
+          "neighbor_index": 5,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            19
+          ]
+        },
+        {
+          "logical_port_id": 6,
+          "neighbor_index": 9,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            17,
+            20
+          ]
+        }
+      ],
       "slot_id": 0,
+      "source_image_offsets": [
+        [
+          0,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          8,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          16,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          91,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          99,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          107,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          108,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          116,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          124,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          126,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          134,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          142,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          145,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          153,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          161,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         0,
         8,
@@ -1627,16 +2309,248 @@
         124,
         126,
         134,
-        142
-      ]
+        142,
+        145,
+        153,
+        161
+      ],
+      "topology_slot": {
+        "index": 0,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "metal_node_group_01",
-      "cn": 9,
-      "debug_instance": "metal_nodes/metal_node_002.xyz",
-      "formula": "C3Ni3O6X9",
+      "cn": 12,
+      "exact_frac_position": [
+        0.6666666666666665,
+        0.6666666,
+        0.2942686
+      ],
+      "exact_instance_path": "metal_nodes/metal_node_002.xyz",
       "kind": "metal_node",
+      "logical_kind": "metal_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            -1
+          ],
+          "x_indices": [
+            22,
+            24,
+            25
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            21,
+            23,
+            26
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 1,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            18
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 1,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            15
+          ]
+        },
+        {
+          "logical_port_id": 4,
+          "neighbor_index": 6,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            16,
+            19
+          ]
+        },
+        {
+          "logical_port_id": 5,
+          "neighbor_index": 8,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            -1
+          ],
+          "x_indices": [
+            20
+          ]
+        },
+        {
+          "logical_port_id": 6,
+          "neighbor_index": 8,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            17
+          ]
+        }
+      ],
       "slot_id": 1,
+      "source_image_offsets": [
+        [
+          1,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          11,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          15,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          90,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          100,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          104,
+          [
+            0,
+            0,
+            -1
+          ]
+        ],
+        [
+          109,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          119,
+          [
+            0,
+            0,
+            -1
+          ]
+        ],
+        [
+          123,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          127,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          137,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          141,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          144,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          154,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          158,
+          [
+            0,
+            0,
+            -1
+          ]
+        ]
+      ],
       "source_indices": [
         1,
         11,
@@ -1649,16 +2563,248 @@
         123,
         127,
         137,
-        141
-      ]
+        141,
+        144,
+        154,
+        158
+      ],
+      "topology_slot": {
+        "index": 1,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "metal_node_group_01",
-      "cn": 9,
-      "debug_instance": "metal_nodes/metal_node_003.xyz",
-      "formula": "C3Ni3O6X9",
+      "cn": 12,
+      "exact_frac_position": [
+        0.6666665999999999,
+        0.9999998666666667,
+        0.7057312666666665
+      ],
+      "exact_instance_path": "metal_nodes/metal_node_003.xyz",
       "kind": "metal_node",
+      "logical_kind": "metal_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 3,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            -1
+          ],
+          "x_indices": [
+            22,
+            23,
+            25
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 3,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            21,
+            24,
+            26
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 2,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            15
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 2,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            18
+          ]
+        },
+        {
+          "logical_port_id": 4,
+          "neighbor_index": 6,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            -1,
+            0
+          ],
+          "x_indices": [
+            16
+          ]
+        },
+        {
+          "logical_port_id": 5,
+          "neighbor_index": 6,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            -1,
+            1
+          ],
+          "x_indices": [
+            19
+          ]
+        },
+        {
+          "logical_port_id": 6,
+          "neighbor_index": 7,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            17,
+            20
+          ]
+        }
+      ],
       "slot_id": 2,
+      "source_image_offsets": [
+        [
+          2,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          10,
+          [
+            0,
+            -1,
+            0
+          ]
+        ],
+        [
+          12,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          93,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          101,
+          [
+            0,
+            -1,
+            1
+          ]
+        ],
+        [
+          103,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          110,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          118,
+          [
+            0,
+            -1,
+            0
+          ]
+        ],
+        [
+          120,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          128,
+          [
+            0,
+            -1,
+            0
+          ]
+        ],
+        [
+          136,
+          [
+            0,
+            -1,
+            0
+          ]
+        ],
+        [
+          138,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          147,
+          [
+            0,
+            -1,
+            0
+          ]
+        ],
+        [
+          155,
+          [
+            0,
+            -1,
+            1
+          ]
+        ],
+        [
+          157,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         2,
         10,
@@ -1671,16 +2817,248 @@
         120,
         128,
         136,
-        138
-      ]
+        138,
+        147,
+        155,
+        157
+      ],
+      "topology_slot": {
+        "index": 2,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "metal_node_group_01",
-      "cn": 9,
-      "debug_instance": "metal_nodes/metal_node_004.xyz",
-      "formula": "C3Ni3O6X9",
+      "cn": 12,
+      "exact_frac_position": [
+        0.3333332666666667,
+        6.666666663157628e-08,
+        0.2942686
+      ],
+      "exact_instance_path": "metal_nodes/metal_node_004.xyz",
       "kind": "metal_node",
+      "logical_kind": "metal_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 4,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            -1
+          ],
+          "x_indices": [
+            22,
+            24,
+            25
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 4,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            21,
+            23,
+            26
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 2,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            1,
+            0
+          ],
+          "x_indices": [
+            18
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 2,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            1,
+            1
+          ],
+          "x_indices": [
+            15
+          ]
+        },
+        {
+          "logical_port_id": 4,
+          "neighbor_index": 4,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            16,
+            19
+          ]
+        },
+        {
+          "logical_port_id": 5,
+          "neighbor_index": 9,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            1,
+            -1
+          ],
+          "x_indices": [
+            20
+          ]
+        },
+        {
+          "logical_port_id": 6,
+          "neighbor_index": 9,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            1,
+            0
+          ],
+          "x_indices": [
+            17
+          ]
+        }
+      ],
       "slot_id": 3,
+      "source_image_offsets": [
+        [
+          3,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          7,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          17,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          92,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          96,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          106,
+          [
+            0,
+            1,
+            -1
+          ]
+        ],
+        [
+          111,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          115,
+          [
+            0,
+            0,
+            -1
+          ]
+        ],
+        [
+          125,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          129,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          133,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          143,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          146,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          150,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          160,
+          [
+            0,
+            1,
+            -1
+          ]
+        ]
+      ],
       "source_indices": [
         3,
         7,
@@ -1693,16 +3071,248 @@
         125,
         129,
         133,
-        143
-      ]
+        143,
+        146,
+        150,
+        160
+      ],
+      "topology_slot": {
+        "index": 3,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "metal_node_group_01",
-      "cn": 9,
-      "debug_instance": "metal_nodes/metal_node_005.xyz",
-      "formula": "C3Ni3O6X9",
+      "cn": 12,
+      "exact_frac_position": [
+        6.666666640953167e-08,
+        0.6666666666666666,
+        0.7057312666666665
+      ],
+      "exact_instance_path": "metal_nodes/metal_node_005.xyz",
       "kind": "metal_node",
+      "logical_kind": "metal_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 5,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            -1
+          ],
+          "x_indices": [
+            22,
+            23,
+            25
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 5,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            21,
+            24,
+            26
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 3,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            15
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 3,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            18
+          ]
+        },
+        {
+          "logical_port_id": 4,
+          "neighbor_index": 4,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            1,
+            0,
+            0
+          ],
+          "x_indices": [
+            16
+          ]
+        },
+        {
+          "logical_port_id": 5,
+          "neighbor_index": 4,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            1,
+            0,
+            1
+          ],
+          "x_indices": [
+            19
+          ]
+        },
+        {
+          "logical_port_id": 6,
+          "neighbor_index": 8,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            17,
+            20
+          ]
+        }
+      ],
       "slot_id": 4,
+      "source_image_offsets": [
+        [
+          4,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          6,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          14,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          95,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          97,
+          [
+            1,
+            0,
+            1
+          ]
+        ],
+        [
+          105,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          112,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          114,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          122,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          130,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          132,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          140,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          149,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          151,
+          [
+            1,
+            0,
+            1
+          ]
+        ],
+        [
+          159,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         4,
         6,
@@ -1715,16 +3325,248 @@
         122,
         130,
         132,
-        140
-      ]
+        140,
+        149,
+        151,
+        159
+      ],
+      "topology_slot": {
+        "index": 4,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "metal_node_group_01",
-      "cn": 9,
-      "debug_instance": "metal_nodes/metal_node_006.xyz",
-      "formula": "C3Ni3O6X9",
+      "cn": 12,
+      "exact_frac_position": [
+        0.9999998666666666,
+        0.3333332666666667,
+        0.2942686
+      ],
+      "exact_instance_path": "metal_nodes/metal_node_006.xyz",
       "kind": "metal_node",
+      "logical_kind": "metal_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 6,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            -1
+          ],
+          "x_indices": [
+            22,
+            24,
+            25
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 6,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            21,
+            23,
+            26
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 3,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            -1,
+            0,
+            0
+          ],
+          "x_indices": [
+            18
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 3,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            -1,
+            0,
+            1
+          ],
+          "x_indices": [
+            15
+          ]
+        },
+        {
+          "logical_port_id": 4,
+          "neighbor_index": 5,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            16,
+            19
+          ]
+        },
+        {
+          "logical_port_id": 5,
+          "neighbor_index": 7,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            -1,
+            0,
+            -1
+          ],
+          "x_indices": [
+            20
+          ]
+        },
+        {
+          "logical_port_id": 6,
+          "neighbor_index": 7,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            -1,
+            0,
+            0
+          ],
+          "x_indices": [
+            17
+          ]
+        }
+      ],
       "slot_id": 5,
+      "source_image_offsets": [
+        [
+          5,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          9,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          13,
+          [
+            -1,
+            0,
+            0
+          ]
+        ],
+        [
+          94,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          98,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          102,
+          [
+            -1,
+            0,
+            -1
+          ]
+        ],
+        [
+          113,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          117,
+          [
+            0,
+            0,
+            -1
+          ]
+        ],
+        [
+          121,
+          [
+            -1,
+            0,
+            0
+          ]
+        ],
+        [
+          131,
+          [
+            -1,
+            0,
+            0
+          ]
+        ],
+        [
+          135,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          139,
+          [
+            -1,
+            0,
+            0
+          ]
+        ],
+        [
+          148,
+          [
+            -1,
+            0,
+            0
+          ]
+        ],
+        [
+          152,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          156,
+          [
+            -1,
+            0,
+            -1
+          ]
+        ]
+      ],
       "source_indices": [
         5,
         9,
@@ -1737,16 +3579,124 @@
         121,
         131,
         135,
-        139
-      ]
+        139,
+        148,
+        152,
+        156
+      ],
+      "topology_slot": {
+        "index": 5,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
-      "debug_instance": "organic_nodes/organic_node_001.xyz",
-      "formula": "C6H2X4",
+      "exact_frac_position": [
+        0.4999998749999999,
+        0.5,
+        4.163336342344337e-17
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_001.xyz",
       "kind": "organic_node",
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            8,
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            9,
+            10
+          ]
+        }
+      ],
       "slot_id": 6,
+      "source_image_offsets": [
+        [
+          18,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          19,
+          [
+            0,
+            0,
+            -1
+          ]
+        ],
+        [
+          36,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          37,
+          [
+            0,
+            0,
+            -1
+          ]
+        ],
+        [
+          54,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          55,
+          [
+            0,
+            0,
+            -1
+          ]
+        ],
+        [
+          72,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          73,
+          [
+            0,
+            0,
+            -1
+          ]
+        ]
+      ],
       "source_indices": [
         18,
         19,
@@ -1756,37 +3706,120 @@
         55,
         72,
         73
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_002.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 7,
-      "source_indices": [
-        144
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_003.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 8,
-      "source_indices": [
-        145
-      ]
+      ],
+      "topology_slot": {
+        "index": 6,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
-      "debug_instance": "organic_nodes/organic_node_004.xyz",
-      "formula": "C6H2X4",
+      "exact_frac_position": [
+        0.49999999999999994,
+        1.734723475976807e-18,
+        4.163336342344337e-17
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_002.xyz",
       "kind": "organic_node",
-      "slot_id": 9,
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 3,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            8,
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 4,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            -1,
+            0
+          ],
+          "x_indices": [
+            9,
+            10
+          ]
+        }
+      ],
+      "slot_id": 7,
+      "source_image_offsets": [
+        [
+          20,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          21,
+          [
+            0,
+            -1,
+            -1
+          ]
+        ],
+        [
+          38,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          39,
+          [
+            0,
+            -1,
+            -1
+          ]
+        ],
+        [
+          56,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          57,
+          [
+            0,
+            -1,
+            -1
+          ]
+        ],
+        [
+          74,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          75,
+          [
+            0,
+            -1,
+            -1
+          ]
+        ]
+      ],
       "source_indices": [
         20,
         21,
@@ -1796,37 +3829,120 @@
         57,
         74,
         75
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_005.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 10,
-      "source_indices": [
-        146
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_006.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 11,
-      "source_indices": [
-        147
-      ]
+      ],
+      "topology_slot": {
+        "index": 7,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
-      "debug_instance": "organic_nodes/organic_node_007.xyz",
-      "formula": "C6H2X4",
+      "exact_frac_position": [
+        0.9999999999999999,
+        0.499999875,
+        4.163336342344337e-17
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_003.xyz",
       "kind": "organic_node",
-      "slot_id": 12,
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 5,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            8,
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 6,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            1,
+            0,
+            0
+          ],
+          "x_indices": [
+            9,
+            10
+          ]
+        }
+      ],
+      "slot_id": 8,
+      "source_image_offsets": [
+        [
+          22,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          23,
+          [
+            1,
+            0,
+            -1
+          ]
+        ],
+        [
+          40,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          41,
+          [
+            1,
+            0,
+            -1
+          ]
+        ],
+        [
+          58,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          59,
+          [
+            1,
+            0,
+            -1
+          ]
+        ],
+        [
+          76,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          77,
+          [
+            1,
+            0,
+            -1
+          ]
+        ]
+      ],
       "source_indices": [
         22,
         23,
@@ -1836,37 +3952,120 @@
         59,
         76,
         77
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_008.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 13,
-      "source_indices": [
-        148
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_009.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 14,
-      "source_indices": [
-        149
-      ]
+      ],
+      "topology_slot": {
+        "index": 8,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
-      "debug_instance": "organic_nodes/organic_node_010.xyz",
-      "formula": "C6H2X4",
+      "exact_frac_position": [
+        0.166666625,
+        0.8333331250000001,
+        0.33333325
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_004.xyz",
       "kind": "organic_node",
-      "slot_id": 15,
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 4,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            9,
+            10
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 5,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            -1,
+            0,
+            0
+          ],
+          "x_indices": [
+            8,
+            11
+          ]
+        }
+      ],
+      "slot_id": 9,
+      "source_image_offsets": [
+        [
+          24,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          25,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          42,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          43,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          60,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          61,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          78,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          79,
+          [
+            0,
+            0,
+            -1
+          ]
+        ]
+      ],
       "source_indices": [
         24,
         25,
@@ -1876,37 +4075,120 @@
         61,
         78,
         79
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_011.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 16,
-      "source_indices": [
-        150
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_012.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 17,
-      "source_indices": [
-        151
-      ]
+      ],
+      "topology_slot": {
+        "index": 9,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
-      "debug_instance": "organic_nodes/organic_node_013.xyz",
-      "formula": "C6H2X4",
+      "exact_frac_position": [
+        0.16666674999999997,
+        0.333333375,
+        0.33333325
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_005.xyz",
       "kind": "organic_node",
-      "slot_id": 18,
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            8,
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 6,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            9,
+            10
+          ]
+        }
+      ],
+      "slot_id": 10,
+      "source_image_offsets": [
+        [
+          26,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          27,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          44,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          45,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          62,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          63,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          80,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          81,
+          [
+            0,
+            0,
+            -1
+          ]
+        ]
+      ],
       "source_indices": [
         26,
         27,
@@ -1916,37 +4198,120 @@
         63,
         80,
         81
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_014.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 19,
-      "source_indices": [
-        152
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_015.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 20,
-      "source_indices": [
-        153
-      ]
+      ],
+      "topology_slot": {
+        "index": 10,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
-      "debug_instance": "organic_nodes/organic_node_016.xyz",
-      "formula": "C6H2X4",
+      "exact_frac_position": [
+        0.6666664999999998,
+        0.83333325,
+        0.33333325
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_006.xyz",
       "kind": "organic_node",
-      "slot_id": 21,
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            9,
+            10
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 3,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            1,
+            0
+          ],
+          "x_indices": [
+            8,
+            11
+          ]
+        }
+      ],
+      "slot_id": 11,
+      "source_image_offsets": [
+        [
+          28,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          29,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          46,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          47,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          64,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          65,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          82,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          83,
+          [
+            0,
+            0,
+            -1
+          ]
+        ]
+      ],
       "source_indices": [
         28,
         29,
@@ -1956,37 +4321,120 @@
         65,
         82,
         83
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_017.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 22,
-      "source_indices": [
-        154
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_018.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 23,
-      "source_indices": [
-        155
-      ]
+      ],
+      "topology_slot": {
+        "index": 11,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
-      "debug_instance": "organic_nodes/organic_node_019.xyz",
-      "formula": "C6H2X4",
+      "exact_frac_position": [
+        0.8333332499999999,
+        0.16666675000000003,
+        0.6666666250000001
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_007.xyz",
       "kind": "organic_node",
-      "slot_id": 24,
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 3,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            8,
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 6,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            1,
+            0,
+            0
+          ],
+          "x_indices": [
+            9,
+            10
+          ]
+        }
+      ],
+      "slot_id": 12,
+      "source_image_offsets": [
+        [
+          30,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          31,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          48,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          49,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          66,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          67,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          84,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          85,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         30,
         31,
@@ -1996,37 +4444,120 @@
         67,
         84,
         85
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_020.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 25,
-      "source_indices": [
-        156
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_021.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 26,
-      "source_indices": [
-        157
-      ]
+      ],
+      "topology_slot": {
+        "index": 12,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
-      "debug_instance": "organic_nodes/organic_node_022.xyz",
-      "formula": "C6H2X4",
+      "exact_frac_position": [
+        0.833333125,
+        0.6666665,
+        0.6666666250000001
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_008.xyz",
       "kind": "organic_node",
-      "slot_id": 27,
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            9,
+            10
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 5,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            8,
+            11
+          ]
+        }
+      ],
+      "slot_id": 13,
+      "source_image_offsets": [
+        [
+          32,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          33,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          50,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          51,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          68,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          69,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          86,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          87,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         32,
         33,
@@ -2036,37 +4567,120 @@
         69,
         86,
         87
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_023.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 28,
-      "source_indices": [
-        158
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_024.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 29,
-      "source_indices": [
-        159
-      ]
+      ],
+      "topology_slot": {
+        "index": 13,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 4,
-      "debug_instance": "organic_nodes/organic_node_025.xyz",
-      "formula": "C6H2X4",
+      "exact_frac_position": [
+        0.33333337499999993,
+        0.166666625,
+        0.6666666250000001
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_009.xyz",
       "kind": "organic_node",
-      "slot_id": 30,
+      "logical_kind": "edge",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            8,
+            11
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 4,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            -1,
+            0
+          ],
+          "x_indices": [
+            9,
+            10
+          ]
+        }
+      ],
+      "slot_id": 14,
+      "source_image_offsets": [
+        [
+          34,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          35,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          52,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          53,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          70,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          71,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          88,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          89,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         34,
         35,
@@ -2076,29 +4690,11 @@
         71,
         88,
         89
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_026.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 31,
-      "source_indices": [
-        160
-      ]
-    },
-    {
-      "bb_id": "organic_node_group_02",
-      "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_027.xyz",
-      "formula": "OX3",
-      "kind": "organic_node",
-      "slot_id": 32,
-      "source_indices": [
-        161
-      ]
+      ],
+      "topology_slot": {
+        "index": 14,
+        "kind": "node"
+      }
     }
   ],
   "topology": {
@@ -2111,139 +4707,6 @@
       119.99999999999999
     ],
     "kind": "node_edge_slots",
-    "path": "topology.cgd",
-    "stock_pormake_reader_safe": false
-  },
-  "validation": {
-    "all_edges_mapped": true,
-    "all_x_sites_used_once": true,
-    "duplicate_edge_warnings": [
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          0,
-          8
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          0,
-          20
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          0,
-          32
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          1,
-          7
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          1,
-          22
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          1,
-          28
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          2,
-          11
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          2,
-          23
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          2,
-          26
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          3,
-          10
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          3,
-          16
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          3,
-          31
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          4,
-          14
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          4,
-          17
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          4,
-          29
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          5,
-          13
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          5,
-          19
-        ]
-      },
-      {
-        "edge_count": 2,
-        "endpoint_slots": [
-          5,
-          25
-        ]
-      }
-    ]
+    "path": "topology.cgd"
   }
 }

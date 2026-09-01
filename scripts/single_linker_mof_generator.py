@@ -17,6 +17,7 @@ import random
 import resource
 import shutil
 import statistics
+import warnings
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -27,7 +28,9 @@ from ase.io import read as read_ase
 import numpy as np
 from pymatgen.core import Molecule
 from pymatgen.symmetry.analyzer import PointGroupAnalyzer
+from pymatgen.symmetry.groups import SpaceGroup
 from scipy.spatial.transform import Rotation
+import spglib
 from sympy.combinatorics import Permutation, PermutationGroup
 from threadpoolctl import threadpool_limits
 
@@ -1544,6 +1547,41 @@ def minimum_distance(atoms: object) -> float | None:
     return float(np.min(distances)) if len(distances) else None
 
 
+@lru_cache(maxsize=256)
+def canonical_space_group_number(symbol: str) -> int:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return int(SpaceGroup(symbol).int_number)
+
+
+def detect_crystal_symmetry(
+    atoms: object,
+    symprec: float,
+    angle_tolerance: float = -1.0,
+) -> dict[str, object]:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        dataset = spglib.get_symmetry_dataset(
+            (
+                np.asarray(atoms.cell.array, dtype=float),
+                np.asarray(atoms.get_scaled_positions(wrap=False), dtype=float),
+                np.asarray(atoms.numbers, dtype=np.intc),
+            ),
+            symprec=float(symprec),
+            angle_tolerance=float(angle_tolerance),
+        )
+    if dataset is None:
+        raise ValueError("spglib returned no post-build symmetry dataset")
+    return {
+        "detected_space_group_number": int(dataset.number),
+        "detected_space_group_symbol": str(dataset.international),
+        "detected_point_group": str(dataset.pointgroup),
+        "detected_symmetry_operations": int(len(dataset.rotations)),
+        "detected_symprec_angstrom": float(symprec),
+        "detected_angle_tolerance_degree": float(angle_tolerance),
+    }
+
+
 def build_and_validate(
     config: GenerationConfig,
     topology_record: TopologyRecord,
@@ -1551,6 +1589,8 @@ def build_and_validate(
     edge_paths: dict[tuple[int, int], Path],
     cif_path: Path,
     topology: Topology | None = None,
+    crystal_symmetry_symprec: float | None = None,
+    crystal_symmetry_angle_tolerance: float = -1.0,
 ) -> dict[str, object]:
     if topology is None:
         topology = cached_topology(str(topology_record.cgd_path))
@@ -1593,12 +1633,15 @@ def build_and_validate(
 
     diagnostics = framework.info.get("symmetry_placement_diagnostics", {})
     fallback_orbits = sum(
-        not item.get("covariant", True)
+        not item.get(
+            "symmetry_propagated",
+            item.get("covariant", True),
+        )
         for kind in ("nodes", "edges")
         for item in diagnostics.get(kind, ())
     )
 
-    return {
+    quality = {
         "num_atoms": len(framework.atoms),
         "formula": framework.atoms.get_chemical_formula(mode="metal"),
         "cell_parameters": [
@@ -1606,6 +1649,9 @@ def build_and_validate(
         ],
         "max_rmsd": max_rmsd,
         "mean_rmsd": float(framework.info["mean_rmsd"]),
+        "geometry_optimization_objective": float(
+            framework.info["geometry_optimization_objective"]
+        ),
         "relax_obj": float(framework.info["relax_obj"]),
         "minimum_atom_distance_angstrom": closest,
         "cif_space_group_symbol": "P1",
@@ -1615,6 +1661,19 @@ def build_and_validate(
         ),
         "symmetry_fallback_orbit_count": int(fallback_orbits),
     }
+    if crystal_symmetry_symprec is not None:
+        quality.update(
+            detect_crystal_symmetry(
+                framework.atoms,
+                crystal_symmetry_symprec,
+                crystal_symmetry_angle_tolerance,
+            )
+        )
+        quality["detected_matches_source_space_group"] = bool(
+            quality["detected_space_group_number"]
+            == canonical_space_group_number(topology_record.space_group)
+        )
+    return quality
 
 
 def validate_staged_cif(
@@ -1647,13 +1706,17 @@ def validate_staged_cif(
     max_rmsd = comment_value("# Max RMSD:")
     if max_rmsd is None or max_rmsd > config.max_rmsd:
         raise ValueError("staged CIF fails RMSD validation")
+    geometry_objective = comment_value("# Geometry optimization objective:")
+    if geometry_objective is None:
+        geometry_objective = comment_value("# Relax obj value:")
     return {
         "num_atoms": len(atoms),
         "formula": atoms.get_chemical_formula(mode="metal"),
         "cell_parameters": [float(value) for value in atoms.cell.cellpar()],
         "max_rmsd": max_rmsd,
         "mean_rmsd": comment_value("# Mean RMSD:"),
-        "relax_obj": comment_value("# Relax obj value:"),
+        "geometry_optimization_objective": geometry_objective,
+        "relax_obj": geometry_objective,
         "minimum_atom_distance_angstrom": closest,
         "cif_space_group_symbol": "P1",
         "cif_space_group_number": 1,

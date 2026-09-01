@@ -28,8 +28,8 @@ It supports two complementary workflows:
 - Writes extended XYZ building blocks, a symmetry-preserving CGD topology,
   JSON summaries, and a reconstruction map.
 - Reconstructs decomposition outputs without requiring JAX.
-- Performs topology scaling, building-block orientation, and geometric quality
-  checks for topology-driven assembly.
+- Performs symmetry-constrained optimization of topological-node positions and
+  lattice parameters, building-block placement, and geometric validation.
 
 ## Installation
 
@@ -298,7 +298,9 @@ src/mofbb/
 │   ├── builder.py           # Topology-driven assembly
 │   ├── building_block.py    # Building-block model
 │   ├── topology.py          # CGD topology model
-│   └── scaler.py            # NumPy/SciPy topology scaling
+│   ├── node_lattice.py      # Node-position and lattice optimization
+│   ├── geometry_parameterization.py # Symmetry-constrained coordinates
+│   └── placement/fixed_cell.py      # Fixed-cell framework fitting
 └── decompose/
     ├── cli.py               # Decomposition CLI
     ├── decomposer.py        # Node-edge workflow

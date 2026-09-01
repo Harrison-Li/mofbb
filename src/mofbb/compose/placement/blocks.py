@@ -8,25 +8,29 @@ from mofbb.compose.placement.errors import SymmetryCompatibilityError
 
 
 class BlockPlacement:
-    """Scale the topology, then place node and edge blocks in the final cell."""
+    """Optimize framework geometry, then place blocks in the final lattice."""
 
-    def __init__(self, assignment, closure, scaler, edge_factory):
+    def __init__(self, assignment, fixed_cell_fit, geometry_optimizer, edge_factory):
         self.source_topology = assignment.topology
         self.topology = assignment.topology
-        self.blocks = closure.blocks
-        self.permutations = closure.permutations
+        self.blocks = fixed_cell_fit.blocks
+        self.permutations = fixed_cell_fit.permutations
         self.symmetry = assignment.symmetry
         self.locator = assignment.locator
-        self.scaler = scaler
+        self.geometry_optimizer = geometry_optimizer
         self.pbc = assignment.pbc
         self.edge_factory = edge_factory
-        self.covariant_node_orbits = assignment.node_cov
-        self.covariant_edge_orbits = assignment.edge_cov
+        self.symmetry_compatible_node_orbits = (
+            assignment.symmetry_compatible_node_orbits
+        )
+        self.symmetry_compatible_edge_orbits = (
+            assignment.symmetry_compatible_edge_orbits
+        )
         self.symmetry_diagnostics = assignment.diag
-        self.fixed_cell_closed = closure.closed
-        self.scaling_result = closure.fit
-        self.port_tolerance = closure.tolerance
-        self.bond_scale = closure.bond_scale
+        self.fixed_cell_fitted = fixed_cell_fit.fitted
+        self.geometry_optimization_result = fixed_cell_fit.optimization_result
+        self.port_tolerance = fixed_cell_fit.tolerance
+        self.bond_scale = fixed_cell_fit.bond_scale
         self.symmetry_tolerance = assignment.sym_tol
         self.strict_symmetry = assignment.strict_symmetry
         self.edge_targets = {}
@@ -35,23 +39,28 @@ class BlockPlacement:
     def run(self):
         """Place all blocks in the final cell and return this stage."""
         self._prepare_topology()
-        if self.fixed_cell_closed and self.strict_symmetry:
+        if self.fixed_cell_fitted and self.strict_symmetry:
             self._validate_fixed_cell_symmetry()
         self.rmsds = np.asarray(self._place_nodes())
         self._place_edges()
         return self
 
     def _prepare_topology(self):
-        if self.fixed_cell_closed:
+        if self.fixed_cell_fitted:
             self.topology = self.topology.copy()
         else:
-            self.topology, self.scaling_result = self.scaler.scale(
-                topology=self.topology, bbs=self.blocks,
-                perms=self.permutations, return_result=True,
+            optimize = getattr(self.geometry_optimizer, "optimize", None)
+            if optimize is None:
+                optimize = self.geometry_optimizer.scale
+            self.topology, self.geometry_optimization_result = optimize(
+                topology=self.topology,
+                bbs=self.blocks,
+                perms=self.permutations,
+                return_result=True,
             )
 
         has_edges = any(self.blocks[int(index)] is not None for index in self.topology.edge_indices)
-        if has_edges and not self.fixed_cell_closed:
+        if has_edges and not self.fixed_cell_fitted:
             self.edge_targets = self.edge_factory(
                 self.source_topology, self.topology, self.permutations, self.symmetry
             ).build()
@@ -66,23 +75,23 @@ class BlockPlacement:
         )
 
     def _validate_fixed_cell_symmetry(self):
-        """Audit final closure poses that otherwise skip placement checks."""
+        """Audit fitted fixed-cell poses that otherwise skip placement checks."""
         cell = np.asarray(self.topology.atoms.cell, dtype=float)
         orbit_groups = (
             (
                 "node",
                 self.symmetry.node_orbits,
-                self.covariant_node_orbits,
+                self.symmetry_compatible_node_orbits,
                 self.symmetry_diagnostics["nodes"],
             ),
             (
                 "edge",
                 self.symmetry.edge_orbits,
-                self.covariant_edge_orbits,
+                self.symmetry_compatible_edge_orbits,
                 self.symmetry_diagnostics["edges"],
             ),
         )
-        for kind, orbits, covariant_orbits, diagnostics in orbit_groups:
+        for kind, orbits, compatible_orbits, diagnostics in orbit_groups:
             for orbit in orbits:
                 occupied = [
                     int(member)
@@ -92,9 +101,9 @@ class BlockPlacement:
                 if not occupied:
                     continue
                 representative = orbit.representative
-                if representative not in covariant_orbits:
+                if representative not in compatible_orbits:
                     self._reject_symmetry(
-                        "orbit_not_covariant",
+                        "orbit_not_symmetry_compatible",
                         kind,
                         orbit,
                     )
@@ -105,12 +114,12 @@ class BlockPlacement:
                     cell,
                     self.symmetry_tolerance,
                 )
-                diagnostic.update({"kind": kind, "covariant": True})
+                diagnostic.update({"kind": kind, "symmetry_propagated": True})
                 diagnostics.append(diagnostic)
                 if not diagnostic["compatible"]:
                     diagnostic.update(
                         {
-                            "covariant": False,
+                            "symmetry_propagated": False,
                             "reason": "final_stabilizer_incompatible",
                         }
                     )
@@ -122,16 +131,16 @@ class BlockPlacement:
                     )
 
     def _place_nodes(self):
-        if self.fixed_cell_closed:
+        if self.fixed_cell_fitted:
             return [0.0] * len(self.topology.node_indices)
         rmsds = []
         cell = np.asarray(self.topology.atoms.cell, dtype=float)
         for orbit in self.symmetry.node_orbits:
             representative = orbit.representative
-            if representative not in self.covariant_node_orbits:
+            if representative not in self.symmetry_compatible_node_orbits:
                 if self.strict_symmetry:
                     self._reject_symmetry(
-                        "orbit_not_covariant",
+                        "orbit_not_symmetry_compatible",
                         "node",
                         orbit,
                     )
@@ -144,11 +153,14 @@ class BlockPlacement:
                 orbit, representative_block, self.permutations[representative],
                 cell, self.symmetry_tolerance,
             )
-            diagnostic.update({"kind": "node", "covariant": True})
+            diagnostic.update({"kind": "node", "symmetry_propagated": True})
             self.symmetry_diagnostics["nodes"].append(diagnostic)
             if not diagnostic["compatible"]:
                 diagnostic.update(
-                    {"covariant": False, "reason": "final_stabilizer_incompatible"}
+                    {
+                        "symmetry_propagated": False,
+                        "reason": "final_stabilizer_incompatible",
+                    }
                 )
                 if self.strict_symmetry:
                     self._reject_symmetry(
@@ -176,7 +188,7 @@ class BlockPlacement:
 
     def _located_node(self, node_index, *, force=False):
         block = self.blocks[node_index]
-        if self.fixed_cell_closed and not force:
+        if self.fixed_cell_fitted and not force:
             return block, 0.0
         return self.locator.locate_with_permutation(
             self.topology.local_structure(node_index), block, self.permutations[node_index]
@@ -247,7 +259,7 @@ class BlockPlacement:
         return diagnostic
 
     def _place_edges(self):
-        if self.fixed_cell_closed or not self.edge_targets:
+        if self.fixed_cell_fitted or not self.edge_targets:
             return
 
         cell = np.asarray(self.topology.atoms.cell, dtype=float)
@@ -260,19 +272,19 @@ class BlockPlacement:
             ]
             if not members:
                 continue
-            if representative not in self.covariant_edge_orbits:
+            if representative not in self.symmetry_compatible_edge_orbits:
                 if self.strict_symmetry:
                     self._reject_symmetry(
-                        "orbit_not_covariant",
+                        "orbit_not_symmetry_compatible",
                         "edge",
                         orbit,
                     )
                 for member in members:
                     self._place_edge_independently(member, cell, inverse_cell)
                 continue
-            self._place_covariant_edge_orbit(orbit, members, cell, inverse_cell)
+            self._place_edge_orbit_by_symmetry(orbit, members, cell, inverse_cell)
 
-    def _place_covariant_edge_orbit(self, orbit, members, cell, inverse_cell):
+    def _place_edge_orbit_by_symmetry(self, orbit, members, cell, inverse_cell):
         representative = orbit.representative
         target_points, centroid = self._edge_geometry(representative, cell, inverse_cell)
         target = self.edge_targets[representative]
@@ -287,10 +299,15 @@ class BlockPlacement:
             orbit, edge, self.permutations[representative],
             cell, self.symmetry_tolerance,
         )
-        diagnostic.update({"kind": "edge", "covariant": True})
+        diagnostic.update({"kind": "edge", "symmetry_propagated": True})
         self.symmetry_diagnostics["edges"].append(diagnostic)
         if not diagnostic["compatible"]:
-            diagnostic.update({"covariant": False, "reason": "stabilizer_incompatible"})
+            diagnostic.update(
+                {
+                    "symmetry_propagated": False,
+                    "reason": "stabilizer_incompatible",
+                }
+            )
             if self.strict_symmetry:
                 self._reject_symmetry(
                     diagnostic["reason"],
@@ -337,7 +354,7 @@ class BlockPlacement:
                 if self.strict_symmetry:
                     diagnostic.update(
                         {
-                            "covariant": False,
+                            "symmetry_propagated": False,
                             "reason": "propagated_port_mismatch",
                             "fallback_members": fallback_members,
                             "propagated_port_residual": residual,
@@ -370,7 +387,7 @@ class BlockPlacement:
         if fallback_members:
             diagnostic.update(
                 {
-                    "covariant": False,
+                    "symmetry_propagated": False,
                     "reason": "propagated_port_mismatch",
                     "fallback_members": fallback_members,
                 }

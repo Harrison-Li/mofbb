@@ -53,7 +53,8 @@ class Framework:
                     t = tuple(topology.edge_types[i])
                     bb = self.info["located_bbs"][i]
                     f.write(f"#     Edge {i}, Type {t}, {bb}\n")
-                f.write(f"# Relax obj value: {self.info['relax_obj']:.3f}\n")
+                objective = self.info["geometry_optimization_objective"]
+                f.write(f"# Geometry optimization objective: {objective:.3f}\n")
                 f.write(f"# Max RMSD: {self.info['max_rmsd']:.3f}\n")
                 f.write(f"# Mean RMSD: {self.info['mean_rmsd']:.3f}\n")
             elif self.info.get("decomposition_dir"):
@@ -135,24 +136,26 @@ class Framework:
             inverse_cell = np.linalg.inv(cell)
             origin = np.array([5, 5, 5])
 
-            for (i, j), bond_type in zip(
-                self.bonds,
+            bond_indices = np.asarray(self.bonds, dtype=int).reshape(-1, 2)
+            direct_vectors = (
+                frac_coords[bond_indices[:, 1]] - frac_coords[bond_indices[:, 0]]
+            ) @ cell
+            mic_vectors, distances = find_mic(
+                direct_vectors,
+                cell,
+                pbc=self.atoms.pbc,
+            )
+            images = np.rint(
+                (mic_vectors - direct_vectors) @ inverse_cell
+            ).astype(int) + origin
+
+            for (i, j), bond_type, distance, image in zip(
+                bond_indices,
                 self.bond_types,
+                distances,
+                images,
                 strict=True,
             ):
-                direct_vector = (frac_coords[j] - frac_coords[i]) @ cell
-                mic_vector, distance = find_mic(
-                    direct_vector,
-                    cell,
-                    pbc=self.atoms.pbc,
-                )
-
-                # ASE gives the Cartesian minimum-image vector. Convert its
-                # difference from the direct vector back to a lattice shift.
-                image = np.rint(
-                    (mic_vector - direct_vector) @ inverse_cell
-                ).astype(int)
-                image += origin
 
                 sym = self.atoms.symbols[i]
                 label_i = "{}{}".format(sym, i)

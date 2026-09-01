@@ -1,4 +1,4 @@
-"""Symmetry-covariant orientation targets for two-connected linkers."""
+"""Symmetry-propagated orientation targets for two-connected linkers."""
 
 from __future__ import annotations
 

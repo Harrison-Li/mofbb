@@ -26,7 +26,7 @@ SPEC.loader.exec_module(evaluation)
 from mofbb.compose import Builder, BuildingBlock, Locator, Topology
 from mofbb.compose.locator import find_best_permutation
 from mofbb.compose.pbc import PBC
-from mofbb.compose.placement.closure import CellClosure
+from mofbb.compose.placement.fixed_cell import FixedCellFrameworkFitter
 from mofbb.decompose.object import TopologyEdge, TopologyVertex
 from mofbb.decompose.results import _write_topology_cgd
 
@@ -323,8 +323,8 @@ def test_joint_edge_orientation_finds_topology_only_port_assignment(
         overlap_scale=0.0,
     )
 
-    assert baseline.info["fixed_cell_closed"]
-    assert rebuilt.info["fixed_cell_closed"]
+    assert baseline.info["fixed_cell_fitted"]
+    assert rebuilt.info["fixed_cell_fitted"]
     np.testing.assert_allclose(
         rebuilt.atoms.positions,
         baseline.atoms.positions,
@@ -356,23 +356,23 @@ def test_joint_direct_edge_assignment_avoids_carbon_metal(
 
 
 def test_port_milp_uses_current_global_gap_costs() -> None:
-    closure = object.__new__(CellClosure)
-    closure.slot_indices = [0, 1]
-    closure.slot_offsets = {0: 0, 1: 1}
-    closure.connections = [(0, 0, 1, 0, np.zeros(3))]
-    closure.permutations = [np.arange(2), np.arange(2)]
-    closure.provided_permutations = {}
-    closure.templates = [
+    fit_stage = object.__new__(FixedCellFrameworkFitter)
+    fit_stage.slot_indices = [0, 1]
+    fit_stage.slot_offsets = {0: 0, 1: 1}
+    fit_stage.connections = [(0, 0, 1, 0, np.zeros(3))]
+    fit_stage.permutations = [np.arange(2), np.arange(2)]
+    fit_stage.provided_permutations = {}
+    fit_stage.templates = [
         SimpleNamespace(port_descriptors=(("O", 0.1), ("O", 0.1))),
         SimpleNamespace(port_descriptors=(("O", 0.1), ("O", 0.1))),
     ]
-    closure.pbc = PBC()
-    closure.bond_scale = PBC.scale
-    closure.symmetry = SimpleNamespace(node_orbits=(), edge_orbits=())
-    closure.covariant_node_orbits = set()
-    closure.covariant_edge_orbits = set()
+    fit_stage.pbc = PBC()
+    fit_stage.bond_scale = PBC.scale
+    fit_stage.symmetry = SimpleNamespace(node_orbits=(), edge_orbits=())
+    fit_stage.symmetry_compatible_node_orbits = set()
+    fit_stage.symmetry_compatible_edge_orbits = set()
 
-    candidate = closure._solve_port_assignment(
+    candidate = fit_stage._solve_port_assignment(
         np.array([[0.0, 0.0, 0.0], [4.0, 0.0, 0.0]]),
         [
             np.array([[-1.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
@@ -385,27 +385,27 @@ def test_port_milp_uses_current_global_gap_costs() -> None:
 
 
 def test_fixed_cell_pose_fit_jointly_rotates_and_translates_nodes() -> None:
-    closure = object.__new__(CellClosure)
-    closure.slot_indices = closure.node_indices = [0, 1]
-    closure.edge_indices = []
-    closure.slot_offsets = {0: 0, 1: 1}
-    closure.connections = [
+    fit_stage = object.__new__(FixedCellFrameworkFitter)
+    fit_stage.slot_indices = fit_stage.node_indices = [0, 1]
+    fit_stage.edge_indices = []
+    fit_stage.slot_offsets = {0: 0, 1: 1}
+    fit_stage.connections = [
         (0, 0, 1, 0, np.zeros(3)),
         (0, 1, 1, 1, np.zeros(3)),
     ]
-    closure.topology = SimpleNamespace(
+    fit_stage.topology = SimpleNamespace(
         atoms=SimpleNamespace(info={"symmetry_operations": True})
     )
-    closure.symmetry = SimpleNamespace(
+    fit_stage.symmetry = SimpleNamespace(
         node_orbits=(
             SimpleNamespace(representative=0, members=(0,)),
             SimpleNamespace(representative=1, members=(1,)),
         ),
         edge_orbits=(),
     )
-    closure.covariant_node_orbits = set()
-    closure.covariant_edge_orbits = set()
-    closure.original_cell = np.eye(3)
+    fit_stage.symmetry_compatible_node_orbits = set()
+    fit_stage.symmetry_compatible_edge_orbits = set()
+    fit_stage.original_cell = np.eye(3)
     source_points = (
         np.array([[-1.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
         np.array([[0.0, -1.0, 0.0], [0.0, 1.0, 0.0]]),
@@ -420,7 +420,7 @@ def test_fixed_cell_pose_fit_jointly_rotates_and_translates_nodes() -> None:
     ]
     centers = np.array([[0.0, 0.0, 0.0], [5.0, 0.0, 0.0]])
 
-    _, gaps, _, fitted_points = closure._fit_candidate_geometry(
+    _, gaps, _, fitted_points = fit_stage._fit_candidate_geometry(
         [np.arange(2), np.arange(2)], centers, blocks
     )
 
@@ -563,7 +563,7 @@ def test_writer_emits_source_subgroup_and_retains_net_group(tmp_path: Path):
     assert Topology(incompatible).atoms.info["source_group_compatible"] is False
 
 
-def test_fixed_cell_solver_keeps_declared_orbits_covariant(
+def test_fixed_cell_solver_keeps_declared_orbits_symmetry_compatible(
     tmp_path: Path,
 ) -> None:
     topology_path = tmp_path / "inversion.cgd"
@@ -610,10 +610,10 @@ X  0.50 0 0
         strict_symmetry=True,
     )
 
-    assert framework.info["fixed_cell_closed"]
+    assert framework.info["fixed_cell_fitted"]
     diagnostics = framework.info["symmetry_placement_diagnostics"]
     assert all(
-        item["covariant"] and item["compatible"]
+        item["symmetry_propagated"] and item["compatible"]
         for kind in ("nodes", "edges")
         for item in diagnostics[kind]
     )

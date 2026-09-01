@@ -3,9 +3,49 @@
     {
       "bb_id": "metal_node_group_01",
       "cn": 4,
+      "count": 6,
+      "fingerprint": "e455c24e4f2989ea",
       "formula": "C4Cu2O8X4",
+      "fragment_indices": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "group": 1,
       "kind": "metal_node",
+      "logical_cn": 4,
+      "logical_kind": "metal_node",
+      "logical_port_sizes": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "size": 1
+        },
+        {
+          "logical_port_id": 1,
+          "size": 1
+        },
+        {
+          "logical_port_id": 2,
+          "size": 1
+        },
+        {
+          "logical_port_id": 3,
+          "size": 1
+        }
+      ],
+      "num_atoms": 18,
+      "num_x": 4,
       "path": "bbs/metal_node_group_01.xyz",
+      "physical_cn": 4,
       "x_sites": [
         {
           "site_id": 0,
@@ -28,9 +68,46 @@
     {
       "bb_id": "organic_node_group_01",
       "cn": 3,
+      "count": 8,
+      "fingerprint": "e5d18bbbefa12742",
       "formula": "C6H3X3",
+      "fragment_indices": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "group": 1,
       "kind": "organic_node",
+      "logical_cn": 3,
+      "logical_kind": "organic_node",
+      "logical_port_sizes": [
+        1,
+        1,
+        1
+      ],
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "size": 1
+        },
+        {
+          "logical_port_id": 1,
+          "size": 1
+        },
+        {
+          "logical_port_id": 2,
+          "size": 1
+        }
+      ],
+      "num_atoms": 12,
+      "num_x": 3,
       "path": "bbs/organic_node_group_01.xyz",
+      "physical_cn": 3,
       "x_sites": [
         {
           "site_id": 0,
@@ -56,17 +133,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 96,
+          "internal_source_index": 72,
           "slot_id": 0,
           "x_index": 14
         },
         {
+          "external_source_index": 72,
+          "internal_source_index": 96,
           "slot_id": 6,
           "x_index": 9
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         72,
         96
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -77,17 +168,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 97,
+          "internal_source_index": 73,
           "slot_id": 0,
           "x_index": 15
         },
         {
+          "external_source_index": 73,
+          "internal_source_index": 97,
           "slot_id": 7,
           "x_index": 9
         }
       ],
+      "slot_translation": [
+        1,
+        -1,
+        0
+      ],
       "source_cut_bond": [
         73,
         97
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -98,17 +203,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 98,
+          "internal_source_index": 74,
           "slot_id": 1,
           "x_index": 14
         },
         {
+          "external_source_index": 74,
+          "internal_source_index": 98,
           "slot_id": 8,
           "x_index": 9
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         74,
         98
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -119,17 +238,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 99,
+          "internal_source_index": 75,
           "slot_id": 1,
           "x_index": 15
         },
         {
+          "external_source_index": 75,
+          "internal_source_index": 99,
           "slot_id": 9,
           "x_index": 9
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        1
+      ],
       "source_cut_bond": [
         75,
         99
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -140,17 +273,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 100,
+          "internal_source_index": 76,
           "slot_id": 2,
           "x_index": 14
         },
         {
+          "external_source_index": 76,
+          "internal_source_index": 100,
           "slot_id": 9,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         76,
         100
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -161,17 +308,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 101,
+          "internal_source_index": 77,
           "slot_id": 2,
           "x_index": 15
         },
         {
+          "external_source_index": 77,
+          "internal_source_index": 101,
           "slot_id": 6,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        0,
+        1,
+        -1
+      ],
       "source_cut_bond": [
         77,
         101
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -182,17 +343,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 102,
+          "internal_source_index": 78,
           "slot_id": 3,
           "x_index": 14
         },
         {
+          "external_source_index": 78,
+          "internal_source_index": 102,
           "slot_id": 8,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         78,
         102
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -203,17 +378,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 103,
+          "internal_source_index": 79,
           "slot_id": 3,
           "x_index": 15
         },
         {
+          "external_source_index": 79,
+          "internal_source_index": 103,
           "slot_id": 7,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        1,
+        0,
+        0
+      ],
       "source_cut_bond": [
         79,
         103
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -224,17 +413,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 104,
+          "internal_source_index": 80,
           "slot_id": 4,
           "x_index": 14
         },
         {
+          "external_source_index": 80,
+          "internal_source_index": 104,
           "slot_id": 7,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         80,
         104
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -245,17 +448,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 105,
+          "internal_source_index": 81,
           "slot_id": 4,
           "x_index": 15
         },
         {
+          "external_source_index": 81,
+          "internal_source_index": 105,
           "slot_id": 9,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        -1,
+        0,
+        1
+      ],
       "source_cut_bond": [
         81,
         105
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -266,17 +483,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 106,
+          "internal_source_index": 82,
           "slot_id": 5,
           "x_index": 14
         },
         {
+          "external_source_index": 82,
+          "internal_source_index": 106,
           "slot_id": 8,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         82,
         106
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -287,17 +518,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 107,
+          "internal_source_index": 83,
           "slot_id": 5,
           "x_index": 15
         },
         {
+          "external_source_index": 83,
+          "internal_source_index": 107,
           "slot_id": 6,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        0,
+        1,
+        0
+      ],
       "source_cut_bond": [
         83,
         107
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -308,17 +553,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 108,
+          "internal_source_index": 84,
           "slot_id": 0,
           "x_index": 16
         },
         {
+          "external_source_index": 84,
+          "internal_source_index": 108,
           "slot_id": 10,
           "x_index": 9
         }
       ],
+      "slot_translation": [
+        1,
+        -1,
+        0
+      ],
       "source_cut_bond": [
         84,
         108
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -329,17 +588,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 109,
+          "internal_source_index": 85,
           "slot_id": 0,
           "x_index": 17
         },
         {
+          "external_source_index": 85,
+          "internal_source_index": 109,
           "slot_id": 11,
           "x_index": 9
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         85,
         109
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -350,17 +623,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 110,
+          "internal_source_index": 86,
           "slot_id": 1,
           "x_index": 16
         },
         {
+          "external_source_index": 86,
+          "internal_source_index": 110,
           "slot_id": 12,
           "x_index": 9
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         86,
         110
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -371,17 +658,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 111,
+          "internal_source_index": 87,
           "slot_id": 1,
           "x_index": 17
         },
         {
+          "external_source_index": 87,
+          "internal_source_index": 111,
           "slot_id": 13,
           "x_index": 9
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        1
+      ],
       "source_cut_bond": [
         87,
         111
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -392,17 +693,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 112,
+          "internal_source_index": 88,
           "slot_id": 5,
           "x_index": 16
         },
         {
+          "external_source_index": 88,
+          "internal_source_index": 112,
           "slot_id": 13,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        0,
+        1,
+        0
+      ],
       "source_cut_bond": [
         88,
         112
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -413,17 +728,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 113,
+          "internal_source_index": 89,
           "slot_id": 5,
           "x_index": 17
         },
         {
+          "external_source_index": 89,
+          "internal_source_index": 113,
           "slot_id": 10,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         89,
         113
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -434,17 +763,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 114,
+          "internal_source_index": 90,
           "slot_id": 4,
           "x_index": 16
         },
         {
+          "external_source_index": 90,
+          "internal_source_index": 114,
           "slot_id": 12,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         90,
         114
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -455,17 +798,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 115,
+          "internal_source_index": 91,
           "slot_id": 4,
           "x_index": 17
         },
         {
+          "external_source_index": 91,
+          "internal_source_index": 115,
           "slot_id": 11,
           "x_index": 10
         }
       ],
+      "slot_translation": [
+        -1,
+        0,
+        1
+      ],
       "source_cut_bond": [
         91,
         115
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -476,17 +833,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 116,
+          "internal_source_index": 92,
           "slot_id": 3,
           "x_index": 16
         },
         {
+          "external_source_index": 92,
+          "internal_source_index": 116,
           "slot_id": 11,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         92,
         116
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -497,17 +868,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 117,
+          "internal_source_index": 93,
           "slot_id": 3,
           "x_index": 17
         },
         {
+          "external_source_index": 93,
+          "internal_source_index": 117,
           "slot_id": 13,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        1,
+        0,
+        0
+      ],
       "source_cut_bond": [
         93,
         117
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -518,17 +903,31 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 118,
+          "internal_source_index": 94,
           "slot_id": 2,
           "x_index": 16
         },
         {
+          "external_source_index": 94,
+          "internal_source_index": 118,
           "slot_id": 12,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        0,
+        1,
+        -1
+      ],
       "source_cut_bond": [
         94,
         118
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     },
     {
@@ -539,29 +938,216 @@
       ],
       "endpoint_x_sites": [
         {
+          "external_source_index": 119,
+          "internal_source_index": 95,
           "slot_id": 2,
           "x_index": 17
         },
         {
+          "external_source_index": 95,
+          "internal_source_index": 119,
           "slot_id": 10,
           "x_index": 11
         }
       ],
+      "slot_translation": [
+        0,
+        0,
+        0
+      ],
       "source_cut_bond": [
         95,
         119
+      ],
+      "source_cut_shift": [
+        0,
+        0,
+        0
       ]
     }
   ],
-  "schema_version": 1,
+  "schema_version": 2,
   "slots": [
     {
       "bb_id": "metal_node_group_01",
       "cn": 4,
-      "debug_instance": "metal_nodes/metal_node_001.xyz",
-      "formula": "C4Cu2O8X4",
+      "exact_frac_position": [
+        0.0,
+        3.5552816406871626e-17,
+        0.4999999999999999
+      ],
+      "exact_instance_path": "metal_nodes/metal_node_001.xyz",
       "kind": "metal_node",
+      "logical_kind": "metal_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            14
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 2,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            1,
+            -1,
+            0
+          ],
+          "x_indices": [
+            15
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 5,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            1,
+            -1,
+            0
+          ],
+          "x_indices": [
+            16
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 6,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            17
+          ]
+        }
+      ],
       "slot_id": 0,
+      "source_image_offsets": [
+        [
+          0,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          1,
+          [
+            1,
+            -1,
+            0
+          ]
+        ],
+        [
+          12,
+          [
+            1,
+            -1,
+            0
+          ]
+        ],
+        [
+          13,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          24,
+          [
+            1,
+            -1,
+            0
+          ]
+        ],
+        [
+          25,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          36,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          37,
+          [
+            1,
+            -1,
+            0
+          ]
+        ],
+        [
+          72,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          73,
+          [
+            1,
+            -1,
+            0
+          ]
+        ],
+        [
+          84,
+          [
+            1,
+            -1,
+            0
+          ]
+        ],
+        [
+          85,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          144,
+          [
+            0,
+            -1,
+            0
+          ]
+        ],
+        [
+          150,
+          [
+            1,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         0,
         1,
@@ -577,15 +1163,192 @@
         85,
         144,
         150
-      ]
+      ],
+      "topology_slot": {
+        "index": 0,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "metal_node_group_01",
       "cn": 4,
-      "debug_instance": "metal_nodes/metal_node_002.xyz",
-      "formula": "C4Cu2O8X4",
+      "exact_frac_position": [
+        0.5,
+        0.5,
+        0.9999999999999998
+      ],
+      "exact_instance_path": "metal_nodes/metal_node_002.xyz",
       "kind": "metal_node",
+      "logical_kind": "metal_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 3,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            14
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 4,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            15
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 7,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            16
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 8,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            1
+          ],
+          "x_indices": [
+            17
+          ]
+        }
+      ],
       "slot_id": 1,
+      "source_image_offsets": [
+        [
+          2,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          3,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          14,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          15,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          26,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          27,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          38,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          39,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          74,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          75,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          86,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          87,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          145,
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        [
+          151,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         2,
         3,
@@ -601,15 +1364,192 @@
         87,
         145,
         151
-      ]
+      ],
+      "topology_slot": {
+        "index": 1,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "metal_node_group_01",
       "cn": 4,
-      "debug_instance": "metal_nodes/metal_node_003.xyz",
-      "formula": "C4Cu2O8X4",
+      "exact_frac_position": [
+        0.5,
+        0.0,
+        0.9999999999999999
+      ],
+      "exact_instance_path": "metal_nodes/metal_node_003.xyz",
       "kind": "metal_node",
+      "logical_kind": "metal_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            1,
+            -1
+          ],
+          "x_indices": [
+            15
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 4,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            14
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 5,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            17
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 7,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            1,
+            -1
+          ],
+          "x_indices": [
+            16
+          ]
+        }
+      ],
       "slot_id": 2,
+      "source_image_offsets": [
+        [
+          4,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          5,
+          [
+            0,
+            1,
+            -1
+          ]
+        ],
+        [
+          22,
+          [
+            0,
+            1,
+            -1
+          ]
+        ],
+        [
+          23,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          28,
+          [
+            0,
+            1,
+            -1
+          ]
+        ],
+        [
+          29,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          46,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          47,
+          [
+            0,
+            1,
+            -1
+          ]
+        ],
+        [
+          76,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          77,
+          [
+            0,
+            1,
+            -1
+          ]
+        ],
+        [
+          94,
+          [
+            0,
+            1,
+            -1
+          ]
+        ],
+        [
+          95,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          146,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          152,
+          [
+            0,
+            1,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         4,
         5,
@@ -625,15 +1565,192 @@
         95,
         146,
         152
-      ]
+      ],
+      "topology_slot": {
+        "index": 2,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "metal_node_group_01",
       "cn": 4,
-      "debug_instance": "metal_nodes/metal_node_004.xyz",
-      "formula": "C4Cu2O8X4",
+      "exact_frac_position": [
+        0.0,
+        0.5000000000000001,
+        0.4999999999999999
+      ],
+      "exact_instance_path": "metal_nodes/metal_node_004.xyz",
       "kind": "metal_node",
+      "logical_kind": "metal_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            1,
+            0,
+            0
+          ],
+          "x_indices": [
+            15
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 3,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            14
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 6,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            16
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 8,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            1,
+            0,
+            0
+          ],
+          "x_indices": [
+            17
+          ]
+        }
+      ],
       "slot_id": 3,
+      "source_image_offsets": [
+        [
+          6,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          7,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          20,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          21,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          30,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          31,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          44,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          45,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          78,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          79,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          92,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          93,
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        [
+          147,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          153,
+          [
+            1,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         6,
         7,
@@ -649,15 +1766,192 @@
         93,
         147,
         153
-      ]
+      ],
+      "topology_slot": {
+        "index": 3,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "metal_node_group_01",
       "cn": 4,
-      "debug_instance": "metal_nodes/metal_node_005.xyz",
-      "formula": "C4Cu2O8X4",
+      "exact_frac_position": [
+        0.9999999285714286,
+        0.5000000000000001,
+        0.9999999999999997
+      ],
+      "exact_instance_path": "metal_nodes/metal_node_005.xyz",
       "kind": "metal_node",
+      "logical_kind": "metal_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            14
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 4,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            -1,
+            0,
+            1
+          ],
+          "x_indices": [
+            15
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 6,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            -1,
+            0,
+            1
+          ],
+          "x_indices": [
+            17
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 7,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            16
+          ]
+        }
+      ],
       "slot_id": 4,
+      "source_image_offsets": [
+        [
+          8,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          9,
+          [
+            -1,
+            0,
+            1
+          ]
+        ],
+        [
+          18,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          19,
+          [
+            -1,
+            0,
+            1
+          ]
+        ],
+        [
+          32,
+          [
+            -1,
+            0,
+            1
+          ]
+        ],
+        [
+          33,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          42,
+          [
+            -1,
+            0,
+            1
+          ]
+        ],
+        [
+          43,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          80,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          81,
+          [
+            -1,
+            0,
+            1
+          ]
+        ],
+        [
+          90,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          91,
+          [
+            -1,
+            0,
+            1
+          ]
+        ],
+        [
+          148,
+          [
+            -1,
+            0,
+            1
+          ]
+        ],
+        [
+          154,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         8,
         9,
@@ -673,15 +1967,192 @@
         91,
         148,
         154
-      ]
+      ],
+      "topology_slot": {
+        "index": 4,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "metal_node_group_01",
       "cn": 4,
-      "debug_instance": "metal_nodes/metal_node_006.xyz",
-      "formula": "C4Cu2O8X4",
+      "exact_frac_position": [
+        0.5000000000000001,
+        0.9999999999999999,
+        0.4999999999999999
+      ],
+      "exact_instance_path": "metal_nodes/metal_node_006.xyz",
       "kind": "metal_node",
+      "logical_kind": "metal_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            1,
+            0
+          ],
+          "x_indices": [
+            15
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 3,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            14
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 5,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            17
+          ]
+        },
+        {
+          "logical_port_id": 3,
+          "neighbor_index": 8,
+          "neighbor_kind": "organic_node",
+          "translation": [
+            0,
+            1,
+            0
+          ],
+          "x_indices": [
+            16
+          ]
+        }
+      ],
       "slot_id": 5,
+      "source_image_offsets": [
+        [
+          10,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          11,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          16,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          17,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          34,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          35,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          40,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          41,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          82,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          83,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          88,
+          [
+            0,
+            1,
+            0
+          ]
+        ],
+        [
+          89,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          149,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          155,
+          [
+            0,
+            1,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         10,
         11,
@@ -697,15 +2168,139 @@
         89,
         149,
         155
-      ]
+      ],
+      "topology_slot": {
+        "index": 5,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_001.xyz",
-      "formula": "C6H3X3",
+      "exact_frac_position": [
+        0.6569541111111111,
+        0.02913877777777784,
+        0.6569531111111109
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_001.xyz",
       "kind": "organic_node",
+      "logical_kind": "organic_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            9
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 3,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            -1,
+            1
+          ],
+          "x_indices": [
+            10
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 6,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            -1,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        }
+      ],
       "slot_id": 6,
+      "source_image_offsets": [
+        [
+          48,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          53,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          59,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          96,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          101,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          107,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          120,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          125,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          131,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         48,
         53,
@@ -716,15 +2311,139 @@
         120,
         125,
         131
-      ]
+      ],
+      "topology_slot": {
+        "index": 6,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_002.xyz",
-      "formula": "C6H3X3",
+      "exact_frac_position": [
+        0.02913988888888891,
+        0.6569536666666667,
+        0.6569527777777777
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_002.xyz",
       "kind": "organic_node",
+      "logical_kind": "organic_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            -1,
+            1,
+            0
+          ],
+          "x_indices": [
+            9
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 4,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            -1,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 5,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        }
+      ],
       "slot_id": 7,
+      "source_image_offsets": [
+        [
+          49,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          55,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          56,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          97,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          103,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          104,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          121,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          127,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          128,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         49,
         55,
@@ -735,15 +2454,139 @@
         121,
         127,
         128
-      ]
+      ],
+      "topology_slot": {
+        "index": 7,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_003.xyz",
-      "formula": "C6H3X3",
+      "exact_frac_position": [
+        0.6569537777777777,
+        0.6569527777777778,
+        0.6569536666666664
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_003.xyz",
       "kind": "organic_node",
+      "logical_kind": "organic_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            9
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 4,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 6,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        }
+      ],
       "slot_id": 8,
+      "source_image_offsets": [
+        [
+          50,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          54,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          58,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          98,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          102,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          106,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          122,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          126,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          130,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         50,
         54,
@@ -754,15 +2597,139 @@
         122,
         126,
         130
-      ]
+      ],
+      "topology_slot": {
+        "index": 8,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_004.xyz",
-      "formula": "C6H3X3",
+      "exact_frac_position": [
+        0.6569538888888888,
+        0.6569531111111111,
+        0.029138777777777774
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_004.xyz",
       "kind": "organic_node",
+      "logical_kind": "organic_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            -1
+          ],
+          "x_indices": [
+            9
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 3,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 5,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            1,
+            0,
+            -1
+          ],
+          "x_indices": [
+            11
+          ]
+        }
+      ],
       "slot_id": 9,
+      "source_image_offsets": [
+        [
+          51,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          52,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          57,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          99,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          100,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          105,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          123,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          124,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          129,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         51,
         52,
@@ -773,15 +2740,139 @@
         123,
         124,
         129
-      ]
+      ],
+      "topology_slot": {
+        "index": 9,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_005.xyz",
-      "formula": "C6H3X3",
+      "exact_frac_position": [
+        0.34304577777777784,
+        0.9708612222222222,
+        0.3430465555555554
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_005.xyz",
       "kind": "organic_node",
+      "logical_kind": "organic_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            -1,
+            1,
+            0
+          ],
+          "x_indices": [
+            9
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 3,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 6,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 10,
+      "source_image_offsets": [
+        [
+          60,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          65,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          71,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          108,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          113,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          119,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          132,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          137,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          143,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         60,
         65,
@@ -792,15 +2883,139 @@
         132,
         137,
         143
-      ]
+      ],
+      "topology_slot": {
+        "index": 10,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_006.xyz",
-      "formula": "C6H3X3",
+      "exact_frac_position": [
+        0.970860111111111,
+        0.3430462222222222,
+        0.34304711111111114
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_006.xyz",
       "kind": "organic_node",
+      "logical_kind": "organic_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 1,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            9
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 4,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 5,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            1,
+            0,
+            -1
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 11,
+      "source_image_offsets": [
+        [
+          61,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          67,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          68,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          109,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          115,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          116,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          133,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          139,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          140,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         61,
         67,
@@ -811,15 +3026,139 @@
         133,
         139,
         140
-      ]
+      ],
+      "topology_slot": {
+        "index": 11,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_007.xyz",
-      "formula": "C6H3X3",
+      "exact_frac_position": [
+        0.34304600000000024,
+        0.34304655555555574,
+        0.9708612222222217
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_007.xyz",
       "kind": "organic_node",
+      "logical_kind": "organic_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            9
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 3,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            -1,
+            1
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 5,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 12,
+      "source_image_offsets": [
+        [
+          62,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          66,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          70,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          110,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          114,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          118,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          134,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          138,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          142,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         62,
         66,
@@ -830,15 +3169,139 @@
         134,
         138,
         142
-      ]
+      ],
+      "topology_slot": {
+        "index": 12,
+        "kind": "node"
+      }
     },
     {
       "bb_id": "organic_node_group_01",
       "cn": 3,
-      "debug_instance": "organic_nodes/organic_node_008.xyz",
-      "formula": "C6H3X3",
+      "exact_frac_position": [
+        0.3430461111111112,
+        0.34304711111111114,
+        0.3430462222222221
+      ],
+      "exact_instance_path": "organic_nodes/organic_node_008.xyz",
       "kind": "organic_node",
+      "logical_kind": "organic_node",
+      "logical_ports": [
+        {
+          "logical_port_id": 0,
+          "neighbor_index": 2,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            0,
+            -1
+          ],
+          "x_indices": [
+            9
+          ]
+        },
+        {
+          "logical_port_id": 1,
+          "neighbor_index": 4,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            -1,
+            0,
+            0
+          ],
+          "x_indices": [
+            11
+          ]
+        },
+        {
+          "logical_port_id": 2,
+          "neighbor_index": 6,
+          "neighbor_kind": "metal_node",
+          "translation": [
+            0,
+            -1,
+            0
+          ],
+          "x_indices": [
+            10
+          ]
+        }
+      ],
       "slot_id": 13,
+      "source_image_offsets": [
+        [
+          63,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          64,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          69,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          111,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          112,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          117,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          135,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          136,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          141,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ],
       "source_indices": [
         63,
         64,
@@ -849,7 +3312,11 @@
         135,
         136,
         141
-      ]
+      ],
+      "topology_slot": {
+        "index": 13,
+        "kind": "node"
+      }
     }
   ],
   "topology": {
@@ -862,12 +3329,6 @@
       60.00034
     ],
     "kind": "node_edge_slots",
-    "path": "topology.cgd",
-    "stock_pormake_reader_safe": false
-  },
-  "validation": {
-    "all_edges_mapped": true,
-    "all_x_sites_used_once": true,
-    "duplicate_edge_warnings": []
+    "path": "topology.cgd"
   }
 }

@@ -1,4 +1,4 @@
-"""Port constraints for fixed-cell framework closure."""
+"""Connection-site constraints for fixed-cell framework fitting."""
 
 from __future__ import annotations
 
@@ -41,15 +41,15 @@ def solve_binary(costs, bounds, rules):
     )
 
 
-class PortSolver:
+class PortAssignmentSolver:
     """Build and solve the fixed-cell port-assignment MILP."""
 
-    def __init__(self, cell):
-        self.cell = cell
+    def __init__(self, fit_stage):
+        self.fit_stage = fit_stage
 
     def pair_ok(self, left, x_i, right, x_j):
         """Return whether two source ports can form a fused bond."""
-        job = self.cell
+        job = self.fit_stage
         symbol_i, cap_i = job.templates[left].port_descriptors[x_i]
         symbol_j, cap_j = job.templates[right].port_descriptors[x_j]
         return (
@@ -62,12 +62,12 @@ class PortSolver:
         """Return whether every selected port pair is chemically allowed."""
         return all(
             self.pair_ok(left, perms[left][x_i], right, perms[right][x_j])
-            for left, x_i, right, x_j, _ in self.cell.connections
+            for left, x_i, right, x_j, _ in self.fit_stage.connections
         )
 
     def connections(self):
         """Build node-node or edge-node connections with periodic images."""
-        job = self.cell
+        job = self.fit_stage
         links = []
         for raw in job.topology.edge_indices:
             edge = int(raw)
@@ -123,14 +123,14 @@ class PortSolver:
             return None
         perms = [
             None if value is None else np.asarray(value).copy()
-            for value in self.cell.permutations
+            for value in self.fit_stage.permutations
         ]
         for slot, var in slot_vars.items():
             perms[slot] = np.argmax(result.x[var], axis=1)
         return perms
 
     def _slot_vars(self, points):
-        job = self.cell
+        job = self.fit_stage
         out = {}
         count = 0
         for slot in job.slot_indices:
@@ -143,7 +143,7 @@ class PortSolver:
         return out, count
 
     def _pair_vars(self, points, count):
-        job = self.cell
+        job = self.fit_stage
         out = []
         for left, _, right, _, _ in job.connections:
             shape = (
@@ -164,22 +164,22 @@ class PortSolver:
                     1.0,
                     1.0,
                 )
-            if slot not in self.cell.provided_permutations:
+            if slot not in self.fit_stage.provided_permutations:
                 continue
-            fixed = self.cell.provided_permutations[slot]
+            fixed = self.fit_stage.provided_permutations[slot]
             bounds[var] = 0.0
             bounds[var[np.arange(len(fixed)), fixed]] = 1.0
 
     def _orbit_rules(self, slot_vars, rules):
-        job = self.cell
+        job = self.fit_stage
         groups = (
-            (job.symmetry.node_orbits, job.covariant_node_orbits),
-            (job.symmetry.edge_orbits, job.covariant_edge_orbits),
+            (job.symmetry.node_orbits, job.symmetry_compatible_node_orbits),
+            (job.symmetry.edge_orbits, job.symmetry_compatible_edge_orbits),
         )
-        for orbits, covariant in groups:
+        for orbits, compatible_orbits in groups:
             for orbit in orbits:
                 rep = orbit.representative
-                if rep not in covariant or rep not in slot_vars:
+                if rep not in compatible_orbits or rep not in slot_vars:
                     continue
                 for raw in orbit.members:
                     member = int(raw)
@@ -217,13 +217,13 @@ class PortSolver:
         rules,
     ):
         for link, pair in zip(
-            self.cell.connections,
+            self.fit_stage.connections,
             pair_vars,
             strict=True,
         ):
             left, x_i, right, x_j, image = link
-            left_id = self.cell.slot_offsets[left]
-            right_id = self.cell.slot_offsets[right]
+            left_id = self.fit_stage.slot_offsets[left]
+            right_id = self.fit_stage.slot_offsets[right]
             left_pos = centers[left_id] + points[left_id]
             right_pos = centers[right_id] + image + points[right_id]
             costs[pair] = np.sum(
@@ -255,6 +255,9 @@ class PortSolver:
                 0.0,
             )
 
+PortSolver = PortAssignmentSolver
+
+
 class DirectEdgeRepair:
     """Repair node permutations that make forbidden direct connections."""
 
@@ -267,7 +270,9 @@ class DirectEdgeRepair:
         self.symmetry = state.symmetry
         self.locator = state.locator
         self.pbc = state.pbc
-        self.covariant = state.node_cov
+        self.symmetry_compatible_orbits = (
+            state.symmetry_compatible_node_orbits
+        )
         self.port_mask = state.node_port_compatibility
         self.scale = scale
         self.masks = self._make_masks()
@@ -424,7 +429,7 @@ class DirectEdgeRepair:
     ) -> None:
         for orbit in self.symmetry.node_orbits:
             rep = orbit.representative
-            if rep not in self.covariant:
+            if rep not in self.symmetry_compatible_orbits:
                 continue
             for raw_member in orbit.members:
                 member = int(raw_member)
