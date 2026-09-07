@@ -67,9 +67,12 @@ class NodeLatticeOptimizer:
         # Get pairs of bond indices and images (periodic boundary) and
         pairs = []
         images = []
-        c = topology.atoms.cell
-        invc = np.linalg.inv(c)
-        scaled_positions = topology.atoms.get_scaled_positions(wrap=True)
+        # Preserve topology images in the wrapped gauge used by optimization.
+        atom_images = (
+            topology.atoms.get_scaled_positions(wrap=False)
+            - topology.atoms.get_scaled_positions(wrap=True)
+        ).round().astype(int)
+        edge_shifts = topology.edge_shifts
         for e in topology.edge_indices:
             # ni: neigbor with index i.
             ni, nj = topology.neighbor_list[e]
@@ -80,17 +83,8 @@ class NodeLatticeOptimizer:
             # Save index pair.
             pairs.append([i, j])
 
-            # Calculate image.
-            # d = d_{ij}
-            d = nj.distance_vector - ni.distance_vector
-
-            # Use the same wrapped fractional coordinates as the symmetry
-            # parameterization below. Mixing unwrapped Cartesian positions
-            # with wrapped optimization variables changes an edge image when
-            # an equivalent node is stored at fractional 1 instead of 0.
-            s = d @ invc - (scaled_positions[j] - scaled_positions[i])
-
-            images.append(s)
+            near, far = edge_shifts[int(e)]
+            images.append(far - near + atom_images[j] - atom_images[i])
 
         # Type casting to np.array.
         pairs = np.array(pairs)

@@ -53,7 +53,7 @@ class PortAssignmentSolver:
         symbol_i, cap_i = job.templates[left].port_descriptors[x_i]
         symbol_j, cap_j = job.templates[right].port_descriptors[x_j]
         return (
-            not job.pbc.is_carbon_metal_pair(symbol_i, symbol_j)
+            not job.pbc.is_forbidden_fused_pair(symbol_i, symbol_j)
             and cap_i + cap_j
             <= job.pbc.max_bond_len(symbol_i, symbol_j, job.bond_scale)
         )
@@ -69,32 +69,24 @@ class PortAssignmentSolver:
         """Build node-node or edge-node connections with periodic images."""
         job = self.fit_stage
         links = []
+        edge_shifts = job.topology.edge_shifts
+        cell = np.asarray(job.topology.atoms.cell)
         for raw in job.topology.edge_indices:
             edge = int(raw)
             (node_i, x_i), (node_j, x_j) = job.edge_endpoint_offsets(edge)
-            near, far = job.topology.neighbor_list[edge]
+            images = edge_shifts[edge]
             if edge in job.direct_edge_masks:
-                image = (
-                    far.distance_vector
-                    - near.distance_vector
-                    - job.topology.atoms.positions[node_j]
-                    + job.topology.atoms.positions[node_i]
-                )
+                image = (images[1] - images[0]) @ cell
                 links.append((node_i, x_i, node_j, x_j, image))
                 continue
 
-            for end, side, node, target in zip(
+            for end, image, node, target in zip(
                 range(2),
-                (near, far),
+                images @ cell,
                 (node_i, node_j),
                 (x_i, x_j),
                 strict=True,
             ):
-                image = (
-                    job.topology.atoms.positions[edge]
-                    + side.distance_vector
-                    - job.topology.atoms.positions[node]
-                )
                 links.append((edge, end, node, target, image))
         return links
 
@@ -355,7 +347,7 @@ class DirectEdgeRepair:
         cap_j: float,
     ) -> bool:
         return (
-            not self.pbc.is_carbon_metal_pair(symbol_i, symbol_j)
+            not self.pbc.is_forbidden_fused_pair(symbol_i, symbol_j)
             and cap_i + cap_j
             <= self.pbc.max_bond_len(symbol_i, symbol_j, self.scale)
         )

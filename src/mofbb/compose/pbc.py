@@ -4,6 +4,8 @@ from ase.geometry import find_mic
 from ase.neighborlist import neighbor_list
 from pymatgen.core import Element
 
+from mofbb.compose.connectivity import minimum_image_shifts
+
 
 class PBC:
     """Utilities for validating connections under periodic boundary conditions."""
@@ -16,8 +18,9 @@ class PBC:
     def _pair_distances(
         atoms,
         pairs: list[tuple[int, int]],
+        shifts=None,
     ) -> np.ndarray:
-        """Return minimum-image distances for explicit atom pairs."""
+        """Return distances using supplied images, or minimum images if omitted."""
         pair_indices = np.asarray(pairs, dtype=int)
         if pair_indices.size == 0:
             return np.empty(0, dtype=float)
@@ -26,6 +29,8 @@ class PBC:
             atoms.positions[pair_indices[:, 1]]
             - atoms.positions[pair_indices[:, 0]]
         )
+        if shifts is not None:
+            return np.linalg.norm(vectors + np.asarray(shifts) @ atoms.cell, axis=1)
         _, distances = find_mic(vectors, atoms.cell, atoms.pbc)
         return np.asarray(distances, dtype=float)
 
@@ -97,17 +102,26 @@ class PBC:
         return other == "B" or bool(Element(other).is_metal)
 
     @classmethod
+    def is_forbidden_fused_pair(cls, symbol_i: str, symbol_j: str) -> bool:
+        """Reject new carbon-metal or metal-metal bonds between blocks."""
+        return cls.is_carbon_metal_pair(symbol_i, symbol_j) or (
+            Element(symbol_i).is_metal and Element(symbol_j).is_metal
+        )
+
+    @classmethod
     def calc_x_mid(
         cls,
         atoms,
         x_pairs: list[tuple[int, int]],
         tolerance: float | None = None,
+        *,
+        shifts=None,
     ) -> list[tuple[int, int, float]]:
-        """Return X-X pairs whose minimum-image distance exceeds tolerance."""
+        """Return X-X pairs farther apart than tolerance in the selected images."""
         if tolerance is None:
             tolerance = cls.tolerance
 
-        distances = cls._pair_distances(atoms, x_pairs)
+        distances = cls._pair_distances(atoms, x_pairs, shifts)
         return [
             (x_i, x_j, float(distance))
             for (x_i, x_j), distance in zip(
@@ -141,6 +155,8 @@ class PBC:
         x_pairs: list[tuple[int, int]],
         x_neighbors: dict[int, int],
         scale: float | None = None,
+        *,
+        shifts=None,
     ) -> list[tuple[int, int, float, float]]:
         """Return real-atom bonds that are too long after X-site fusion."""
         if scale is None:
@@ -153,7 +169,11 @@ class PBC:
             atom_pairs.append((atom_i, atom_j))
 
         pair_indices = np.asarray(atom_pairs, dtype=int).reshape(-1, 2)
-        distances = cls._pair_distances(atoms, atom_pairs)
+        # The paired caps identify the intended atom images. Recomputing a
+        # minimum image on real anchors collapses periodic self-bonds to zero.
+        if shifts is None:
+            shifts = minimum_image_shifts(atoms, x_pairs)
+        distances = cls._pair_distances(atoms, atom_pairs, shifts)
         radii = covalent_radii[atoms.numbers]
         limits = scale * (
             radii[pair_indices[:, 0]] + radii[pair_indices[:, 1]]

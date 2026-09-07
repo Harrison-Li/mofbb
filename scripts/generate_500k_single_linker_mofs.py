@@ -33,6 +33,7 @@ SCHEMA_VERSION = 2
 SPACE_VERSION = 2
 DEFAULT_COUNT = 2_000_000
 DEFAULT_WORKERS = min(64, os.cpu_count() or 1)
+DEFAULT_SEED = 42
 SHARD_SIZE = 10_000
 ATTEMPT_BATCH = 250
 SCAN_BATCH = 10_000
@@ -41,6 +42,8 @@ PILOT_ATTEMPTS = 1_000
 PILOT_RAW = 100_000
 MINIMUM_YIELD = 0.01
 RESTART_JOBS = 256
+HEALTHY_POOL_JOBS = 64
+WORKER_MEMORY_GIB = 16
 MAX_POOL_FAILURES = 8
 SYMPREC = 0.3
 
@@ -91,14 +94,24 @@ def make_space(
     """Build a compact Cartesian space with cheap strict component screening."""
 
     strict = config.strict_symmetry
+    node_kinds = (
+        ("metal_node",)
+        if len(topology.node_sites) == 1
+        else ("metal_node", "organic_node")
+    )
     working = pools
     if strict:
-        working, _ = core.strict_node_compatible_pools(config, topology, pools)
+        working, _ = core.strict_node_compatible_pools(
+            config,
+            topology,
+            pools,
+            kinds=node_kinds,
+        )
         working, _ = core.strict_edge_compatible_pools(topology, working)
 
     fitted: dict[tuple[int, str], tuple[tuple[core.BlockRecord, float], ...]] = {}
     for site in topology.node_sites:
-        for kind in ("metal_node", "organic_node"):
+        for kind in node_kinds:
             values = []
             if strict:
                 records = working.get(
@@ -107,23 +120,26 @@ def make_space(
                 for item in records:
                     values.append((item.block, float(item.rmsd)))
             else:
-                for block in core.node_records_for_site(working, kind, site):
+                # Once symmetry is relaxed, a special crystallographic site
+                # may use any coordination-compatible block that passes the
+                # same geometric RMSD gate.  This gives low-cardinality
+                # uninodal point-group buckets enough distinct assignments to
+                # reach a balanced quota without weakening geometry checks.
+                records = (
+                    working.get(
+                        (kind, site.coordination, core.ALL_NODE_POINT_GROUP),
+                        (),
+                    )
+                    if len(topology.node_sites) == 1
+                    else core.node_records_for_site(working, kind, site)
+                )
+                for block in records:
                     fit = core.screened_port_fit_rmsd(
                         site, block, config.max_rmsd, config.accuracy
                     )
                     if fit <= config.max_rmsd:
                         values.append((block, float(fit)))
             fitted[(site.node_type, kind)] = tuple(values)
-
-    orientations = []
-    for metal_site in topology.node_sites:
-        for organic_site in topology.node_sites:
-            if metal_site.node_type == organic_site.node_type:
-                continue
-            metal = fitted[(metal_site.node_type, "metal_node")]
-            organic = fitted[(organic_site.node_type, "organic_node")]
-            if metal and organic:
-                orientations.append((metal_site, organic_site, metal, organic))
 
     edges = []
     for edge_type in topology.edge_types:
@@ -136,10 +152,29 @@ def make_space(
         for block in records:
             edges.append((edge_type, block))
 
-    direct_sizes = tuple(
-        len(metal) * len(organic) for _, _, metal, organic in orientations
-    )
-    inserted_sizes = tuple(size * len(edges) for size in direct_sizes)
+    assignment_mode = "binodal"
+    uninodal = None
+    orientations = []
+    if len(topology.node_sites) == 1:
+        assignment_mode = "uninodal_self_edge"
+        site = topology.node_sites[0]
+        metals = fitted[(site.node_type, "metal_node")]
+        uninodal = (site, metals)
+        direct_sizes = ()
+        inserted_sizes = (len(metals) * len(edges),)
+    else:
+        for metal_site in topology.node_sites:
+            for organic_site in topology.node_sites:
+                if metal_site.node_type == organic_site.node_type:
+                    continue
+                metal = fitted[(metal_site.node_type, "metal_node")]
+                organic = fitted[(organic_site.node_type, "organic_node")]
+                if metal and organic:
+                    orientations.append((metal_site, organic_site, metal, organic))
+        direct_sizes = tuple(
+            len(metal) * len(organic) for _, _, metal, organic in orientations
+        )
+        inserted_sizes = tuple(size * len(edges) for size in direct_sizes)
     direct_size, inserted_size = sum(direct_sizes), sum(inserted_sizes)
     direct_offset, direct_step = affine(
         config.seed, topology.name, "direct", direct_size
@@ -150,6 +185,8 @@ def make_space(
     return {
         "version": SPACE_VERSION,
         "topology": topology,
+        "assignment_mode": assignment_mode,
+        "uninodal": uninodal,
         "orientations": tuple(orientations),
         "edges": tuple(edges),
         "direct_sizes": direct_sizes,
@@ -226,7 +263,7 @@ def exact_node(
         return core.strict_node_record_fit(
             _STRICT_CONFIG, topology, node_type, block
         ) is not None
-    except (IndexError, StopIteration, ValueError):
+    except (IndexError, OSError, StopIteration, ValueError):
         return False
 
 
@@ -240,7 +277,7 @@ def exact_edge(
         return core.strict_edge_record_compatible(
             _STRICT_CONFIG, topology, edge_type, block
         )
-    except (IndexError, StopIteration, ValueError):
+    except (IndexError, OSError, StopIteration, ValueError):
         return False
 
 
@@ -273,6 +310,43 @@ def candidate_at(
     index = (
         int(space[f"{mode}_offset"]) + ordinal * int(space[f"{mode}_step"])
     ) % total
+    if space.get("assignment_mode") == "uninodal_self_edge":
+        if mode != "inserted":
+            return None
+        site, metals = space["uninodal"]
+        edge_options = space["edges"]
+        edge_type, edge = edge_options[index % len(edge_options)]
+        metal, metal_fit = metals[index // len(edge_options)]
+        if (
+            not edge.contains_carbon
+            or metal.sha256 == edge.sha256
+            or metal.structure_id == edge.structure_id
+        ):
+            return None
+        nodes = {site.node_type: metal}
+        edges = {edge_type: edge}
+        risk = core.assignment_prebuild_risk(
+            space["topology"],
+            nodes,
+            edges,
+            maximum_rmsd=_BUILD_CONFIG.max_rmsd,
+            accuracy=_BUILD_CONFIG.accuracy,
+        )
+        if risk is None:
+            return None
+        return core.CandidateAssignment(
+            signature=core.candidate_assignment_signature(
+                space["topology"].name, nodes, edges
+            ),
+            nodes=tuple(sorted(nodes.items())),
+            edges=tuple(sorted(edges.items())),
+            score=(
+                float(risk),
+                float(metal_fit),
+                max(metal.port_radius_span, edge.port_radius_span),
+            ),
+        )
+
     orientation, local = locate(space, mode, index)
     metal_site, organic_site, metals, organics = orientation
     edges: dict[tuple[int, int], core.BlockRecord] = {}
@@ -484,26 +558,46 @@ def set_meta(connection: sqlite3.Connection, key: str, value: object) -> None:
 
 
 def fingerprint(
-    config: core.GenerationConfig, topologies: list[core.TopologyRecord]
+    config: core.GenerationConfig,
+    topologies: list[core.TopologyRecord],
+    topology_mode: str = "binodal",
+    per_topology_count: int | None = None,
 ) -> str:
     digest = hashlib.sha256()
-    digest.update(
-        dumps(
+    settings = {
+        "schema": SCHEMA_VERSION,
+        "space": SPACE_VERSION,
+    }
+    if config.require_3d_connectivity:
+        settings["connectivity_policy"] = core.CONNECTIVITY_POLICY_VERSION
+    settings.update({
+        "seed": config.seed,
+        "edge_filter": config.edge_conformer_filter,
+        "node_atoms": config.max_node_atoms,
+        "edge_atoms": config.max_edge_atoms,
+        "rmsd": config.max_rmsd,
+        "atom_distance": config.minimum_atom_distance,
+        "accuracy": config.accuracy,
+        "builder_symmetry_tolerance": config.symmetry_tolerance,
+        "postbuild_symprec": SYMPREC,
+        "strict_component_filter": "lazy_exact",
+    })
+    if topology_mode != "binodal" or per_topology_count is not None:
+        settings.update(
             {
-                "schema": SCHEMA_VERSION,
-                "space": SPACE_VERSION,
-                "seed": config.seed,
-                "edge_filter": config.edge_conformer_filter,
-                "node_atoms": config.max_node_atoms,
-                "edge_atoms": config.max_edge_atoms,
-                "rmsd": config.max_rmsd,
-                "atom_distance": config.minimum_atom_distance,
-                "accuracy": config.accuracy,
-                "builder_symmetry_tolerance": config.symmetry_tolerance,
-                "postbuild_symprec": SYMPREC,
-                "strict_component_filter": "lazy_exact",
+                "topology_mode": topology_mode,
+                "per_topology_count": per_topology_count,
             }
-        ).encode()
+        )
+    if topology_mode == "uninodal":
+        settings.update(
+            {
+                "uninodal_formulation": "metal_node_required_self_edge_v1",
+                "relaxed_uninodal_node_pool": "coordination_plus_rmsd_v1",
+            }
+        )
+    digest.update(
+        dumps(settings).encode()
     )
     digest.update(core.file_sha256(config.manifest).encode())
     for topology in topologies:
@@ -517,6 +611,10 @@ def initialize(
     source_fingerprint: str,
     count: int,
     relax: bool,
+    start_phase: str,
+    topology_mode: str = "binodal",
+    per_topology_count: int | None = None,
+    connectivity_policy: str = "current",
 ) -> bool:
     version = meta(connection, "schema_version")
     if version is None:
@@ -524,7 +622,13 @@ def initialize(
             "schema_version": SCHEMA_VERSION,
             "source_fingerprint": source_fingerprint,
             "target_count": count,
-            "generation_phase": "strict",
+            "generation_phase": start_phase,
+            "start_phase": start_phase,
+            "topology_mode": topology_mode,
+            "connectivity_policy": connectivity_policy,
+            "per_topology_count": (
+                "" if per_topology_count is None else per_topology_count
+            ),
             "candidate_space_phase": "",
             "relax_after_strict_exhaustion": int(relax),
             "reserve_mode": 0,
@@ -537,7 +641,24 @@ def initialize(
     if int(version) != SCHEMA_VERSION:
         raise RuntimeError("output database belongs to an older script; use a fresh folder")
     if meta(connection, "source_fingerprint") != source_fingerprint:
-        raise RuntimeError("library, cache, topology, or structural settings changed")
+        raise RuntimeError(
+            "library, cache, topology, or structural/connectivity settings changed; "
+            "use a fresh output folder for the current validation policy"
+        )
+    if meta(connection, "start_phase", "strict") != start_phase:
+        raise RuntimeError("--start-phase cannot change on resume")
+    if meta(connection, "topology_mode", "binodal") != topology_mode:
+        raise RuntimeError("--topology-mode cannot change on resume")
+    stored_connectivity_policy = meta(connection, "connectivity_policy")
+    if (
+        stored_connectivity_policy is not None
+        and stored_connectivity_policy != connectivity_policy
+    ):
+        raise RuntimeError("--connectivity-policy cannot change on resume")
+    stored_quota = meta(connection, "per_topology_count", "")
+    requested_quota = "" if per_topology_count is None else str(per_topology_count)
+    if stored_quota != requested_quota:
+        raise RuntimeError("--per-topology-count cannot change on resume")
     if int(meta(connection, "relax_after_strict_exhaustion", "0")) != int(relax):
         raise RuntimeError("--relax-after-strict-exhaustion cannot change on resume")
     completed = connection.execute("SELECT COUNT(*) FROM samples").fetchone()[0]
@@ -548,6 +669,7 @@ def initialize(
     ).fetchone()[0]:
         raise RuntimeError("saved samples without symmetry classification were found")
     set_meta(connection, "target_count", count)
+    set_meta(connection, "connectivity_policy", connectivity_policy)
     connection.commit()
     return False
 
@@ -652,6 +774,7 @@ def persist(
     completed: int,
     target: int,
     phase: str,
+    per_topology_count: int | None = None,
 ) -> int:
     name, mode = str(result["topology"]), str(result["mode"])
     state = connection.execute(
@@ -670,7 +793,15 @@ def persist(
                 "SELECT 1 FROM samples WHERE signature=? OR cif_sha256=? LIMIT 1",
                 (candidate.signature, quality["cif_sha256"]),
             ).fetchone()
-            if duplicate or completed + accepted >= target:
+            topology_quota_reached = (
+                per_topology_count is not None
+                and int(state["accepted_total"]) + accepted >= per_topology_count
+            )
+            if (
+                duplicate
+                or completed + accepted >= target
+                or topology_quota_reached
+            ):
                 cif.unlink(missing_ok=True)
                 continue
 
@@ -778,6 +909,15 @@ def available_mode(state: dict[str, object]) -> str | None:
         if int(state[f"{mode}_cursor"]) < int(state[f"{mode}_size"]):
             return mode
     return None
+
+
+def below_topology_quota(
+    state: dict[str, object], per_topology_count: int | None
+) -> bool:
+    return (
+        per_topology_count is None
+        or int(state["accepted_total"]) < per_topology_count
+    )
 
 
 def low_yield(state: dict[str, object]) -> bool:
@@ -904,6 +1044,27 @@ def run_phase(
     futures, inflight = {}, set()
     executor = executor_for(config, workers)
     status = "running"
+    per_topology_count = getattr(args, "per_topology_count", None)
+
+    def recover_pool(error: BrokenProcessPool, abandoned: int) -> None:
+        nonlocal executor, pool_failures, workers, topology_states, jobs_done
+        if jobs_done >= HEALTHY_POOL_JOBS:
+            pool_failures = 0
+        pool_failures += 1
+        futures.clear()
+        inflight.clear()
+        terminate(executor)
+        if pool_failures > MAX_POOL_FAILURES:
+            raise RuntimeError("worker pool repeatedly terminated") from error
+        workers = max(1, args.workers - 2 * (pool_failures - 1))
+        executor = executor_for(config, workers)
+        topology_states, jobs_done = states(connection), 0
+        print(
+            f"worker_pool_recovered={pool_failures} "
+            f"abandoned_jobs={abandoned} workers={workers}",
+            flush=True,
+        )
+
     try:
         while completed < args.count:
             while len(futures) < workers and jobs_done < RESTART_JOBS:
@@ -913,6 +1074,7 @@ def run_phase(
                     if state["name"] not in inflight
                     and not int(state["parked"])
                     and not int(state["exhausted"])
+                    and below_topology_quota(state, per_topology_count)
                     and available_mode(state) is not None
                 ]
                 if not choices:
@@ -923,6 +1085,11 @@ def run_phase(
                     ATTEMPT_BATCH,
                     max(25, math.ceil((args.count - completed) / workers) * 2),
                 )
+                if per_topology_count is not None:
+                    batch = min(
+                        batch,
+                        per_topology_count - int(state["accepted_total"]),
+                    )
                 job = {
                     "topology": state["name"],
                     "space_path": state["space_path"],
@@ -932,14 +1099,19 @@ def run_phase(
                     "strict": phase == "strict",
                     "staging": str(output / ".staging"),
                 }
-                future = executor.submit(build_chunk, job)
+                try:
+                    future = executor.submit(build_chunk, job)
+                except BrokenProcessPool as error:
+                    recover_pool(error, len(futures))
+                    continue
                 futures[future] = job
                 inflight.add(state["name"])
 
             if jobs_done >= RESTART_JOBS and not futures:
                 executor.shutdown(wait=True, cancel_futures=True)
+                workers = args.workers
                 executor = executor_for(config, workers)
-                jobs_done = 0
+                jobs_done = pool_failures = 0
                 print(f"worker_pool_recycled workers={workers}", flush=True)
                 continue
             if not futures:
@@ -948,6 +1120,7 @@ def run_phase(
                     for state in topology_states.values()
                     if int(state["parked"])
                     and not int(state["exhausted"])
+                    and below_topology_quota(state, per_topology_count)
                     and available_mode(state) is not None
                 ]
                 if parked and not reserve:
@@ -969,25 +1142,19 @@ def run_phase(
                 try:
                     result = future.result()
                 except BrokenProcessPool as error:
-                    pool_failures += 1
                     abandoned = len(futures) + 1
-                    futures.clear()
-                    inflight.clear()
-                    terminate(executor)
-                    if pool_failures > MAX_POOL_FAILURES:
-                        raise RuntimeError("worker pool repeatedly terminated") from error
-                    workers = max(1, workers * 3 // 4)
-                    executor = executor_for(config, workers)
-                    topology_states, jobs_done, broken = states(connection), 0, True
-                    print(
-                        f"worker_pool_recovered={pool_failures} "
-                        f"abandoned_jobs={abandoned} workers={workers}",
-                        flush=True,
-                    )
+                    recover_pool(error, abandoned)
+                    broken = True
                     break
 
                 accepted = persist(
-                    connection, output, result, completed, args.count, phase
+                    connection,
+                    output,
+                    result,
+                    completed,
+                    args.count,
+                    phase,
+                    per_topology_count,
                 )
                 completed += accepted
                 jobs_done += 1
@@ -1069,6 +1236,16 @@ def finalize(
         row["name"]: int(row["accepted_total"])
         for row in sorted(rows, key=lambda item: item["name"])
     }
+    per_topology_count = getattr(args, "per_topology_count", None)
+    topology_shortfalls = (
+        {
+            name: per_topology_count - count
+            for name, count in topology_counts.items()
+            if count < per_topology_count
+        }
+        if per_topology_count is not None
+        else {}
+    )
     summary = {
         "status": status,
         "requested": args.count,
@@ -1092,14 +1269,33 @@ def finalize(
             meta(connection, "strict_phase_completed_count", "0") or 0
         ),
         "topology_counts": topology_counts,
+        "per_topology_count": per_topology_count,
+        "topology_quota_complete": (
+            not topology_shortfalls if per_topology_count is not None else None
+        ),
+        "topology_shortfalls": topology_shortfalls,
         "parked_topologies": sorted(row["name"] for row in rows if row["parked"]),
         "exhausted_topologies": sorted(row["name"] for row in rows if row["exhausted"]),
         "failure_counts": failure_counts,
         "settings": {
             "seed": config.seed,
+            "start_phase": args.start_phase,
+            "topology_mode": args.topology_mode,
+            "per_topology_count": per_topology_count,
+            "connectivity_policy": args.connectivity_policy,
             "workers": args.workers,
+            "worker_memory_limit_gib": WORKER_MEMORY_GIB,
+            "worker_restart_jobs": RESTART_JOBS,
             "edge_conformer_filter": "all",
-            "strategy": "global_strict_then_optional_relaxation",
+            "strategy": (
+                "equal_per_topology_relaxed_only"
+                if per_topology_count is not None and args.start_phase == "relaxed"
+                else "equal_per_topology_strict_then_optional_relaxation"
+                if per_topology_count is not None
+                else "relaxed_only"
+                if args.start_phase == "relaxed"
+                else "global_strict_then_optional_relaxation"
+            ),
             "strict_candidate_filter": "cheap_space_plus_lazy_exact_graph_symmetry",
             "relax_after_strict_exhaustion": args.relax_after_strict_exhaustion,
             "builder_symmetry_tolerance_angstrom": config.symmetry_tolerance,
@@ -1129,8 +1325,49 @@ def positive(value: str) -> int:
 
 def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--count", type=positive, default=DEFAULT_COUNT)
+    target = parser.add_mutually_exclusive_group()
+    target.add_argument(
+        "--count",
+        type=positive,
+        help=f"global target count (default: {DEFAULT_COUNT})",
+    )
+    target.add_argument(
+        "--per-topology-count",
+        type=positive,
+        help="exact target for every eligible topology",
+    )
     parser.add_argument("--workers", type=positive, default=DEFAULT_WORKERS)
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument(
+        "--topology-mode",
+        choices=("binodal", "uninodal"),
+        default="binodal",
+        help=(
+            "binodal: metal node + organic node; uninodal: metal node + "
+            "required organic self-edge linker"
+        ),
+    )
+    parser.add_argument(
+        "--connectivity-policy",
+        choices=("current", "legacy"),
+        default="current",
+        help=(
+            "current requires validated 3D periodic connectivity; legacy is "
+            "only for consistently resuming data created before that policy"
+        ),
+    )
+    parser.add_argument(
+        "--topology",
+        action="append",
+        default=[],
+        help="limit generation to one eligible topology (repeatable)",
+    )
+    parser.add_argument(
+        "--start-phase",
+        choices=("strict", "relaxed"),
+        default="strict",
+        help="start a new output in strict or relaxed generation",
+    )
     parser.add_argument("--output", type=Path, default=ROOT / "2m_mofs")
     parser.add_argument("--progress-interval", type=positive, default=30)
     parser.add_argument(
@@ -1138,7 +1375,12 @@ def arguments() -> argparse.Namespace:
         action="store_true",
         help="open relaxed queues only after every strict queue is exhausted",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.count is None and args.per_topology_count is None:
+        args.count = DEFAULT_COUNT
+    if args.topology_mode == "uninodal" and args.per_topology_count is None:
+        parser.error("--topology-mode uninodal requires --per-topology-count")
+    return args
 
 
 def main() -> None:
@@ -1151,28 +1393,58 @@ def main() -> None:
     output.mkdir(parents=True, exist_ok=True)
 
     library = (ROOT / "lib").resolve()
-    manifest = write_symmetry_manifest(
-        library,
-        output,
-        (ROOT / "generated/building_block_symmetry_cache").resolve(),
-        args.workers,
-    )
+    manifest = output / "block_symmetry_manifest.csv"
+    if database.is_file():
+        if not manifest.is_file():
+            raise FileNotFoundError(
+                f"resumable output is missing its source manifest: {manifest}"
+            )
+        print(
+            f"building_block_symmetry_manifest=resume_existing path={manifest}",
+            flush=True,
+        )
+    else:
+        manifest = write_symmetry_manifest(
+            library,
+            output,
+            (ROOT / "generated/building_block_symmetry_cache").resolve(),
+            args.workers,
+        )
     config = core.GenerationConfig(
         manifest=manifest,
         topology_dir=(library / "topology").resolve(),
         output=output,
-        count=args.count,
-        seed=42,
+        count=args.count or args.per_topology_count,
+        seed=args.seed,
         edge_conformer_filter="all",
         strict_symmetry=False,
         strict_prefilter=True,
+        require_3d_connectivity=args.connectivity_policy == "current",
         attempt_batch_size=ATTEMPT_BATCH,
+        worker_memory_limit_gib=WORKER_MEMORY_GIB,
     )
     pools, skipped_blocks = core.load_block_pools(config)
-    topologies, skipped_topologies = core.load_eligible_topologies(config, pools)
+    topologies, skipped_topologies = core.load_eligible_topologies(
+        config,
+        pools,
+        topology_mode=args.topology_mode,
+    )
     topologies = sorted(topologies, key=lambda item: item.name)
+    if args.topology:
+        requested = set(args.topology)
+        eligible_names = {item.name for item in topologies}
+        missing = sorted(requested - eligible_names)
+        if missing:
+            raise RuntimeError(
+                f"topologies are not eligible in {args.topology_mode} mode: "
+                + ", ".join(missing)
+            )
+        topologies = [item for item in topologies if item.name in requested]
     if not topologies:
-        raise RuntimeError("no eligible two-node topologies were found")
+        raise RuntimeError(f"no eligible {args.topology_mode} topologies were found")
+    if args.per_topology_count is not None:
+        args.count = args.per_topology_count * len(topologies)
+    config = replace(config, count=args.count)
 
     selected = Counter(block.kind for block in core.unique_library_blocks(pools))
     print(
@@ -1181,13 +1453,22 @@ def main() -> None:
         f"mean_target={args.count / len(topologies):.2f}",
         flush=True,
     )
-    source_fingerprint = fingerprint(config, topologies)
+    source_fingerprint = fingerprint(
+        config,
+        topologies,
+        args.topology_mode,
+        args.per_topology_count,
+    )
     connection = connect(database)
     fresh = initialize(
         connection,
         source_fingerprint,
         args.count,
         args.relax_after_strict_exhaustion,
+        args.start_phase,
+        args.topology_mode,
+        args.per_topology_count,
+        args.connectivity_policy,
     )
     completed = int(connection.execute("SELECT COUNT(*) FROM samples").fetchone()[0])
     phase = str(meta(connection, "generation_phase", "strict"))
@@ -1220,6 +1501,10 @@ def main() -> None:
             "skipped_blocks": dict(skipped_blocks),
             "skipped_topologies": dict(skipped_topologies),
             "eligible_topologies": [item.name for item in topologies],
+            "topology_mode": args.topology_mode,
+            "per_topology_count": args.per_topology_count,
+            "connectivity_policy": args.connectivity_policy,
+            "target_count": args.count,
             "source_fingerprint": source_fingerprint,
         },
     )

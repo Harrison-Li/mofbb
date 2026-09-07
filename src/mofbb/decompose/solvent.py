@@ -15,12 +15,18 @@ from ase.geometry import cell_to_cellpar
 
 from mofbb.decompose.assignment import NodeAtomAssigner
 from mofbb.decompose.bonding import BondNetwork, subset_bonded_structure
+from mofbb.decompose.constants import is_metal
 from mofbb.decompose.fragments import connected_components
 from mofbb.decompose.pbc import CellShift, periodic_bonds
 
 SolventMode: TypeAlias = Literal["none", "free", "all"]
 ActiveSolventMode: TypeAlias = Literal["free", "all"]
 SiteRole: TypeAlias = Literal["node", "linker"]
+
+# Two independently occupied oxygen sites closer than a real O--O bond cannot
+# coexist.  Treat such sites as a disordered coordinated-solvent fragment when
+# they are terminal alternatives on the same metal.
+_SPLIT_OXYGEN_SITE_MAX_DISTANCE = 1.05
 
 
 def _write_cif(path: Path, atoms: ase.Atoms, indices: tuple[int, ...]) -> None:
@@ -241,6 +247,12 @@ class MofidSolventRemover:
                 self.bonds,
             ).assign()
         )
+        # The node assigner deliberately starts from every direct metal
+        # neighbor.  Pull recognizable coordinated solvent back out before
+        # simplifying the framework topology so that it is classified as
+        # bound solvent rather than part of the metal node.
+        coordinated_solvent = self._coordinated_solvent_atoms()
+        nodes.difference_update(coordinated_solvent)
         roles = (
             ("node", nodes),
             ("linker", set(range(len(self.atoms))) - nodes),
@@ -262,8 +274,91 @@ class MofidSolventRemover:
         }
         offsets, connections = self._component_offsets(sites)
         connections.update(self._crossing_connections(site_by_atom, offsets))
+        coordinated_site_ids = {
+            site_by_atom[atom] for atom in coordinated_solvent
+        }
+        coordinated_bound = tuple(
+            tuple(sorted(sites[site_id].atom_indices))
+            for site_id in sorted(coordinated_site_ids)
+        )
+        for site_id in coordinated_site_ids:
+            del sites[site_id]
+        connections = {
+            connection
+            for connection in connections
+            if connection.left not in coordinated_site_ids
+            and connection.right not in coordinated_site_ids
+        }
         free, bound = _simplify_topology(sites, connections)
+        bound = tuple(sorted((*bound, *coordinated_bound), key=lambda part: part[0]))
         return SolventRemovalResult(self.atoms.copy(), self.bonds, free, bound)
+
+    def _coordinated_solvent_atoms(self) -> set[int]:
+        symbols = self.atoms.get_chemical_symbols()
+        solvent_atoms: set[int] = set()
+
+        # Explicit terminal aqua ligand: M--O(H)2.  Requiring one metal and
+        # terminal hydrogens preserves bridging water, hydroxide, and oxo.
+        for oxygen, symbol in enumerate(symbols):
+            if symbol != "O":
+                continue
+            neighbors = self.bonds.adjacency[oxygen]
+            metals = {atom for atom in neighbors if is_metal(symbols[atom])}
+            hydrogens = {atom for atom in neighbors if symbols[atom] == "H"}
+            other = neighbors - metals - hydrogens
+            if (
+                len(metals) == 1
+                and len(hydrogens) == 2
+                and not other
+                and all(
+                    self.bonds.adjacency[atom] <= metals | {oxygen}
+                    for atom in hydrogens
+                )
+            ):
+                solvent_atoms.update({oxygen, *hydrogens})
+
+        # Crystallographic disorder may encode one aqua oxygen as two
+        # mutually exclusive sites.  Distance bonding then creates an
+        # impossible O--O contact and makes both sites look like node atoms.
+        for left, right in self.bonds.pairs:
+            if symbols[left] != "O" or symbols[right] != "O":
+                continue
+            if np.linalg.norm(self.bonds.vector(left, right)) > (
+                _SPLIT_OXYGEN_SITE_MAX_DISTANCE
+            ):
+                continue
+
+            left_neighbors = self.bonds.adjacency[left]
+            right_neighbors = self.bonds.adjacency[right]
+            left_metals = {
+                atom for atom in left_neighbors if is_metal(symbols[atom])
+            }
+            right_metals = {
+                atom for atom in right_neighbors if is_metal(symbols[atom])
+            }
+            if len(left_metals) != 1 or left_metals != right_metals:
+                continue
+
+            allowed = left_metals | {left, right}
+            if any(
+                symbols[atom] != "H" and atom not in allowed
+                for atom in left_neighbors | right_neighbors
+            ):
+                continue
+
+            hydrogens = {
+                atom
+                for atom in left_neighbors | right_neighbors
+                if symbols[atom] == "H"
+            }
+            if any(
+                self.bonds.adjacency[atom] - left_metals - {left, right}
+                for atom in hydrogens
+            ):
+                continue
+            solvent_atoms.update({left, right, *hydrogens})
+
+        return solvent_atoms
 
     def _shift(self, i: int, j: int) -> np.ndarray:
         return np.asarray(self.records[tuple(sorted((i, j)))].oriented_shift(i, j))

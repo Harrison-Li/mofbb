@@ -3,10 +3,13 @@ import copy
 from dataclasses import dataclass
 from functools import cached_property
 
+import networkx as nx
 import numpy as np
 
+from ase.data import covalent_radii
 from ase.neighborlist import natural_cutoffs
 
+from mofbb.compose.connectivity import bond_arrays
 from mofbb.compose.local_structure import LocalStructure
 from mofbb.compose.utils import read_building_block_xyz
 
@@ -99,6 +102,23 @@ class BuildingBlock:
         block._bonds = self.bonds.copy()
         block._bond_types = self.bond_types.copy()
         return block
+
+    def validate_connectivity(self, bond_scale=1.2):
+        """Require one connected real-atom fragment at the assembly bond cutoff."""
+        bonds, _ = bond_arrays(self.n_atoms, self.bonds, np.zeros((len(self.bonds), 3)))
+        real = self.atoms.numbers != 0
+        bonds = bonds[real[bonds].all(axis=1)]
+        distances = np.linalg.norm(
+            self.atoms.positions[bonds[:, 1]] - self.atoms.positions[bonds[:, 0]], axis=1
+        )
+        limits = bond_scale * covalent_radii[self.atoms.numbers[bonds]].sum(axis=1)
+        graph = nx.Graph()
+        graph.add_nodes_from(np.flatnonzero(real))
+        graph.add_edges_from(bonds[(distances > 1e-8) & (distances <= limits)])
+        if not graph or not nx.is_connected(graph):
+            raise ValueError(
+                f"Building block {self.name!r} must have one connected real-atom component."
+            )
 
     def local_structure(self):
         """Build the ``LocalStructure`` of the connection points."""

@@ -95,6 +95,11 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--allow-low-dimensional",
+        action="store_true",
+        help="Explicitly allow layers, chains, or finite assemblies. Default: require 3D.",
+    )
+    parser.add_argument(
         "--no-wrap",
         action="store_true",
         help="Do not wrap composed atoms into the unit cell.",
@@ -163,6 +168,7 @@ def main(argv: list[str] | None = None) -> int:
                 scale=args.fused_bond_scale,
                 overlap_scale=args.atomic_overlap_scale,
                 wrap=not args.no_wrap,
+                require_3d=not args.allow_low_dimensional,
             )
         else:
             framework = Reconstructor(args.source).reconstruct()
@@ -188,6 +194,7 @@ def main(argv: list[str] | None = None) -> int:
             scale=args.fused_bond_scale,
             overlap_scale=args.atomic_overlap_scale,
             wrap=not args.no_wrap,
+            require_3d=not args.allow_low_dimensional,
         )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     framework.write_cif(args.output)

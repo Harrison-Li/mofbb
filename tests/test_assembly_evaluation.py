@@ -244,6 +244,7 @@ def test_carbon_metal_mask_has_no_unconstrained_node_fallback(
             topology,
             {0: cadmium, 1: carbon},
             accuracy=3,
+            require_3d=False,
         )
 
     assert locator.allowed_masks
@@ -277,6 +278,7 @@ def test_edge_permutation_rejects_two_forbidden_endpoint_orders(
             {0: carbon, 1: carbon},
             {(0, 1): edge},
             accuracy=3,
+            require_3d=False,
         )
 
 
@@ -309,6 +311,7 @@ def test_joint_edge_orientation_finds_topology_only_port_assignment(
         {(0, 1): edge},
         accuracy=3,
         overlap_scale=0.0,
+        require_3d=False,  # This fixture deliberately builds a chain.
     )
     for index, block in enumerate((left, right, edge), start=1):
         evaluation.rotate_building_block(
@@ -321,6 +324,7 @@ def test_joint_edge_orientation_finds_topology_only_port_assignment(
         {(0, 1): edge},
         accuracy=3,
         overlap_scale=0.0,
+        require_3d=False,  # This fixture deliberately builds a chain.
     )
 
     assert baseline.info["fixed_cell_fitted"]
@@ -350,6 +354,7 @@ def test_joint_direct_edge_assignment_avoids_carbon_metal(
         tolerance=100.0,
         scale=100.0,
         overlap_scale=0.0,
+        require_3d=False,  # This fixture deliberately builds a chain.
     )
 
     assert len(framework.atoms) > 0
@@ -608,6 +613,7 @@ X  0.50 0 0
         accuracy=3,
         overlap_scale=0.0,
         strict_symmetry=True,
+        require_3d=False,  # This fixture deliberately builds a chain.
     )
 
     assert framework.info["fixed_cell_fitted"]

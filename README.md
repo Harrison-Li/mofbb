@@ -146,21 +146,73 @@ node-to-node connection. Each node building block must have the same number of
 The first field after `NODE` is a one-based type ID: repeated IDs use the same
 node assignment (internally, `NODE 1` is type `0`).
 
+New assemblies require **3D periodic connectivity by default**, independently
+of the topology name or crystallographic space group. Each bonded component
+must have three independent lattice translations around bond cycles. Layers,
+chains, isolated fragments, and mixtures containing a lower-dimensional
+component are rejected. Separate interpenetrating 3D components are allowed.
+
+The builder establishes this during construction: it verifies and caches the
+topology's dimensionality before placement, requires each building block to
+have a connected real-atom fragment, and realizes every topology edge with
+compatible ports. Lattice-image shifts from the topology are used consistently
+by fitting, placement, and X fusion. An incompatible assignment fails instead
+of reconnecting to a nearer atom image. The single-linker generators exclude
+low-dimensional topologies and disconnected blocks from their candidate pools.
+
 The builder removes paired `X` atoms and fuses their real-atom anchors. It
 rejects an assembly when any of these checks fails:
 
 - a new fused bond directly joins carbon to a metal;
-- paired `X` atoms are more than `0.3 Å` apart under the minimum-image
-  convention;
-- a fused bond is longer than `1.2` times the sum of the ASE covalent radii; or
+- a new fused bond directly joins two metals (existing bonds inside a supplied
+  metal building block are retained);
+- paired `X` atoms are more than `0.3 Å` apart in their declared topology images;
+- a fused bond is longer than `1.2` times the sum of the ASE covalent radii;
 - two real atoms are closer than their smaller ASE covalent radius under the
-  minimum-image convention.
+  minimum-image convention; or
+- the assembled periodic bond graph, after excluding overlong bonds, contains
+  a component with translation rank below three.
+
+Bond lattice shifts are preserved through X fusion, wrapping, validation, and
+CIF writing. A bond to a periodic image of the same atom is retained as a
+nonzero-image bond. A final connectivity assertion checks the assembled
+geometry, and CIF writing checks the rounded coordinates before opening the
+output file.
 
 These thresholds can be adjusted with `--x-mid-tolerance` and
 `--fused-bond-scale`, and `--atomic-overlap-scale`; setting the last option to
 zero disables only the atomic-overlap gate. The overlap gate checks all real
 atom pairs, including pairs within one building block. Use `--no-wrap` to keep
 the composed coordinates outside the primary unit cell.
+
+For deliberate low-dimensional research examples, use
+`--allow-low-dimensional` or `Builder.build_by_type(..., require_3d=False)`.
+Exact reconstruction preserves the supplied source structure and is not
+subject to the default generation dimension gate.
+
+An external geometry optimization can change connectivity. Before accepting
+each relaxed CIF, run the coordinate-based validator and require exit status 0:
+
+```bash
+python -m mofbb.compose.validate /absolute/path/to/relaxed.cif
+```
+
+The installed `mofbb-validate` command is equivalent. Multiple CIF paths are
+accepted; it writes one JSON result per path and exits with status 1 if any
+structure fails. The screen uses `1.2` times the sum of ASE covalent radii
+(`--bond-scale` changes this), preserves periodic neighbor images, and ignores
+metal–metal contacts when inferring bonds. It uses atomic coordinates rather
+than potentially stale CIF bond tables. This conservative screen may reject
+specialized frameworks whose connectivity depends on genuine metal–metal
+bonds; it is a connectivity filter, not a thermodynamic stability prediction.
+
+The single-linker generators also enforce the coordinate-based 3D check and
+record its policy version in quality metadata. Resumed staging files without
+current validation metadata are rechecked. Bulk-generation fingerprints
+include the connectivity policy, so a fresh output folder is required when
+moving from the previous policy; old accepted database rows are not silently
+treated as validated 3D structures. Running generator processes must be
+restarted to load the updated code.
 
 ## Python API
 

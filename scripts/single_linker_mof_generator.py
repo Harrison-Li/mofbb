@@ -35,6 +35,7 @@ from sympy.combinatorics import Permutation, PermutationGroup
 from threadpoolctl import threadpool_limits
 
 from mofbb.compose import Builder, BuildingBlock, Locator, Topology
+from mofbb.compose.connectivity import CONNECTIVITY_POLICY_VERSION, validate_3d_connectivity
 from mofbb.compose.log import logger
 from mofbb.compose.locator import (
     PortAssignmentError,
@@ -76,6 +77,7 @@ class GenerationConfig:
     edge_conformer_filter: str = "all"
     max_rmsd: float = 0.60
     minimum_atom_distance: float = 0.50
+    require_3d_connectivity: bool = True
     accuracy: int = 4
     symmetry_tolerance: float = 0.1
     strict_symmetry: bool = False
@@ -643,6 +645,7 @@ def load_block_pools(
 
         try:
             block = BuildingBlock(path)
+            block.validate_connectivity()
             contains_carbon = "C" in block.atoms.get_chemical_symbols()
             anchor_symbols = tuple(block.connection_point_anchor_symbols)
             anchor_lengths = tuple(
@@ -892,7 +895,19 @@ def unique_library_blocks(pools: dict[tuple, list]) -> tuple[BlockRecord, ...]:
 def load_eligible_topologies(
     config: GenerationConfig,
     pools: dict[tuple[str, int, str], list[BlockRecord]],
+    *,
+    topology_mode: str = "binodal",
 ) -> tuple[list[TopologyRecord], Counter[str]]:
+    """Load topologies supported by the requested single-linker formulation.
+
+    ``binodal`` retains the historical formulation of one metal node and one
+    organic node, with an optional edge block.  ``uninodal`` uses one metal
+    node and requires an organic linker on the topology's self-edge.
+    """
+
+    if topology_mode not in {"binodal", "uninodal"}:
+        raise ValueError(f"unknown topology mode: {topology_mode}")
+
     records: list[TopologyRecord] = []
     skipped: Counter[str] = Counter()
     requested_groups = set(config.requested_space_groups)
@@ -944,24 +959,55 @@ def load_eligible_topologies(
         if int(topology.n_slots) > config.max_topology_slots:
             skipped["slot_limit"] += 1
             continue
-        if len(topology.unique_node_types) != 2:
+        expected_node_types = 2 if topology_mode == "binodal" else 1
+        if len(topology.unique_node_types) != expected_node_types:
             skipped["type_limit"] += 1
+            continue
+        try:
+            # Read legacy PORMAKE topologies from CGD to apply the current rules.
+            if not hasattr(topology, "validate_3d"):
+                topology = Topology(cgd_path)
+            topology.validate_3d()
+        except ValueError:
+            skipped["non_3d_topology"] += 1
             continue
         try:
             record = topology_record_from_object(topology, cgd_path)
         except Exception:
             skipped["point_group_classification"] += 1
             continue
-        if not all(
-            node_records_for_site(pools, "metal_node", site)
-            or node_records_for_site(pools, "organic_node", site)
-            for site in record.node_sites
-        ):
-            skipped["missing_site_compatible_node_pool"] += 1
-            continue
-        if not compatible_metal_organic_pairs(record, pools):
-            skipped["no_metal_organic_assignment"] += 1
-            continue
+        if topology_mode == "binodal":
+            if not all(
+                node_records_for_site(pools, "metal_node", site)
+                or node_records_for_site(pools, "organic_node", site)
+                for site in record.node_sites
+            ):
+                skipped["missing_site_compatible_node_pool"] += 1
+                continue
+            if not compatible_metal_organic_pairs(record, pools):
+                skipped["no_metal_organic_assignment"] += 1
+                continue
+        else:
+            site = record.node_sites[0]
+            if not node_records_for_site(pools, "metal_node", site):
+                skipped["missing_site_compatible_metal_pool"] += 1
+                continue
+            self_edge = (site.node_type, site.node_type)
+            if not record.edge_types or any(
+                edge_type != self_edge for edge_type in record.edge_types
+            ):
+                skipped["missing_required_self_edge"] += 1
+                continue
+            edge_pools, _ = strict_edge_compatible_pools(record, pools)
+            if any(
+                not edge_pools.get(
+                    ("edge", edge_type, 2, EDGE_POINT_GROUP),
+                    (),
+                )
+                for edge_type in record.edge_types
+            ):
+                skipped["missing_site_compatible_edge_pool"] += 1
+                continue
         records.append(record)
     return records, skipped
 
@@ -986,6 +1032,8 @@ def strict_node_compatible_pools(
     config: GenerationConfig,
     topology_record: TopologyRecord,
     pools: dict[tuple, list],
+    *,
+    kinds: tuple[str, ...] = ("metal_node", "organic_node"),
 ) -> tuple[
     dict[tuple, list],
     dict[str, int],
@@ -1005,7 +1053,7 @@ def strict_node_compatible_pools(
     port_action_rejections = 0
 
     for site in topology_record.node_sites:
-        for kind in ("metal_node", "organic_node"):
+        for kind in kinds:
             compatible: list[FittedBlock] = []
             for record in node_records_for_site(pools, kind, site):
                 checked += 1
@@ -1411,7 +1459,7 @@ def connection_port_compatibility(
             strict=True,
         ):
             row.append(
-                not PBC.is_carbon_metal_pair(symbol_i, symbol_j)
+                not PBC.is_forbidden_fused_pair(symbol_i, symbol_j)
                 and length_i + length_j
                 <= PBC.max_bond_len(symbol_i, symbol_j)
             )
@@ -1542,11 +1590,6 @@ def copy_selected_blocks(
     return node_paths, edge_paths
 
 
-def minimum_distance(atoms: object) -> float | None:
-    distances = ase.neighborlist.neighbor_list("d", atoms, 3.0)
-    return float(np.min(distances)) if len(distances) else None
-
-
 @lru_cache(maxsize=256)
 def canonical_space_group_number(symbol: str) -> int:
     with warnings.catch_warnings():
@@ -1614,13 +1657,21 @@ def build_and_validate(
         raise ValueError(
             f"node-placement RMSD {max_rmsd:.3f} exceeds {config.max_rmsd:.3f}"
         )
-    if "X" in framework.atoms.get_chemical_symbols():
+    atoms = framework.atoms
+    symbols = atoms.get_chemical_symbols()
+    if "X" in symbols:
         raise ValueError("assembled framework still contains X connection sites")
-    if "C" not in framework.atoms.get_chemical_symbols():
+    if "C" not in symbols:
         raise ValueError("assembled framework contains no carbon")
-    if not np.isfinite(framework.atoms.positions).all() or framework.atoms.cell.volume <= 0:
+    if not np.isfinite(atoms.positions).all() or atoms.cell.volume <= 0:
         raise ValueError("assembled framework has invalid coordinates or cell")
-    closest = minimum_distance(framework.atoms)
+    connectivity = {}
+    if config.require_3d_connectivity:
+        connectivity = validate_3d_connectivity(atoms, minimum_distance_cutoff=3.0)
+        closest = connectivity["minimum_atom_distance_angstrom"]
+    else:
+        distances = ase.neighborlist.neighbor_list("d", atoms, 3.0)
+        closest = float(distances.min()) if len(distances) else None
     if closest is not None and closest < config.minimum_atom_distance:
         raise ValueError(
             f"minimum atom distance {closest:.3f} A is below "
@@ -1642,11 +1693,10 @@ def build_and_validate(
     )
 
     quality = {
-        "num_atoms": len(framework.atoms),
-        "formula": framework.atoms.get_chemical_formula(mode="metal"),
-        "cell_parameters": [
-            float(value) for value in framework.atoms.cell.cellpar()
-        ],
+        **connectivity,
+        "num_atoms": len(atoms),
+        "formula": atoms.get_chemical_formula(mode="metal"),
+        "cell_parameters": [float(value) for value in atoms.cell.cellpar()],
         "max_rmsd": max_rmsd,
         "mean_rmsd": float(framework.info["mean_rmsd"]),
         "geometry_optimization_objective": float(
@@ -1664,7 +1714,7 @@ def build_and_validate(
     if crystal_symmetry_symprec is not None:
         quality.update(
             detect_crystal_symmetry(
-                framework.atoms,
+                atoms,
                 crystal_symmetry_symprec,
                 crystal_symmetry_angle_tolerance,
             )
@@ -1700,7 +1750,13 @@ def validate_staged_cif(
         or atoms.cell.volume <= 0
     ):
         raise ValueError("staged CIF has invalid coordinates or cell")
-    closest = minimum_distance(atoms)
+    connectivity = {}
+    if config.require_3d_connectivity:
+        connectivity = validate_3d_connectivity(atoms, minimum_distance_cutoff=3.0)
+        closest = connectivity["minimum_atom_distance_angstrom"]
+    else:
+        distances = ase.neighborlist.neighbor_list("d", atoms, 3.0)
+        closest = float(distances.min()) if len(distances) else None
     if closest is not None and closest < config.minimum_atom_distance:
         raise ValueError("staged CIF fails minimum-distance validation")
     max_rmsd = comment_value("# Max RMSD:")
@@ -1710,6 +1766,7 @@ def validate_staged_cif(
     if geometry_objective is None:
         geometry_objective = comment_value("# Relax obj value:")
     return {
+        **connectivity,
         "num_atoms": len(atoms),
         "formula": atoms.get_chemical_formula(mode="metal"),
         "cell_parameters": [float(value) for value in atoms.cell.cellpar()],
@@ -1755,6 +1812,8 @@ def validation_fingerprint(config: GenerationConfig) -> str:
         "symmetry_tolerance": config.symmetry_tolerance,
         "strict_symmetry": config.strict_symmetry,
     }
+    if config.require_3d_connectivity:
+        rules["connectivity_policy"] = CONNECTIVITY_POLICY_VERSION
     return hashlib.sha256(
         json.dumps(rules, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
@@ -2686,6 +2745,8 @@ def generate_topology_balanced(
                             and int(saved["cif_mtime_ns"])
                             == cif_stat.st_mtime_ns
                             and len(str(quality["cif_sha256"])) == 64
+                            and quality.get("connectivity_policy_version")
+                            == CONNECTIVITY_POLICY_VERSION
                         )
                     except (KeyError, TypeError, ValueError):
                         trusted = False

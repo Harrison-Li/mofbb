@@ -142,7 +142,7 @@ class PortRules:
 
             for col, src_symbol in enumerate(src_symbols):
                 valid = [
-                    not self.pbc.is_carbon_metal_pair(src_symbol, dst_symbol)
+                    not self.pbc.is_forbidden_fused_pair(src_symbol, dst_symbol)
                     for dst_symbol in dst_symbols
                 ]
                 if bad_pair is None:
@@ -180,7 +180,7 @@ class PortRules:
         return best[1]
 
     def edge_ok(self, edge, perm, placed, perms):
-        """Return whether an edge orientation avoids carbon-metal pairs."""
+        """Return whether an edge orientation avoids forbidden fused pairs."""
         block = self.blocks[edge]
         if block is None:
             return True
@@ -200,7 +200,7 @@ class PortRules:
         ]
         edge_symbols = block.connection_point_anchor_symbols
         return all(
-            not self.pbc.is_carbon_metal_pair(
+            not self.pbc.is_forbidden_fused_pair(
                 node_symbol,
                 edge_symbols[int(src)],
             )
@@ -216,7 +216,7 @@ class PortRules:
         raise ValueError(
             "Forbidden fused-bond chemistry rejected permutation optimization "
             f"for edge slot {edge}: neither endpoint permutation avoids "
-            "a direct carbon-metal connection."
+            "a direct carbon-metal or metal-metal connection."
         )
 
     def validate(self, placed, perms, scale):
@@ -244,7 +244,7 @@ class PortRules:
             for left, x_i, right, x_j in pairs:
                 symbol_i, _, cap_i = self.pbc.connection_port(left, x_i)
                 symbol_j, _, cap_j = self.pbc.connection_port(right, x_j)
-                if self.pbc.is_carbon_metal_pair(symbol_i, symbol_j):
+                if self.pbc.is_forbidden_fused_pair(symbol_i, symbol_j):
                     raise ValueError(
                         "Forbidden fused-bond chemistry rejected assembly: "
                         f"edge {edge} joins {symbol_i}-{symbol_j}."
@@ -261,8 +261,8 @@ class PortRules:
     def _flip_matters(self, edge):
         symbols = self.blocks[edge].connection_point_anchor_symbols
         return any(
-            self.pbc.is_carbon_metal_pair(node_symbol, symbols[0])
-            != self.pbc.is_carbon_metal_pair(node_symbol, symbols[1])
+            self.pbc.is_forbidden_fused_pair(node_symbol, symbols[0])
+            != self.pbc.is_forbidden_fused_pair(node_symbol, symbols[1])
             for near in self.topology.neighbor_list[edge]
             for node_symbol in self.blocks[
                 int(near.index)

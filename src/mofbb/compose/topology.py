@@ -1,9 +1,11 @@
 """Periodic topology model."""
 import copy
+from functools import cached_property
 
 import numpy as np
 
 from mofbb.compose.cgd import CgdReader
+from mofbb.compose.connectivity import periodic_components
 from mofbb.compose.local_structure import LocalStructure
 from mofbb.compose.neighbor import NeighborList
 
@@ -18,6 +20,7 @@ class Topology:
 
     def update_properties(self):
         """Parse, validate, and cache all net properties from ``self.atoms``."""
+        self.__dict__.pop("component_ranks", None)
 
         # Save additional information.
         self.name = self.atoms.info["name"]
@@ -64,6 +67,44 @@ class Topology:
         if not self.check_edge_zerosum():
             return False
         return True
+
+    @property
+    def edge_shifts(self):
+        """Integer images of each edge's two nodes, relative to its center."""
+        positions = self.atoms.positions
+        inverse_cell = np.linalg.inv(self.atoms.cell)
+        shifts = {}
+        for edge in self.edge_indices:
+            vectors = np.array([
+                positions[edge] + neighbor.distance_vector - positions[neighbor.index]
+                for neighbor in self.neighbor_list[edge]
+            ])
+            fractional = vectors @ inverse_cell
+            images = np.rint(fractional)
+            if not np.allclose(fractional, images, atol=1e-5, rtol=0):
+                raise ValueError(f"Topology edge {edge} has inconsistent periodic images.")
+            shifts[int(edge)] = images.astype(int)
+        return shifts
+
+    @cached_property
+    def component_ranks(self):
+        """Cache dimensionality of the declared net, including image edges."""
+        pairs, shifts = [], []
+        for edge, images in self.edge_shifts.items():
+            pairs.extend((edge, neighbor.index) for neighbor in self.neighbor_list[edge])
+            shifts.extend(images)
+        return tuple(
+            component["rank"]
+            for component in periodic_components(self.n_slots, pairs, shifts)
+        )
+
+    def validate_3d(self):
+        """Require a 3D net before any building-block placement."""
+        if not self.component_ranks or any(rank != 3 for rank in self.component_ranks):
+            dimensions = ", ".join(f"{rank}D" for rank in self.component_ranks)
+            raise ValueError(
+                f"3D topology required; {self.name!r} contains {dimensions or 'no components'}."
+            )
 
     def copy(self):
         """Return a deep, independent copy of this topology."""

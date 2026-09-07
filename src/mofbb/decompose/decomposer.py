@@ -21,7 +21,11 @@ from mofbb.decompose.pbc import (
 )
 from mofbb.decompose.ports import LogicalPortAssigner
 from mofbb.decompose.results import NodeEdgeDecompositionResult
-from mofbb.decompose.solvent import MofidSolventRemover, SolventMode, SolventRemovalResult
+from mofbb.decompose.solvent import (
+    MofidSolventRemover,
+    SolventMode,
+    SolventRemovalResult,
+)
 from mofbb.decompose.symmetry import AtomicSymmetry, PeriodicBondOrbitClosure
 from mofbb.decompose.topology import NodeEdgeTopologyBuilder
 
@@ -143,6 +147,15 @@ class NodeEdgeDecomposer:
                 absorb_one_port_regions=self.solvent_mode != "free",
             ).assign()
         )
+        if self.solvent_mode == "free":
+            assert self.solvent is not None
+            assert self.selected_to_original is not None
+            bound = set(self.solvent.bound_solvent_indices)
+            metal.difference_update(
+                selected
+                for selected, original in enumerate(self.selected_to_original)
+                if original in bound
+            )
         organic = set(range(len(self.atoms))) - metal
         boundary = tuple(
             pair

@@ -59,6 +59,7 @@ class BlockPlacement:
                 return_result=True,
             )
 
+        self.edge_shifts = self.topology.edge_shifts
         has_edges = any(self.blocks[int(index)] is not None for index in self.topology.edge_indices)
         if has_edges and not self.fixed_cell_fitted:
             self.edge_targets = self.edge_factory(
@@ -204,17 +205,7 @@ class BlockPlacement:
             rmsds.append(rmsd)
         return rmsds
 
-    def _image(self, neighbor_i, neighbor_j, inverse_cell):
-        """Return the periodic image offset between two edge neighbors."""
-        displacement = neighbor_j.distance_vector - neighbor_i.distance_vector
-        positions = self.topology.atoms.positions
-        return (
-            displacement
-            - positions[neighbor_j.index]
-            + positions[neighbor_i.index]
-        ) @ inverse_cell
-
-    def _edge_geometry(self, edge_index, cell, inverse_cell):
+    def _edge_geometry(self, edge_index, cell):
         neighbor_i, neighbor_j = self.topology.neighbor_list[edge_index]
         block_i = self.blocks[neighbor_i.index]
         block_j = self.blocks[neighbor_j.index]
@@ -223,12 +214,11 @@ class BlockPlacement:
         )
         point_i = block_i.atoms.positions[x_i]
         point_j = block_j.atoms.positions[x_j]
-        image = self._image(neighbor_i, neighbor_j, inverse_cell)
-        vector = point_j - point_i + image @ cell
-        return np.array([point_i, point_i + vector]), point_i + 0.5 * vector
+        points = np.array([point_i, point_j]) + self.edge_shifts[edge_index] @ cell
+        return points, np.mean(points, axis=0)
 
-    def _place_edge_independently(self, edge_index, cell, inverse_cell):
-        target_points, centroid = self._edge_geometry(edge_index, cell, inverse_cell)
+    def _place_edge_independently(self, edge_index, cell):
+        target_points, centroid = self._edge_geometry(edge_index, cell)
         target = self.edge_targets[edge_index]
         edge, _, source_frame = self.locator.locate_edge_with_frame(
             target_points,
@@ -263,7 +253,6 @@ class BlockPlacement:
             return
 
         cell = np.asarray(self.topology.atoms.cell, dtype=float)
-        inverse_cell = np.linalg.inv(cell)
         for orbit in self.symmetry.edge_orbits:
             representative = orbit.representative
             members = [
@@ -280,13 +269,13 @@ class BlockPlacement:
                         orbit,
                     )
                 for member in members:
-                    self._place_edge_independently(member, cell, inverse_cell)
+                    self._place_edge_independently(member, cell)
                 continue
-            self._place_edge_orbit_by_symmetry(orbit, members, cell, inverse_cell)
+            self._place_edge_orbit_by_symmetry(orbit, members, cell)
 
-    def _place_edge_orbit_by_symmetry(self, orbit, members, cell, inverse_cell):
+    def _place_edge_orbit_by_symmetry(self, orbit, members, cell):
         representative = orbit.representative
-        target_points, centroid = self._edge_geometry(representative, cell, inverse_cell)
+        target_points, centroid = self._edge_geometry(representative, cell)
         target = self.edge_targets[representative]
         edge, _, source_frame = self.locator.locate_edge_with_frame(
             target_points,
@@ -329,13 +318,13 @@ class BlockPlacement:
             )
             for member in members:
                 if member != representative:
-                    self._place_edge_independently(member, cell, inverse_cell)
+                    self._place_edge_independently(member, cell)
             return
 
         fallback_members = []
         for member in members:
             operation_index = self.symmetry.operation(orbit, member)
-            member_points, member_centroid = self._edge_geometry(member, cell, inverse_cell)
+            member_points, member_centroid = self._edge_geometry(member, cell)
             located = (
                 edge
                 if member == representative
@@ -367,7 +356,7 @@ class BlockPlacement:
                         diagnostic,
                         member,
                     )
-                self._place_edge_independently(member, cell, inverse_cell)
+                self._place_edge_independently(member, cell)
                 continue
 
             self.blocks[member] = located

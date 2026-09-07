@@ -71,6 +71,7 @@ class Builder:
         overlap_scale=PBC.overlap_scale,
         symmetry_tolerance=0.1,
         strict_symmetry=False,
+        require_3d=True,
     ):
         """Build from node- and edge-type maps."""
         bbs = self.make_bbs_by_type(topology, node_bbs, edge_bbs)
@@ -85,6 +86,7 @@ class Builder:
             overlap_scale=overlap_scale,
             symmetry_tolerance=symmetry_tolerance,
             strict_symmetry=strict_symmetry,
+            require_3d=require_3d,
         )
 
     def build(
@@ -100,12 +102,29 @@ class Builder:
         overlap_scale=PBC.overlap_scale,
         symmetry_tolerance=0.1,
         strict_symmetry=False,
+        require_3d=True,
     ):
         """Run assignment, fixed-cell fitting, geometry optimization, and assembly."""
+        if require_3d:
+            topology.validate_3d()
+        if len(bbs) != topology.n_slots:
+            raise ValueError("Provide one building-block entry per topology slot.")
+        for slot, block in enumerate(bbs):
+            if block is None:
+                if slot in topology.node_indices:
+                    raise ValueError(f"Topology node {slot} requires a building block.")
+                continue
+            if block.n_connection_points != topology.cn[slot]:
+                raise ValueError(f"Building block at slot {slot} has the wrong number of X ports.")
+            if require_3d:
+                block.validate_connectivity(scale)
         overlap_scale = float(overlap_scale)
         symmetry_tolerance = float(symmetry_tolerance)
         if permutations is None:
             permutations = topology.atoms.info.get("port_mappings")
+        for slot, permutation in (permutations or {}).items():
+            if not np.array_equal(np.sort(permutation), np.arange(topology.cn[slot])):
+                raise ValueError(f"Port assignment at slot {slot} must use each X port once.")
         assignment = SlotAssignment(
             topology,
             bbs,
@@ -164,6 +183,7 @@ class Builder:
             "edge_frame_diagnostics": placement.edge_frame_diagnostics,
             "symmetry_placement_diagnostics": symmetry_diagnostics,
             "strict_symmetry": bool(strict_symmetry),
+            "require_3d": bool(require_3d),
         }
 
         return FrameworkAssembler(assignment, placement, overlap_scale).build(

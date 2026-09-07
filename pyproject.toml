@@ -30,6 +30,7 @@ dev = [
 [project.scripts]
 mofbb-decompose = "mofbb.decompose.cli:main"
 mofbb-compose = "mofbb.compose.cli:main"
+mofbb-validate = "mofbb.compose.validate:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mofbb"]
