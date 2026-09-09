@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-MOFID_NONMETALS: frozenset[str] = frozenset(
+NONMETALS: frozenset[str] = frozenset(
     {
         "H",
         "He",
@@ -33,4 +33,4 @@ MOFID_NONMETALS: frozenset[str] = frozenset(
 def is_metal(symbol: str) -> bool:
     """Return whether MOFid classifies an element as a metal."""
 
-    return symbol not in MOFID_NONMETALS
+    return symbol not in NONMETALS

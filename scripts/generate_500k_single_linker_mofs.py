@@ -245,6 +245,10 @@ def init_build_worker(config: core.GenerationConfig) -> None:
     _BUILD_CONFIG = config
     _STRICT_CONFIG = replace(config, strict_symmetry=True)
     signal.signal(signal.SIGINT, signal.SIG_IGN)
+    # A parent may install a graceful SIGTERM handler before forking.  Workers
+    # must retain the default action so ProcessPoolExecutor can terminate an
+    # in-flight build promptly without hanging the parent at shutdown.
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
     core.cached_building_block = lru_cache(maxsize=1_024)(
         core.cached_building_block.__wrapped__
     )
