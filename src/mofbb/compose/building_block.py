@@ -9,6 +9,7 @@ import numpy as np
 from ase.data import covalent_radii
 from ase.neighborlist import natural_cutoffs
 
+from mofbb.compose.chemistry import coordination_profile
 from mofbb.compose.connectivity import bond_arrays
 from mofbb.compose.local_structure import LocalStructure
 from mofbb.compose.utils import read_building_block_xyz
@@ -104,7 +105,7 @@ class BuildingBlock:
         return block
 
     def validate_connectivity(self, bond_scale=1.2):
-        """Require one connected real-atom fragment at the assembly bond cutoff."""
+        """Require connected real atoms and pass the generation coordination screen."""
         bonds, _ = bond_arrays(self.n_atoms, self.bonds, np.zeros((len(self.bonds), 3)))
         real = self.atoms.numbers != 0
         bonds = bonds[real[bonds].all(axis=1)]
@@ -119,6 +120,18 @@ class BuildingBlock:
             raise ValueError(
                 f"Building block {self.name!r} must have one connected real-atom component."
             )
+        self.validate_chemistry()
+
+    def validate_chemistry(self):
+        """Screen known neighbors, leaving X partner identities for fusion.
+
+        The graph analysis is cached in memory and ignores stored charges.
+        Return the profile so assembly can reuse its neighbor counts.
+        """
+        profile = coordination_profile(self.atoms.numbers, self.bonds)
+        if profile.error is not None:
+            raise ValueError(f"{self.name!r}: {profile.error}")
+        return profile
 
     def local_structure(self):
         """Build the ``LocalStructure`` of the connection points."""

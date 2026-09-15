@@ -327,6 +327,17 @@ def candidate_at(
             or metal.structure_id == edge.structure_id
         ):
             return None
+        estimated_atoms = (
+            int(space["topology"].num_nodes)
+            * (int(metal.num_atoms) - int(metal.coordination))
+            + int(space["topology"].num_edges)
+            * (int(edge.num_atoms) - int(edge.coordination))
+        )
+        if (
+            _BUILD_CONFIG.max_output_atoms
+            and estimated_atoms > _BUILD_CONFIG.max_output_atoms
+        ):
+            return None
         nodes = {site.node_type: metal}
         edges = {edge_type: edge}
         risk = core.assignment_prebuild_risk(
@@ -571,14 +582,17 @@ def fingerprint(
     settings = {
         "schema": SCHEMA_VERSION,
         "space": SPACE_VERSION,
+        "single_linker_policy": core.SINGLE_LINKER_POLICY_VERSION,
     }
     if config.require_3d_connectivity:
         settings["connectivity_policy"] = core.CONNECTIVITY_POLICY_VERSION
     settings.update({
         "seed": config.seed,
+        "max_topology_slots": config.max_topology_slots,
         "edge_filter": config.edge_conformer_filter,
         "node_atoms": config.max_node_atoms,
         "edge_atoms": config.max_edge_atoms,
+        "output_atoms": config.max_output_atoms,
         "rmsd": config.max_rmsd,
         "atom_distance": config.minimum_atom_distance,
         "accuracy": config.accuracy,
@@ -619,6 +633,7 @@ def initialize(
     topology_mode: str = "binodal",
     per_topology_count: int | None = None,
     connectivity_policy: str = "current",
+    max_output_atoms: int = 0,
 ) -> bool:
     version = meta(connection, "schema_version")
     if version is None:
@@ -630,6 +645,7 @@ def initialize(
             "start_phase": start_phase,
             "topology_mode": topology_mode,
             "connectivity_policy": connectivity_policy,
+            "max_output_atoms": max_output_atoms,
             "per_topology_count": (
                 "" if per_topology_count is None else per_topology_count
             ),
@@ -646,7 +662,7 @@ def initialize(
         raise RuntimeError("output database belongs to an older script; use a fresh folder")
     if meta(connection, "source_fingerprint") != source_fingerprint:
         raise RuntimeError(
-            "library, cache, topology, or structural/connectivity settings changed; "
+            "library, cache, topology, or structural/connectivity/linker settings changed; "
             "use a fresh output folder for the current validation policy"
         )
     if meta(connection, "start_phase", "strict") != start_phase:
@@ -659,6 +675,8 @@ def initialize(
         and stored_connectivity_policy != connectivity_policy
     ):
         raise RuntimeError("--connectivity-policy cannot change on resume")
+    if int(meta(connection, "max_output_atoms", "0") or 0) != max_output_atoms:
+        raise RuntimeError("--max-output-atoms cannot change on resume")
     stored_quota = meta(connection, "per_topology_count", "")
     requested_quota = "" if per_topology_count is None else str(per_topology_count)
     if stored_quota != requested_quota:
@@ -1288,6 +1306,14 @@ def finalize(
             "per_topology_count": per_topology_count,
             "connectivity_policy": args.connectivity_policy,
             "workers": args.workers,
+            "max_topology_slots": args.max_topology_slots,
+            "max_output_atoms": args.max_output_atoms,
+            "eligibility_symmetry": args.start_phase,
+            "exclude_topology_file": (
+                str(args.exclude_topology_file.expanduser().resolve())
+                if args.exclude_topology_file is not None
+                else None
+            ),
             "worker_memory_limit_gib": WORKER_MEMORY_GIB,
             "worker_restart_jobs": RESTART_JOBS,
             "edge_conformer_filter": "all",
@@ -1327,6 +1353,36 @@ def positive(value: str) -> int:
     return number
 
 
+def topology_names_from_file(path: Path) -> set[str]:
+    """Read topology names from JSON screening output or a text list."""
+
+    path = path.expanduser().resolve()
+    text = path.read_text(encoding="utf-8")
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        names = [
+            line.strip()
+            for line in text.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+    else:
+        if isinstance(payload, dict):
+            names = payload.get("eligible_topologies")
+        elif isinstance(payload, list):
+            names = payload
+        else:
+            names = None
+        if not isinstance(names, list):
+            raise ValueError(
+                f"topology file must be a JSON list, source_screening.json, "
+                f"or newline list: {path}"
+            )
+    if not all(isinstance(name, str) and name.strip() for name in names):
+        raise ValueError(f"invalid topology name in {path}")
+    return {name.strip() for name in names}
+
+
 def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     target = parser.add_mutually_exclusive_group()
@@ -1342,6 +1398,21 @@ def arguments() -> argparse.Namespace:
     )
     parser.add_argument("--workers", type=positive, default=DEFAULT_WORKERS)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument(
+        "--max-topology-slots",
+        type=positive,
+        default=30,
+        help="maximum expanded node-plus-edge positions per topology (default: 30)",
+    )
+    parser.add_argument(
+        "--max-output-atoms",
+        type=positive,
+        default=0,
+        help=(
+            "maximum atoms in each stored explicit cell after connection sites "
+            "are removed; 0 disables the limit (default: 0)"
+        ),
+    )
     parser.add_argument(
         "--topology-mode",
         choices=("binodal", "uninodal"),
@@ -1367,6 +1438,14 @@ def arguments() -> argparse.Namespace:
         help="limit generation to one eligible topology (repeatable)",
     )
     parser.add_argument(
+        "--exclude-topology-file",
+        type=Path,
+        help=(
+            "exclude names in a newline/JSON list or another dataset's "
+            "source_screening.json"
+        ),
+    )
+    parser.add_argument(
         "--start-phase",
         choices=("strict", "relaxed"),
         default="strict",
@@ -1382,8 +1461,6 @@ def arguments() -> argparse.Namespace:
     args = parser.parse_args()
     if args.count is None and args.per_topology_count is None:
         args.count = DEFAULT_COUNT
-    if args.topology_mode == "uninodal" and args.per_topology_count is None:
-        parser.error("--topology-mode uninodal requires --per-topology-count")
     return args
 
 
@@ -1420,6 +1497,8 @@ def main() -> None:
         output=output,
         count=args.count or args.per_topology_count,
         seed=args.seed,
+        max_topology_slots=args.max_topology_slots,
+        max_output_atoms=args.max_output_atoms,
         edge_conformer_filter="all",
         strict_symmetry=False,
         strict_prefilter=True,
@@ -1432,8 +1511,20 @@ def main() -> None:
         config,
         pools,
         topology_mode=args.topology_mode,
+        symmetry_mode=args.start_phase,
     )
     topologies = sorted(topologies, key=lambda item: item.name)
+    excluded_topologies: set[str] = set()
+    if args.exclude_topology_file is not None:
+        excluded_topologies = topology_names_from_file(args.exclude_topology_file)
+        topologies = [
+            item for item in topologies if item.name not in excluded_topologies
+        ]
+        print(
+            f"excluded_topologies={len(excluded_topologies)} "
+            f"source={args.exclude_topology_file.expanduser().resolve()}",
+            flush=True,
+        )
     if args.topology:
         requested = set(args.topology)
         eligible_names = {item.name for item in topologies}
@@ -1473,6 +1564,7 @@ def main() -> None:
         args.topology_mode,
         args.per_topology_count,
         args.connectivity_policy,
+        args.max_output_atoms,
     )
     completed = int(connection.execute("SELECT COUNT(*) FROM samples").fetchone()[0])
     phase = str(meta(connection, "generation_phase", "strict"))
@@ -1506,6 +1598,15 @@ def main() -> None:
             "skipped_topologies": dict(skipped_topologies),
             "eligible_topologies": [item.name for item in topologies],
             "topology_mode": args.topology_mode,
+            "max_topology_slots": args.max_topology_slots,
+            "max_output_atoms": args.max_output_atoms,
+            "eligibility_symmetry": args.start_phase,
+            "excluded_topologies": sorted(excluded_topologies),
+            "exclude_topology_file": (
+                str(args.exclude_topology_file.expanduser().resolve())
+                if args.exclude_topology_file is not None
+                else None
+            ),
             "per_topology_count": args.per_topology_count,
             "connectivity_policy": args.connectivity_policy,
             "target_count": args.count,

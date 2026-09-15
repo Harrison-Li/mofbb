@@ -744,12 +744,14 @@ def main() -> None:
     completed, names = initialize_extension(
         connection, output, args.target
     )
+    max_output_atoms = int(bulk.meta(connection, "max_output_atoms", "0") or 0)
     config = core.GenerationConfig(
         manifest=manifest,
         topology_dir=(ROOT / "lib" / "topology").resolve(),
         output=output,
         count=args.target,
         seed=bulk.DEFAULT_SEED,
+        max_output_atoms=max_output_atoms,
         edge_conformer_filter="all",
         strict_symmetry=ACTIVE_SYMMETRY_MODE == "strict",
         strict_prefilter=True,

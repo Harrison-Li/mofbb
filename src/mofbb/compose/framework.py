@@ -6,6 +6,11 @@ from pathlib import Path
 import numpy as np
 from ase.cell import Cell
 
+from mofbb.compose.chemistry import (
+    add_fused_coordination,
+    nonmetal_neighbor_counts,
+    validate_coordination,
+)
 from mofbb.compose.connectivity import (
     bond_arrays,
     minimum_image_shifts,
@@ -199,6 +204,12 @@ class FrameworkAssembler:
 
     def build(self, info, *, wrap=True):
         """Return the final framework after removing all dummy X atoms."""
+        counts = np.concatenate(
+            [
+                block.validate_chemistry().nonmetal_counts
+                for block in self.blocks if block is not None
+            ]
+        )
         sizes = [0 if block is None else block.n_atoms for block in self.blocks]
         offsets = np.cumsum([0, *sizes[:-1]], dtype=int)
         block_bonds = np.concatenate(
@@ -228,6 +239,7 @@ class FrameworkAssembler:
             block_bond_types,
             connection_bonds,
             connection_shifts,
+            counts=counts,
         )
         self._validate_overlaps(atoms)
         framework = Framework(
@@ -277,9 +289,14 @@ class FrameworkAssembler:
                 f"X atoms {x_i}-{x_j} are {distance:.3f} Å apart."
             )
 
-    def _fuse_x_atoms(self, atoms, bonds, bond_types, x_pairs, x_shifts):
+    def _fuse_x_atoms(
+        self, atoms, bonds, bond_types, x_pairs, x_shifts, *, counts=None
+    ):
         symbols = np.asarray(atoms.get_chemical_symbols())
         is_x = symbols == "X"
+        if counts is None:
+            counts = nonmetal_neighbor_counts(atoms.numbers, bonds)
+            validate_coordination(atoms.numbers, counts, context="building blocks")
         new_indices = np.full(len(atoms), -1, dtype=int)
         new_indices[~is_x] = np.arange(np.count_nonzero(~is_x))
 
@@ -289,9 +306,19 @@ class FrameworkAssembler:
         for (atom_i, atom_j), bond_type in zip(bonds, bond_types, strict=True):
             atom_i = int(atom_i)
             atom_j = int(atom_j)
+            if is_x[atom_i] and is_x[atom_j]:
+                raise ValueError("Each X port must have exactly one real-atom anchor.")
             if is_x[atom_i]:
+                if atom_i in x_neighbors:
+                    raise ValueError(
+                        "Each X port must have exactly one real-atom anchor."
+                    )
                 x_neighbors[atom_i] = atom_j
             elif is_x[atom_j]:
+                if atom_j in x_neighbors:
+                    raise ValueError(
+                        "Each X port must have exactly one real-atom anchor."
+                    )
                 x_neighbors[atom_j] = atom_i
             else:
                 fused_bonds.append((atom_i, atom_j))
@@ -299,7 +326,18 @@ class FrameworkAssembler:
 
         # Internal bonds belong to finite, unwrapped building blocks.
         fused_shifts = [(0, 0, 0)] * len(fused_bonds)
+        consumed = set()
+        affected = set()
         for (x_i, x_j), shift in zip(x_pairs, x_shifts, strict=True):
+            if (
+                x_i == x_j
+                or x_i in consumed
+                or x_j in consumed
+                or x_i not in x_neighbors
+                or x_j not in x_neighbors
+            ):
+                raise ValueError("Fusion must use each anchored X port exactly once.")
+            consumed.update((x_i, x_j))
             atom_i, atom_j = x_neighbors[x_i], x_neighbors[x_j]
             symbol_i, symbol_j = symbols[atom_i], symbols[atom_j]
             if self.pbc.is_forbidden_fused_pair(symbol_i, symbol_j):
@@ -310,6 +348,14 @@ class FrameworkAssembler:
             fused_bonds.append((atom_i, atom_j))
             fused_bond_types.append("S")
             fused_shifts.append(shift)
+            add_fused_coordination(atoms.numbers, counts, atom_i, atom_j)
+            affected.update((atom_i, atom_j))
+
+        if consumed != set(np.flatnonzero(is_x)):
+            raise ValueError("Fusion must use each anchored X port exactly once.")
+        validate_coordination(
+            atoms.numbers, counts, context="assembly", indices=sorted(affected)
+        )
 
         failures = self.pbc.calc_fail_connection(
             atoms,

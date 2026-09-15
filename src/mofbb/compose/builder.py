@@ -118,6 +118,8 @@ class Builder:
                 raise ValueError(f"Building block at slot {slot} has the wrong number of X ports.")
             if require_3d:
                 block.validate_connectivity(scale)
+            else:
+                block.validate_chemistry()
         overlap_scale = float(overlap_scale)
         symmetry_tolerance = float(symmetry_tolerance)
         if permutations is None:

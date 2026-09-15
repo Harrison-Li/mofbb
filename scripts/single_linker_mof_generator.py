@@ -36,6 +36,7 @@ from threadpoolctl import threadpool_limits
 
 from mofbb.compose import Builder, BuildingBlock, Locator, Topology
 from mofbb.compose.connectivity import CONNECTIVITY_POLICY_VERSION, validate_3d_connectivity
+from mofbb.compose.linkers import SINGLE_LINKER_POLICY_VERSION, validate_single_linker
 from mofbb.compose.log import logger
 from mofbb.compose.locator import (
     PortAssignmentError,
@@ -74,6 +75,7 @@ class GenerationConfig:
     max_topology_slots: int = 30
     max_node_atoms: int = 120
     max_edge_atoms: int = 80
+    max_output_atoms: int = 0
     edge_conformer_filter: str = "all"
     max_rmsd: float = 0.60
     minimum_atom_distance: float = 0.50
@@ -897,6 +899,7 @@ def load_eligible_topologies(
     pools: dict[tuple[str, int, str], list[BlockRecord]],
     *,
     topology_mode: str = "binodal",
+    symmetry_mode: str = "strict",
 ) -> tuple[list[TopologyRecord], Counter[str]]:
     """Load topologies supported by the requested single-linker formulation.
 
@@ -907,6 +910,8 @@ def load_eligible_topologies(
 
     if topology_mode not in {"binodal", "uninodal"}:
         raise ValueError(f"unknown topology mode: {topology_mode}")
+    if symmetry_mode not in {"strict", "relaxed"}:
+        raise ValueError(f"unknown symmetry mode: {symmetry_mode}")
 
     records: list[TopologyRecord] = []
     skipped: Counter[str] = Counter()
@@ -989,8 +994,18 @@ def load_eligible_topologies(
                 continue
         else:
             site = record.node_sites[0]
-            if not node_records_for_site(pools, "metal_node", site):
-                skipped["missing_site_compatible_metal_pool"] += 1
+            if symmetry_mode == "strict":
+                if not node_records_for_site(pools, "metal_node", site):
+                    skipped["missing_site_compatible_metal_pool"] += 1
+                    continue
+            elif not pools.get(
+                ("metal_node", site.coordination, ALL_NODE_POINT_GROUP), ()
+            ):
+                # Relaxed placement does not require a block to reproduce the
+                # crystallographic site stabilizer, but coordination must still
+                # be supported.  The geometric RMSD gate is applied when the
+                # candidate space is prepared.
+                skipped["missing_relaxed_coordination_metal_pool"] += 1
                 continue
             self_edge = (site.node_type, site.node_type)
             if not record.edge_types or any(
@@ -998,15 +1013,19 @@ def load_eligible_topologies(
             ):
                 skipped["missing_required_self_edge"] += 1
                 continue
-            edge_pools, _ = strict_edge_compatible_pools(record, pools)
-            if any(
-                not edge_pools.get(
-                    ("edge", edge_type, 2, EDGE_POINT_GROUP),
-                    (),
-                )
-                for edge_type in record.edge_types
-            ):
-                skipped["missing_site_compatible_edge_pool"] += 1
+            if symmetry_mode == "strict":
+                edge_pools, _ = strict_edge_compatible_pools(record, pools)
+                if any(
+                    not edge_pools.get(
+                        ("edge", edge_type, 2, EDGE_POINT_GROUP),
+                        (),
+                    )
+                    for edge_type in record.edge_types
+                ):
+                    skipped["missing_site_compatible_edge_pool"] += 1
+                    continue
+            elif not pools.get(("edge", 2, EDGE_POINT_GROUP), ()):
+                skipped["missing_relaxed_edge_pool"] += 1
                 continue
         records.append(record)
     return records, skipped
@@ -1665,6 +1684,11 @@ def build_and_validate(
         raise ValueError("assembled framework contains no carbon")
     if not np.isfinite(atoms.positions).all() or atoms.cell.volume <= 0:
         raise ValueError("assembled framework has invalid coordinates or cell")
+    if config.max_output_atoms and len(atoms) > config.max_output_atoms:
+        raise ValueError(
+            f"assembled framework has {len(atoms)} atoms, exceeding the "
+            f"configured limit of {config.max_output_atoms}"
+        )
     connectivity = {}
     if config.require_3d_connectivity:
         connectivity = validate_3d_connectivity(atoms, minimum_distance_cutoff=3.0)
@@ -1678,6 +1702,7 @@ def build_and_validate(
             f"{config.minimum_atom_distance:.3f} A"
         )
 
+    linker_quality = validate_single_linker(atoms)
     framework.write_cif(cif_path)
     if not cif_path.is_file() or cif_path.stat().st_size == 0:
         raise ValueError("MOFBB did not write a nonempty CIF")
@@ -1694,6 +1719,7 @@ def build_and_validate(
 
     quality = {
         **connectivity,
+        **linker_quality,
         "num_atoms": len(atoms),
         "formula": atoms.get_chemical_formula(mode="metal"),
         "cell_parameters": [float(value) for value in atoms.cell.cellpar()],
@@ -1750,6 +1776,11 @@ def validate_staged_cif(
         or atoms.cell.volume <= 0
     ):
         raise ValueError("staged CIF has invalid coordinates or cell")
+    if config.max_output_atoms and len(atoms) > config.max_output_atoms:
+        raise ValueError(
+            f"staged CIF has {len(atoms)} atoms, exceeding the configured "
+            f"limit of {config.max_output_atoms}"
+        )
     connectivity = {}
     if config.require_3d_connectivity:
         connectivity = validate_3d_connectivity(atoms, minimum_distance_cutoff=3.0)
@@ -1759,6 +1790,7 @@ def validate_staged_cif(
         closest = float(distances.min()) if len(distances) else None
     if closest is not None and closest < config.minimum_atom_distance:
         raise ValueError("staged CIF fails minimum-distance validation")
+    linker_quality = validate_single_linker(atoms)
     max_rmsd = comment_value("# Max RMSD:")
     if max_rmsd is None or max_rmsd > config.max_rmsd:
         raise ValueError("staged CIF fails RMSD validation")
@@ -1767,6 +1799,7 @@ def validate_staged_cif(
         geometry_objective = comment_value("# Relax obj value:")
     return {
         **connectivity,
+        **linker_quality,
         "num_atoms": len(atoms),
         "formula": atoms.get_chemical_formula(mode="metal"),
         "cell_parameters": [float(value) for value in atoms.cell.cellpar()],
@@ -1806,11 +1839,13 @@ def validation_fingerprint(config: GenerationConfig) -> str:
 
     rules = {
         "version": RESUME_CHECKPOINT_VERSION,
+        "single_linker_policy": SINGLE_LINKER_POLICY_VERSION,
         "max_rmsd": config.max_rmsd,
         "minimum_atom_distance": config.minimum_atom_distance,
         "accuracy": config.accuracy,
         "symmetry_tolerance": config.symmetry_tolerance,
         "strict_symmetry": config.strict_symmetry,
+        "max_output_atoms": config.max_output_atoms,
     }
     if config.require_3d_connectivity:
         rules["connectivity_policy"] = CONNECTIVITY_POLICY_VERSION
@@ -2747,6 +2782,9 @@ def generate_topology_balanced(
                             and len(str(quality["cif_sha256"])) == 64
                             and quality.get("connectivity_policy_version")
                             == CONNECTIVITY_POLICY_VERSION
+                            and quality.get("single_linker_policy_version")
+                            == SINGLE_LINKER_POLICY_VERSION
+                            and quality.get("num_linker_types") == 1
                         )
                     except (KeyError, TypeError, ValueError):
                         trusted = False

@@ -190,6 +190,16 @@ def make_carbon_net(tmp_path, dimension):
     return topology_path, block_path
 
 
+@pytest.fixture
+def abstract_net_geometry_only(monkeypatch):
+    # The one-carbon cubic fixture is an abstract graph with six neighbors.
+    # Isolate these image/serialization tests from the coordination gate;
+    # test_chemistry verifies that production assembly rejects this graph.
+    monkeypatch.setattr(
+        "mofbb.compose.framework.validate_coordination", lambda *a, **k: None
+    )
+
+
 @pytest.mark.parametrize("dimension", [1, 2])
 def test_builder_rejects_low_dimensional_net_by_default(tmp_path, dimension):
     topology_path, block_path = make_carbon_net(tmp_path, dimension)
@@ -242,7 +252,7 @@ def test_provided_assignment_cannot_reuse_a_port(tmp_path):
 
 @pytest.mark.parametrize("insert_linker", [False, True])
 def test_assembly_uses_topology_images_even_when_slot_coordinates_are_unwrapped(
-    tmp_path, insert_linker,
+    tmp_path, insert_linker, abstract_net_geometry_only,
 ):
     topology_path, block_path = make_carbon_net(tmp_path, 3)
     if insert_linker:
@@ -278,7 +288,9 @@ def test_generator_excludes_layer_topologies_before_candidate_matching(tmp_path,
     classify.assert_not_called()
 
 
-def test_builder_preserves_real_3d_periodic_connections_and_rechecks_write(tmp_path):
+def test_builder_preserves_real_3d_periodic_connections_and_rechecks_write(
+    tmp_path, abstract_net_geometry_only,
+):
     topology_path, block_path = make_carbon_net(tmp_path, 3)
     framework = Builder().build_by_type(Topology(topology_path), {0: BuildingBlock(block_path)})
     assert framework.info["periodic_component_ranks"] == [3]
@@ -341,13 +353,19 @@ def test_staged_layer_cannot_be_recovered_as_an_accepted_sample(tmp_path, genera
 
 def test_staged_3d_sample_records_current_connectivity_policy(tmp_path, generator):
     path = tmp_path / "three_dimensional.cif"
-    write(path, cubic_atoms())
+    atoms = Atoms(
+        "ZnCCC", positions=[[0, 0, 0], [2, 0, 0], [0, 2, 0], [0, 0, 2]],
+        cell=[4] * 3, pbc=True,
+    )
+    write(path, atoms)
     path.write_text("# Max RMSD: 0.000\n" + path.read_text())
     config = generator.GenerationConfig(tmp_path / "manifest", tmp_path, tmp_path)
     quality = generator.validate_staged_cif(config, path)
     assert quality["periodic_component_ranks"] == [3]
     assert quality["connectivity_policy_version"] == generator.CONNECTIVITY_POLICY_VERSION
-    assert quality["minimum_atom_distance_angstrom"] == pytest.approx(1.4)
+    assert quality["minimum_atom_distance_angstrom"] == pytest.approx(2.0)
+    assert quality["num_linker_types"] == 1
+    assert quality["single_linker_policy_version"] == generator.SINGLE_LINKER_POLICY_VERSION
 
 
 @pytest.mark.parametrize("require_3d", [False, True])

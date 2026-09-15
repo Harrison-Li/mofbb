@@ -223,6 +223,10 @@ notebook/
 !/tests/test_inplace_solvent_cleaner.py
 !/tests/test_periodic_image_gauge.py
 !/tests/test_connectivity.py
+!/tests/test_chemistry.py
+!/tests/test_terminal_absorber.py
+!/tests/test_single_linker_validation.py
+!/tests/data/
 /experiments/*
 !/experiments/evaluate_decomposed_bb_roundtrip.py
 /diagnostics

@@ -166,6 +166,9 @@ rejects an assembly when any of these checks fails:
 - a new fused bond directly joins carbon to a metal;
 - a new fused bond directly joins two metals (existing bonds inside a supplied
   metal building block are retained);
+- a screened atom exceeds its ordinary nonmetal-neighbor limit: H/F 1,
+  B/N 3, C 4, or O 2;
+- an X site has no unique real-atom anchor or is not paired exactly once;
 - paired `X` atoms are more than `0.3 Å` apart in their declared topology images;
 - a fused bond is longer than `1.2` times the sum of the ASE covalent radii;
 - two real atoms are closer than their smaller ASE covalent radius under the
@@ -178,6 +181,23 @@ CIF writing. A bond to a periodic image of the same atom is retained as a
 nonzero-image bond. A final connectivity assertion checks the assembled
 geometry, and CIF writing checks the rounded coordinates before opening the
 output file.
+
+Coordination screening uses only elements and connectivity. Known nonmetal
+neighbors are checked by `BuildingBlock.validate_chemistry()` and
+`validate_connectivity()` before placement (including generator library
+loading). Graph analysis is cached in memory by atom and bond content, so
+rotations and copies reuse it while graph edits invalidate it. X is an unknown
+partner until fusion; the assembler then checks the resulting counts at all
+affected anchors together. Metal neighbors do not consume this nonmetal count.
+Anchor–X and fused bonds remain `S`; no charge records or new file fields are
+required.
+
+This is a conservative generation filter, not a neutrality or stability test.
+It excludes some valid ionic, donor-adduct, or multicenter environments and
+does not fully validate elements outside the listed limits. For example,
+four-coordinate B is excluded even if a metal is elsewhere in the block; the
+algorithm does not infer that metal's oxidation state or charge compensation.
+Exact source reconstruction remains available for such structures.
 
 These thresholds can be adjusted with `--x-mid-tolerance` and
 `--fused-bond-scale`, and `--atomic-overlap-scale`; setting the last option to
@@ -213,6 +233,29 @@ include the connectivity policy, so a fresh output folder is required when
 moving from the previous policy; old accepted database rows are not silently
 treated as validated 3D structures. Running generator processes must be
 restarted to load the updated code.
+
+The generators additionally require exactly one complete organic linker type
+after cutting metal–nonmetal bonds in the assembled periodic structure. Selecting
+one organic node and one edge block is insufficient: organic fragments retained
+inside a metal block can form another linker when assembled. The check compares
+canonical element-labeled molecular connectivity, including hydrogens, rather
+than block names or molecular formulas. Conformation, binding mode, bond order,
+and stereochemistry are not distinguished by this graph screen.
+
+Here a linker is a finite carbon-containing nonmetal component contacting at
+least two distinct metal atom images. Periodic images of the same metal count
+separately. Free molecules, ligands attached to only one metal image, and
+carbon-free components are excluded; ligands coordinating several metals within
+one SBU are counted conservatively. An infinite organic component is rejected.
+Both new builds and recovered staging CIFs are checked using current coordinates.
+The linker policy is part of the run/checkpoint fingerprint, so old bulk runs
+require a fresh output folder; existing datasets need a separate audit.
+
+To check an existing CIF without changing it, run:
+
+```bash
+python -m mofbb.compose.validate --single-linker path/to/framework.cif
+```
 
 ## Python API
 
@@ -315,6 +358,15 @@ The metadata distinguishes two coordination views:
 For example, a fragment can have six physical `X` sites grouped into two
 logical ports of size three. Its exact reconstruction uses all six sites, while
 its logical role is two-connected.
+
+Terminal cleanup merges a fragment into its sole neighboring fragment when
+restoring their cut bonds produces a finite unit in one periodic image. This
+applies to metal nodes, organic nodes, and edges, and repeats along terminal
+branches. A merged unit containing a metal node retains a metal-node identity.
+The source atoms and bonds are retained, internal X pairs disappear, and the
+remaining topology and ports are recomputed. Distinct neighbor images and
+periodic self-connections are preserved; bound solvent in `free` mode stays
+separate. This boundary cleanup does not assert or force charge neutrality.
 
 Files under `bbs/` are fingerprint-group representatives intended for
 inspection and library matching. Equivalent instances can use different local

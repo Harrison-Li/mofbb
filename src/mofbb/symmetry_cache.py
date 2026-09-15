@@ -184,7 +184,9 @@ def classify_block(
 ) -> dict[str, object]:
     """Classify a candidate by graph symmetry and attach geometry diagnostics.
 
-    File-integrity and analysis failures propagate to the caller.
+    File-integrity failures propagate to the caller.  Structurally malformed
+    blocks are recorded as rejected cache rows so that one bad library entry
+    cannot abort classification of the complete library.
     """
 
     candidate = _coerce_candidate(item)
@@ -197,10 +199,14 @@ def classify_block(
         )
 
     row = _base_row(candidate, actual_sha256)
-    block = BuildingBlock(path)
-    row["connection_anchor_symbols"] = _compact_json(
-        block.connection_point_anchor_symbols
-    )
+    try:
+        block = BuildingBlock(path)
+        row["connection_anchor_symbols"] = _compact_json(
+            block.connection_point_anchor_symbols
+        )
+    except ValueError as error:
+        row["classification_error"] = f"{type(error).__name__}: {error}"
+        return row
 
     if block.n_connection_points != candidate.coordination:
         row["classification_status"] = "coordination_mismatch"
@@ -210,7 +216,11 @@ def classify_block(
         )
         return row
 
-    graph = analyze_port_graph_symmetry(block)
+    try:
+        graph = analyze_port_graph_symmetry(block)
+    except ValueError as error:
+        row["classification_error"] = f"{type(error).__name__}: {error}"
+        return row
 
     row.update(
         {
