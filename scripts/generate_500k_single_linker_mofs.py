@@ -130,7 +130,7 @@ def make_space(
                         (kind, site.coordination, core.ALL_NODE_POINT_GROUP),
                         (),
                     )
-                    if len(topology.node_sites) == 1
+                    if len(topology.node_sites) == 1 or config.relaxed_all_node_shapes
                     else core.node_records_for_site(working, kind, site)
                 )
                 for block in records:
@@ -586,6 +586,8 @@ def fingerprint(
     }
     if config.require_3d_connectivity:
         settings["connectivity_policy"] = core.CONNECTIVITY_POLICY_VERSION
+    if config.relaxed_all_node_shapes:
+        settings["relaxed_all_node_shapes"] = "coordination_plus_rmsd_batched_pose_v2"
     settings.update({
         "seed": config.seed,
         "max_topology_slots": config.max_topology_slots,
@@ -607,7 +609,7 @@ def fingerprint(
                 "per_topology_count": per_topology_count,
             }
         )
-    if topology_mode == "uninodal":
+    if topology_mode in {"uninodal", "both"}:
         settings.update(
             {
                 "uninodal_formulation": "metal_node_required_self_edge_v1",
@@ -1415,11 +1417,11 @@ def arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--topology-mode",
-        choices=("binodal", "uninodal"),
+        choices=("binodal", "uninodal", "both"),
         default="binodal",
         help=(
             "binodal: metal node + organic node; uninodal: metal node + "
-            "required organic self-edge linker"
+            "required organic self-edge linker; both: include all three constructions"
         ),
     )
     parser.add_argument(
@@ -1452,11 +1454,19 @@ def arguments() -> argparse.Namespace:
         help="start a new output in strict or relaxed generation",
     )
     parser.add_argument("--output", type=Path, default=ROOT / "2m_mofs")
+    parser.add_argument("--library", type=Path, default=ROOT / "lib",
+                        help="building-block library with manifest and topology directory")
+    parser.add_argument("--symmetry-cache", type=Path,
+                        help="optional symmetry cache; custom libraries default to an output-local cache")
     parser.add_argument("--progress-interval", type=positive, default=30)
     parser.add_argument(
         "--relax-after-strict-exhaustion",
         action="store_true",
         help="open relaxed queues only after every strict queue is exhausted",
+    )
+    parser.add_argument(
+        "--relaxed-all-node-shapes", action="store_true",
+        help="in relaxed mode, try all coordination-compatible node shapes, retaining geometry checks",
     )
     args = parser.parse_args()
     if args.count is None and args.per_topology_count is None:
@@ -1473,7 +1483,12 @@ def main() -> None:
         raise FileExistsError(f"nonempty non-resumable output directory: {output}")
     output.mkdir(parents=True, exist_ok=True)
 
-    library = (ROOT / "lib").resolve()
+    library = args.library.expanduser().resolve()
+    symmetry_cache = (
+        args.symmetry_cache.expanduser().resolve() if args.symmetry_cache else
+        (ROOT / "generated/building_block_symmetry_cache").resolve()
+        if library == (ROOT / "lib").resolve() else output / ".symmetry_cache"
+    )
     manifest = output / "block_symmetry_manifest.csv"
     if database.is_file():
         if not manifest.is_file():
@@ -1488,7 +1503,7 @@ def main() -> None:
         manifest = write_symmetry_manifest(
             library,
             output,
-            (ROOT / "generated/building_block_symmetry_cache").resolve(),
+            symmetry_cache,
             args.workers,
         )
     config = core.GenerationConfig(
@@ -1502,6 +1517,7 @@ def main() -> None:
         edge_conformer_filter="all",
         strict_symmetry=False,
         strict_prefilter=True,
+        relaxed_all_node_shapes=args.relaxed_all_node_shapes,
         require_3d_connectivity=args.connectivity_policy == "current",
         attempt_batch_size=ATTEMPT_BATCH,
         worker_memory_limit_gib=WORKER_MEMORY_GIB,

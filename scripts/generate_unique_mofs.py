@@ -132,6 +132,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, add_help=False)
     parser.add_argument('--history', type=Path, action='append')
     parser.add_argument('--check-history', action='store_true')
+    parser.add_argument('--substitution-plan', type=Path,
+                        help='generate graph-distinct hypothetical metal substitutions on a checked mofbb template')
     args, forwarded = parser.parse_known_args()
     paths = []
     for path in args.history or [DEFAULT_HISTORY]:
@@ -156,6 +158,13 @@ def main():
             raise ValueError('History inputs changed on resume; keep the original history or use a fresh output.')
         if (output / 'generation.sqlite3').exists() and not ledger.exists():
             raise ValueError('Existing output was not started by this launcher; use a fresh output.')
+    if args.substitution_plan is not None:
+        from generate_metal_substitution_mofs import run_substitutions
+        try:
+            run_substitutions(args.substitution_plan, forwarded, index, paths)
+        finally:
+            index.close()
+        return
     bulk.init_build_worker = init_build_worker
     bulk.candidate_at = candidate_at
     bulk.persist = persist

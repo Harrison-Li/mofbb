@@ -24,6 +24,8 @@ import shutil
 import tempfile
 from typing import Iterable, NamedTuple
 
+import numpy as np
+
 from pymatgen.core import Molecule
 from pymatgen.symmetry.analyzer import PointGroupAnalyzer
 from threadpoolctl import threadpool_limits
@@ -179,6 +181,14 @@ def _coerce_candidate(
     return LibraryCandidate(*item)
 
 
+def _diagnostic_coordinates(positions):
+    """Resolve short dummy vectors without moving any assembly coordinates."""
+    positions = np.asarray(positions, dtype=float)
+    centered = positions - positions.mean(axis=0)
+    extent = float(np.linalg.norm(centered, axis=1).max())
+    return centered / extent if 0 < extent < 1.0 else positions
+
+
 def classify_block(
     item: LibraryCandidate | tuple[str, str, str, int, int, str, str],
 ) -> dict[str, object]:
@@ -248,40 +258,58 @@ def classify_block(
     if row["classification_status"] != "complete":
         return row
 
-    port_analyzer = PointGroupAnalyzer(
-        Molecule(
-            ["He"] * block.n_connection_points,
-            block.connection_points,
-        ),
-        tolerance=POINT_GROUP_TOLERANCE,
-        eigen_tolerance=POINT_GROUP_EIGEN_TOLERANCE,
-        matrix_tolerance=POINT_GROUP_MATRIX_TOLERANCE,
-    )
-    row["port_point_group"] = port_analyzer.sch_symbol
-    port_action = point_group_port_action(port_analyzer, tolerance=float("inf"))
-    row["port_point_group_action_order"] = len(port_action.permutations)
-    row["port_point_group_permutations"] = _compact_json(port_action.permutations)
-    row["port_point_group_max_mapping_residual"] = (
-        f"{port_action.max_residual:.12g}"
-    )
-    row["graph_supports_port_point_group"] = _bool_field(
-        graph.supports_all(port_action.permutations)
-    )
+    try:
+        port_analyzer = PointGroupAnalyzer(
+            Molecule(
+                ["He"] * block.n_connection_points,
+                _diagnostic_coordinates(block.connection_points),
+            ),
+            tolerance=POINT_GROUP_TOLERANCE,
+            eigen_tolerance=POINT_GROUP_EIGEN_TOLERANCE,
+            matrix_tolerance=POINT_GROUP_MATRIX_TOLERANCE,
+        )
+        row["port_point_group"] = port_analyzer.sch_symbol
+        port_action = point_group_port_action(port_analyzer, tolerance=float("inf"))
+        row["port_point_group_action_order"] = len(port_action.permutations)
+        row["port_point_group_permutations"] = _compact_json(port_action.permutations)
+        row["port_point_group_max_mapping_residual"] = (
+            f"{port_action.max_residual:.12g}"
+        )
+        row["graph_supports_port_point_group"] = _bool_field(
+            graph.supports_all(port_action.permutations)
+        )
+    except ValueError as error:
+        row["port_point_group"] = "C1"
+        row["port_point_group_action_order"] = 1
+        row["port_point_group_permutations"] = _compact_json([list(range(block.n_connection_points))])
+        row["port_point_group_max_mapping_residual"] = "0"
+        row["graph_supports_port_point_group"] = _bool_field(True)
+        row["classification_error"] = f"Port diagnostic identity fallback: {error}"
 
     symbols = [
         "He" if symbol == "X" else symbol
         for symbol in block.atoms.get_chemical_symbols()
     ]
-    conformer_analyzer = PointGroupAnalyzer(
-        Molecule(symbols, block.atoms.positions),
-        tolerance=POINT_GROUP_TOLERANCE,
-        eigen_tolerance=POINT_GROUP_EIGEN_TOLERANCE,
-        matrix_tolerance=POINT_GROUP_MATRIX_TOLERANCE,
-    )
-    conformer_group = conformer_analyzer.sch_symbol
-    row["molecular_point_group"] = conformer_group
-    row["conformer_point_group"] = conformer_group
-    row["point_group_diagnostic_status"] = "complete"
+    try:
+        conformer_analyzer = PointGroupAnalyzer(
+            Molecule(symbols, _diagnostic_coordinates(block.atoms.positions)),
+            tolerance=POINT_GROUP_TOLERANCE,
+            eigen_tolerance=POINT_GROUP_EIGEN_TOLERANCE,
+            matrix_tolerance=POINT_GROUP_MATRIX_TOLERANCE,
+        )
+        conformer_group = conformer_analyzer.sch_symbol
+        row["molecular_point_group"] = conformer_group
+        row["conformer_point_group"] = conformer_group
+        row["point_group_diagnostic_status"] = (
+            "port_identity_fallback" if row["classification_error"] else "complete"
+        )
+    except ValueError as error:
+        # Identity is a conservative subgroup when coordinate diagnostics fail.
+        # Keep the successfully classified graph and port action for relaxed P1.
+        row["molecular_point_group"] = "C1"
+        row["conformer_point_group"] = "C1"
+        row["point_group_diagnostic_status"] = "conformer_identity_fallback"
+        row["classification_error"] = f"Conformer diagnostic: {error}"
     return row
 
 
@@ -310,6 +338,10 @@ def library_candidates(library: Path) -> list[LibraryCandidate]:
                 or coordination > MAX_NODE_COORDINATION
                 or num_atoms > MAX_NODE_ATOMS
             ):
+                continue
+            candidate_path = library / row["path"]
+            if not candidate_path.is_file():
+                print(f"skipped_missing_building_block={candidate_path}", flush=True)
                 continue
             candidates.append(
                 LibraryCandidate(

@@ -254,40 +254,44 @@ class BuildingBlock:
         return _unit_vector(transverse, "a transverse gauge axis")
 
     @property
+    def connection_point_anchor_groups(self):
+        """Real anchors per port: one atom, or a bidentate oxygen pair."""
+        groups = []
+        numbers = self.atoms.numbers
+        for x in self.connection_point_indices:
+            neighbors = tuple(int(b if a == x else a)
+                              for a, b in self.bonds if a == x or b == x)
+            valid = (len(neighbors) == 1 and numbers[neighbors[0]] != 0) or (
+                len(neighbors) == 2 and all(numbers[i] == 8 for i in neighbors)
+            )
+            if not valid:
+                raise ValueError("Each X port must have exactly one real-atom anchor "
+                                 "or two oxygen anchors.")
+            groups.append(neighbors)
+        return tuple(groups)
+
+    @property
     def connection_point_anchor_indices(self):
-        """Real-atom index bonded to each X connection point."""
-        anchors = []
-        symbols = self.atoms.get_chemical_symbols()
-        for x_index in self.connection_point_indices:
-            neighbors = []
-            for left, right in self.bonds:
-                if left == x_index:
-                    neighbors.append(int(right))
-                elif right == x_index:
-                    neighbors.append(int(left))
-            if len(neighbors) != 1 or symbols[neighbors[0]] == "X":
-                raise ValueError(
-                    f"Connection point X{int(x_index)} in {self.name!r} must "
-                    "have exactly one real-atom anchor."
-                )
-            anchors.append(neighbors[0])
-        return np.asarray(anchors, dtype=int)
+        """Single anchors only; paired ports must use anchor_groups explicitly."""
+        groups = self.connection_point_anchor_groups
+        if any(len(g) != 1 for g in groups):
+            raise ValueError("Paired oxygen ports do not have a single anchor index.")
+        return np.asarray([g[0] for g in groups], dtype=int)
 
     @property
     def connection_point_anchor_lengths(self):
-        """Distance from each X connection point to its real-atom anchor."""
-        anchors = self.connection_point_anchor_indices
-        return np.linalg.norm(
-            self.connection_points - self.atoms.positions[anchors], axis=1
-        )
+        """Maximum X-to-anchor distance, a conservative bound for paired sites."""
+        return np.asarray([
+            max(np.linalg.norm(point - self.atoms.positions[i]) for i in group)
+            for point, group in zip(self.connection_points,
+                                    self.connection_point_anchor_groups, strict=True)
+        ])
 
     @property
     def connection_point_anchor_symbols(self):
-        """Chemical symbol of the real-atom anchor for each X point."""
+        """Anchor element; both anchors of a paired port are oxygen."""
         symbols = self.atoms.get_chemical_symbols()
-        return tuple(
-            symbols[index] for index in self.connection_point_anchor_indices
-        )
+        return tuple(symbols[group[0]] for group in self.connection_point_anchor_groups)
 
     @cached_property
     def port_descriptors(self):

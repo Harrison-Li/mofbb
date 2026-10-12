@@ -84,6 +84,7 @@ class GenerationConfig:
     symmetry_tolerance: float = 0.1
     strict_symmetry: bool = False
     strict_prefilter: bool = True
+    relaxed_all_node_shapes: bool = False
     max_candidates_per_topology: int = 2_500
     direct_candidate_cap: int = 0
     candidate_scan_multiplier: int = 20
@@ -906,8 +907,19 @@ def load_eligible_topologies(
     ``binodal`` retains the historical formulation of one metal node and one
     organic node, with an optional edge block.  ``uninodal`` uses one metal
     node and requires an organic linker on the topology's self-edge.
+    ``both`` includes both topology families and all three constructions.
     """
 
+    if topology_mode == "both":
+        uninodal, skipped_uninodal = load_eligible_topologies(
+            config, pools, topology_mode="uninodal", symmetry_mode=symmetry_mode
+        )
+        binodal, skipped_binodal = load_eligible_topologies(
+            config, pools, topology_mode="binodal", symmetry_mode=symmetry_mode
+        )
+        skipped = Counter({f"uninodal:{k}": v for k, v in skipped_uninodal.items()})
+        skipped.update({f"binodal:{k}": v for k, v in skipped_binodal.items()})
+        return uninodal + binodal, skipped
     if topology_mode not in {"binodal", "uninodal"}:
         raise ValueError(f"unknown topology mode: {topology_mode}")
     if symmetry_mode not in {"strict", "relaxed"}:
@@ -982,6 +994,21 @@ def load_eligible_topologies(
             skipped["point_group_classification"] += 1
             continue
         if topology_mode == "binodal":
+            if symmetry_mode == "relaxed" and config.relaxed_all_node_shapes:
+                # P1 fallback need not reproduce a special site's point group.
+                # Coordination is the eligibility gate; make_space still applies
+                # the normal port-fit RMSD and the Builder validates assembly.
+                if not any(
+                    metal.node_type != organic.node_type
+                    and pools.get(("metal_node", metal.coordination, ALL_NODE_POINT_GROUP))
+                    and pools.get(("organic_node", organic.coordination, ALL_NODE_POINT_GROUP))
+                    for metal in record.node_sites
+                    for organic in record.node_sites
+                ):
+                    skipped["no_relaxed_coordination_assignment"] += 1
+                    continue
+                records.append(record)
+                continue
             if not all(
                 node_records_for_site(pools, "metal_node", site)
                 or node_records_for_site(pools, "organic_node", site)

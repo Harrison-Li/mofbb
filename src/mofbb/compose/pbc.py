@@ -153,7 +153,7 @@ class PBC:
         cls,
         atoms,
         x_pairs: list[tuple[int, int]],
-        x_neighbors: dict[int, int],
+        x_neighbors: dict[int, int | list[int]],
         scale: float | None = None,
         *,
         shifts=None,
@@ -163,16 +163,16 @@ class PBC:
             scale = cls.scale
 
         atom_pairs = []
-        for x_i, x_j in x_pairs:
-            atom_i = x_neighbors[x_i]
-            atom_j = x_neighbors[x_j]
-            atom_pairs.append((atom_i, atom_j))
-
-        pair_indices = np.asarray(atom_pairs, dtype=int).reshape(-1, 2)
-        # The paired caps identify the intended atom images. Recomputing a
-        # minimum image on real anchors collapses periodic self-bonds to zero.
+        expanded_shifts = []
         if shifts is None:
             shifts = minimum_image_shifts(atoms, x_pairs)
+        for (x_i, x_j), shift in zip(x_pairs, shifts, strict=True):
+            for atom_i in np.atleast_1d(x_neighbors[x_i]):
+                for atom_j in np.atleast_1d(x_neighbors[x_j]):
+                    atom_pairs.append((int(atom_i), int(atom_j)))
+                    expanded_shifts.append(shift)
+        pair_indices = np.asarray(atom_pairs, dtype=int).reshape(-1, 2)
+        shifts = np.asarray(expanded_shifts, dtype=int).reshape(-1, 3)
         distances = cls._pair_distances(atoms, atom_pairs, shifts)
         radii = covalent_radii[atoms.numbers]
         limits = scale * (
@@ -229,8 +229,8 @@ class PBC:
     def connection_port(
         bb,  # building block
         x_index: int,
-    ) -> tuple[str, int, float]:
-        """Return an X site's anchor symbol, anchor index, and cap length."""
+    ) -> tuple[str, int | tuple[int, ...], float]:
+        """Return anchor element, index or paired indices, and maximum cap length."""
         x_indices = np.asarray(
             bb.connection_point_indices
         )
@@ -244,9 +244,8 @@ class PBC:
             )
 
         port_index = int(matches[0])
-        anchor_index = int(
-            bb.connection_point_anchor_indices[port_index]
-        )
+        group = bb.connection_point_anchor_groups[port_index]
+        anchor_index = group[0] if len(group) == 1 else group
 
         symbol, cap_length = bb.port_descriptors[port_index]
         return symbol, anchor_index, float(cap_length)

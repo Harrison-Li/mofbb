@@ -80,7 +80,12 @@ def _coordination_profile(number_bytes, bond_bytes):
 
     is_x = numbers == 0
     degrees = np.bincount(bonds.ravel(), minlength=len(numbers))
-    if np.any(degrees[is_x] != 1) or np.any(is_x[bonds].all(axis=1)):
+    paired = np.zeros(len(numbers), dtype=bool)
+    for x in np.flatnonzero(is_x & (degrees == 2)):
+        neighbors = bonds[np.any(bonds == x, axis=1)]
+        anchors = neighbors[neighbors != x]
+        paired[x] = len(anchors) == 2 and np.all(numbers[anchors] == 8)
+    if np.any((degrees[is_x] != 1) & ~paired[is_x]) or np.any(is_x[bonds].all(axis=1)):
         raise ValueError("Each X port must have exactly one real-atom anchor.")
     counts = nonmetal_neighbor_counts(numbers, bonds)
     counts.setflags(write=False)

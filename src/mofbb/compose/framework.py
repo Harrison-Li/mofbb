@@ -309,17 +309,9 @@ class FrameworkAssembler:
             if is_x[atom_i] and is_x[atom_j]:
                 raise ValueError("Each X port must have exactly one real-atom anchor.")
             if is_x[atom_i]:
-                if atom_i in x_neighbors:
-                    raise ValueError(
-                        "Each X port must have exactly one real-atom anchor."
-                    )
-                x_neighbors[atom_i] = atom_j
+                x_neighbors.setdefault(atom_i, []).append(atom_j)
             elif is_x[atom_j]:
-                if atom_j in x_neighbors:
-                    raise ValueError(
-                        "Each X port must have exactly one real-atom anchor."
-                    )
-                x_neighbors[atom_j] = atom_i
+                x_neighbors.setdefault(atom_j, []).append(atom_i)
             else:
                 fused_bonds.append((atom_i, atom_j))
                 fused_bond_types.append(bond_type)
@@ -338,18 +330,27 @@ class FrameworkAssembler:
             ):
                 raise ValueError("Fusion must use each anchored X port exactly once.")
             consumed.update((x_i, x_j))
-            atom_i, atom_j = x_neighbors[x_i], x_neighbors[x_j]
-            symbol_i, symbol_j = symbols[atom_i], symbols[atom_j]
-            if self.pbc.is_forbidden_fused_pair(symbol_i, symbol_j):
-                raise ValueError(
-                    "Forbidden fused-bond chemistry rejected assembly: "
-                    f"new {symbol_i}-{symbol_j} bond."
-                )
-            fused_bonds.append((atom_i, atom_j))
-            fused_bond_types.append("S")
-            fused_shifts.append(shift)
-            add_fused_coordination(atoms.numbers, counts, atom_i, atom_j)
-            affected.update((atom_i, atom_j))
+            left, right = x_neighbors[x_i], x_neighbors[x_j]
+            if len(left) > 1 or len(right) > 1:
+                pair, single = (left, right) if len(left) > 1 else (right, left)
+                from pymatgen.core import Element
+                if (len(pair) != 2 or len(single) != 1
+                        or any(symbols[i] != "O" for i in pair)
+                        or not Element(symbols[single[0]]).is_metal):
+                    raise ValueError("A paired oxygen port must join one metal anchor.")
+            for atom_i in left:
+                for atom_j in right:
+                    symbol_i, symbol_j = symbols[atom_i], symbols[atom_j]
+                    if self.pbc.is_forbidden_fused_pair(symbol_i, symbol_j):
+                        raise ValueError(
+                            "Forbidden fused-bond chemistry rejected assembly: "
+                            f"new {symbol_i}-{symbol_j} bond."
+                        )
+                    fused_bonds.append((atom_i, atom_j))
+                    fused_bond_types.append("S")
+                    fused_shifts.append(shift)
+                    add_fused_coordination(atoms.numbers, counts, atom_i, atom_j)
+                    affected.update((atom_i, atom_j))
 
         if consumed != set(np.flatnonzero(is_x)):
             raise ValueError("Fusion must use each anchored X port exactly once.")

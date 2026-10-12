@@ -84,39 +84,50 @@ class FixedCellPoseFitter:
         rotation_ids, frames, rotation_count = self.params()
         move_ids, move_count = self.moves()
         rotation_size = 3 * rotation_count
+        slots = job.slot_indices
+        frame_transposes = np.asarray([frames[slot].T for slot in slots])
+        rotation_variables = np.asarray([rotation_ids[slot] for slot in slots])
+        rotation_frames = frame_transposes * np.asarray(
+            [round(np.linalg.det(frames[slot])) for slot in slots]
+        )[:, None, None]
+        move_slots = np.asarray([job.slot_offsets[slot] for slot in move_ids], dtype=int)
+        move_variables = np.asarray(list(move_ids.values()), dtype=int)
+        left_slots = np.asarray([job.slot_offsets[c[0]] for c in job.connections])
+        right_slots = np.asarray([job.slot_offsets[c[2]] for c in job.connections])
+        images = np.asarray([c[4] for c in job.connections])
+        point_offsets = np.cumsum([0, *[len(p) for p in points]])
+        left_points = np.asarray([
+            point_offsets[job.slot_offsets[left]] + perms[left][left_x]
+            for left, left_x, _, _, _ in job.connections
+        ])
+        right_points = np.asarray([
+            point_offsets[job.slot_offsets[right]] + perms[right][right_x]
+            for _, _, right, right_x, _ in job.connections
+        ])
+        point_vectors = np.concatenate(points)
+        center_positions = np.asarray(centers)
 
         def rotations(values):
             raw = values[:rotation_size].reshape(-1, 3)
             return Rotation.from_rotvec(
-                [
-                    round(np.linalg.det(frames[slot]))
-                    * frames[slot].T
-                    @ raw[rotation_ids[slot]]
-                    for slot in job.slot_indices
-                ]
+                np.einsum("nij,nj->ni", rotation_frames, raw[rotation_variables])
             )
 
         def residual(values):
             fitted = rotations(values)
             moves = np.zeros((len(job.slot_indices), 3))
             raw = values[rotation_size:].reshape(-1, 3)
-            for slot, variable in move_ids.items():
-                moves[job.slot_offsets[slot]] = frames[slot].T @ raw[variable]
-            return np.asarray(
-                [
-                    centers[job.slot_offsets[right]]
-                    + moves[job.slot_offsets[right]]
-                    + image
-                    + fitted[job.slot_offsets[right]].apply(
-                        points[job.slot_offsets[right]][perms[right][right_x]]
-                    )
-                    - centers[job.slot_offsets[left]]
-                    - moves[job.slot_offsets[left]]
-                    - fitted[job.slot_offsets[left]].apply(
-                        points[job.slot_offsets[left]][perms[left][left_x]]
-                    )
-                    for left, left_x, right, right_x, image in job.connections
-                ]
+            moves[move_slots] = np.einsum(
+                "nij,nj->ni", frame_transposes[move_slots], raw[move_variables]
+            )
+            return (
+                center_positions[right_slots]
+                + moves[right_slots]
+                + images
+                + fitted[right_slots].apply(point_vectors[right_points])
+                - center_positions[left_slots]
+                - moves[left_slots]
+                - fitted[left_slots].apply(point_vectors[left_points])
             ).ravel()
 
         result = scipy.optimize.least_squares(
@@ -131,6 +142,9 @@ class FixedCellPoseFitter:
         raw = result.x[rotation_size:].reshape(-1, 3)
         for slot, variable in move_ids.items():
             centers[job.slot_offsets[slot]] += frames[slot].T @ raw[variable]
+        # The final gap calculation uses the newly rotated points and centers.
+        point_vectors = np.concatenate(points)
+        center_positions = np.asarray(centers)
         gaps = np.linalg.norm(residual(np.zeros_like(result.x)).reshape(-1, 3), axis=1)
         return result, gaps, atom_pos, points
 
