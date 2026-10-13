@@ -3,6 +3,12 @@
 Extract reusable building blocks from metal–organic frameworks (MOFs) and
 assemble them into new MOFs with this Python toolkit.
 
+<p align="center">
+
+  <img src="assets/workflow.png" alt="mofbb workflow">
+
+</p>
+
 ## Install
 
 Requires **Python 3.10+**. Run from the repository directory:
