@@ -34,6 +34,17 @@ Outputs include metal nodes, organic nodes, and linker edges as XYZ files:
 Cut bonds are capped with dummy `X` atoms for assembly. Solvent is kept by
 default; add `--solvent-mode free` or `--solvent-mode all` to remove it.
 
+
+
+
+> [!NOTE]
+>
+> You can either extract the building blocks with your dataset, or directly build MOFs with our curated building blocks library:
+> https://huggingface.co/datasets/Harrison-Li/BMOFs
+> 
+> We also provided the balanced hypothetical MOFs (bMOFs): Release in a few days.
+
+
 ## Build a new MOF
 
 Choose a CGD topology and your building blocks. Replace these example filenames
