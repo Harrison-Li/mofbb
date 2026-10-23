@@ -1,1 +1,1 @@
-"""Assignment, symmetry screening, fixed-cell fitting, and placement stages."""
+"""Port assignment, symmetry constraints, and rigid-block placement."""

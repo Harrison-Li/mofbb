@@ -11,7 +11,7 @@ import networkx as nx
 import numpy as np
 from pymatgen.core import Element
 
-from mofbb.compose.connectivity import bond_arrays, minimum_image_shifts
+from mofbb.compose.connectivity import bond_arrays, mic_shifts
 from mofbb.decompose.pbc import PeriodicBond, analyze_component
 
 
@@ -74,7 +74,7 @@ def analyze_linker_types(atoms, bonds=None, bond_shifts=None, *, bond_scale=1.2)
         keep = (i <= j) & ~(metals[i] & metals[j])
         bonds, bond_shifts = np.column_stack((i[keep], j[keep])), shifts[keep]
     elif bond_shifts is None:
-        bond_shifts = minimum_image_shifts(atoms, bonds)
+        bond_shifts = mic_shifts(atoms, bonds)
     bonds, shifts = bond_arrays(len(atoms), bonds, bond_shifts)
 
     organic = nx.Graph()

@@ -30,49 +30,46 @@ class StabilizerFit:
     def __init__(self, symmetry):
         self.symmetry = symmetry
 
-    def diagnose(self, orbit, block, permutation, cell, tolerance):
-        if tolerance <= 0:
-            raise ValueError("Stabilizer tolerance must be positive.")
+    def diagnose(self, orbit, block, perm, cell, tolerance):
         positions = block.atoms.positions - block.centroid
         symbols = np.asarray(block.atoms.get_chemical_symbols())
-        ports = np.asarray(block.connection_point_indices, int)
-        permutation = np.asarray(permutation, int)
+        ports = np.asarray(block.port_idx, int)
+        perm = np.asarray(perm, int)
         atom_error = port_error = 0.0
-        for raw_operation in orbit.stabilizers:
-            operation = int(raw_operation)
+        for operation in orbit.stabilizers:
             moved = positions @ self.symmetry.transform(operation, cell)
             atom_error = max(atom_error, self.species_error(moved, positions, symbols))
             offsets = self.symmetry.offset_map(
                 orbit.representative, orbit.representative, operation
             )
-            source = ports[permutation]
-            target = ports[permutation[offsets]]
+            source = ports[perm]
+            target = ports[perm[offsets]]
             errors = np.linalg.norm(moved[source] - positions[target], axis=1)
-            port_error = max(port_error, float(np.max(errors, initial=0)))
+            port_error = max(port_error, np.max(errors, initial=0))
         return {
             "tag": int(orbit.tag),
             "representative": int(orbit.representative),
-            "orbit_size": int(len(orbit.members)),
-            "stabilizer_order": int(len(orbit.stabilizers)),
+            "orbit_size": len(orbit.members),
+            "stabilizer_order": len(orbit.stabilizers),
             "tolerance": float(tolerance),
             "max_atom_residual": float(atom_error),
             "max_port_residual": float(port_error),
-            "compatible": max(atom_error, port_error) <= tolerance,
+            "compatible": bool(max(atom_error, port_error) <= tolerance),
         }
 
-    def fit(self, orbit, block, permutation, cell, tolerance):
-        base = self.diagnose(orbit, block, permutation, cell, tolerance)
+    def fit(self, orbit, block, perm, cell, tolerance):
+        base = self.diagnose(orbit, block, perm, cell, tolerance)
         error = max(base["max_atom_residual"], base["max_port_residual"])
         base.update(
             torsion_optimized=False,
             torsion_angle_degrees=0.0,
-            best_torsion_residual=float(error),
+            best_torsion_residual=error,
         )
         if base["compatible"] or len(orbit.stabilizers) == 1:
             return block, base
 
-        permutation = np.asarray(permutation, int)
-        ports = block.connection_points[permutation]
+        perm = np.asarray(perm, int)
+        ports = block.port_pos[perm]
         axis = ports[1] - ports[0]
         axis /= np.linalg.norm(axis)
         center = block.centroid
@@ -80,12 +77,12 @@ class StabilizerFit:
         trial = block.copy()
 
         def evaluate(angle):
-            angle = float(angle % self.symmetry.tau)
+            angle %= self.symmetry.tau
             moved = Rotation.from_rotvec(angle * axis).apply(positions) + center
             trial.atoms.set_positions(moved)
-            report = self.diagnose(orbit, trial, permutation, cell, tolerance)
+            report = self.diagnose(orbit, trial, perm, cell, tolerance)
             residual = max(report["max_atom_residual"], report["max_port_residual"])
-            return float(residual), moved, report, angle
+            return residual, moved, report, angle
 
         step = self.symmetry.tau / self.symmetry.torsion_steps
         samples = [evaluate(index * step) for index in range(self.symmetry.torsion_steps)]
@@ -124,13 +121,11 @@ class StabilizerFit:
                 moved[indices, None] - reference[None, indices], axis=2
             )
             rows, columns = linear_sum_assignment(distances)
-            error = max(
-                error, float(np.max(distances[rows, columns], initial=0))
-            )
+            error = max(error, np.max(distances[rows, columns], initial=0))
         return error
 
 
-class SymmetryPlacement:
+class SymPlacement:
     """Map topology slots and their ports under a space group."""
 
     _cache = WeakKeyDictionary()
@@ -168,12 +163,12 @@ class SymmetryPlacement:
         )
 
     @classmethod
-    def cached(cls, topology, mapping_tolerance=1.0e-4):
+    def cached(cls, topology, map_tol=1.0e-4):
         """Return a validated placement cache entry for the topology state."""
 
         key = (
             cls,
-            float(mapping_tolerance),
+            map_tol,
             cls.topology_signature(topology),
         )
         with cls._cache_lock:
@@ -181,7 +176,7 @@ class SymmetryPlacement:
             if cached is not None and cached[0] == key:
                 return cached[1]
 
-        placement = cls(topology, mapping_tolerance=mapping_tolerance)
+        placement = cls(topology, map_tol=map_tol)
         with cls._cache_lock:
             cached = cls._cache.get(topology)
             if cached is not None and cached[0] == key:
@@ -196,12 +191,9 @@ class SymmetryPlacement:
         with cls._cache_lock:
             cls._cache.clear()
 
-    def __init__(self, topology, mapping_tolerance=1.0e-4):
-        if mapping_tolerance <= 0:
-            raise ValueError("Symmetry mapping tolerance must be positive.")
-
+    def __init__(self, topology, map_tol=1.0e-4):
         self.topology = topology
-        self.mapping_tolerance = float(mapping_tolerance)
+        self.map_tol = map_tol
         self.orthogonality_tolerance = 1.0e-8
         self.torsion_steps = 24
         self.tau = 2.0 * np.pi
@@ -218,8 +210,8 @@ class SymmetryPlacement:
         self.operation_mappings = self.map_slots()
         self.identity_operation_index = self.find_identity()
         self.check_links()
-        self.node_orbits = self.make_orbits(topology.node_indices)
-        self.edge_orbits = self.make_orbits(topology.edge_indices)
+        self.node_orbits = self.make_orbits(topology.node_idx)
+        self.edge_orbits = self.make_orbits(topology.edge_idx)
 
     @staticmethod
     def read_neighbors(topology):
@@ -265,11 +257,11 @@ class SymmetryPlacement:
                     + self.translations[op_index]
                 )
                 differences = Symmetry.diff(transformed, self.positions[mapping])
-                if np.any(abs(differences) > self.mapping_tolerance):
+                if np.any(abs(differences) > self.map_tol):
                     source = int(
                         np.flatnonzero(
                             np.any(
-                                abs(differences) > self.mapping_tolerance,
+                                abs(differences) > self.map_tol,
                                 axis=1,
                             )
                         )[0]
@@ -285,7 +277,7 @@ class SymmetryPlacement:
         for op_index, (rotation, translation) in enumerate(zip(self.rotations, self.translations)):
             transformed = self.positions @ rotation.T + translation
             differences = Symmetry.diff(transformed[:, None], self.positions[None])
-            matches = same_tag & np.all(abs(differences) <= self.mapping_tolerance, axis=2)
+            matches = same_tag & np.all(abs(differences) <= self.map_tol, axis=2)
             counts = matches.sum(axis=1)
             invalid = np.flatnonzero(counts != 1)
             if len(invalid):
@@ -294,11 +286,11 @@ class SymmetryPlacement:
                 if not len(targets):
                     raise ValueError(
                         f"Operation {op_index} cannot map slot {source} with tag "
-                        f"{self.tags[source]} within tolerance {self.mapping_tolerance:.1e}."
+                        f"{self.tags[source]} within tolerance {self.map_tol:.1e}."
                     )
                 raise ValueError(
                     f"Operation {op_index} maps slot {source} ambiguously to "
-                    f"{targets.tolist()} within tolerance {self.mapping_tolerance:.1e}."
+                    f"{targets.tolist()} within tolerance {self.map_tol:.1e}."
                 )
 
             mapping = np.argmax(matches, axis=1)
@@ -392,7 +384,7 @@ class SymmetryPlacement:
         mapped_vectors = self.neighbor_vectors[source] @ self.rotations[op_index].T
         target_vectors = self.neighbor_vectors[target]
         matches = (mapped_neighbors[:, None] == target_neighbors[None]) & np.all(
-            abs(mapped_vectors[:, None] - target_vectors[None]) <= self.mapping_tolerance,
+            abs(mapped_vectors[:, None] - target_vectors[None]) <= self.map_tol,
             axis=2,
         )
         invalid = np.flatnonzero(matches.sum(axis=1) != 1)
@@ -411,21 +403,21 @@ class SymmetryPlacement:
             )
         return result
 
-    def to_member(self, orbit, member, permutation):
+    def to_member(self, orbit, member, perm):
         """Map a representative port permutation to an orbit member."""
 
-        permutation = np.asarray(permutation, int)
+        perm = np.asarray(perm, int)
         offsets = self.offset_map(orbit.representative, member, self.operation(orbit, member))
-        result = np.empty_like(permutation)
-        result[offsets] = permutation
+        result = np.empty_like(perm)
+        result[offsets] = perm
         return result
 
-    def to_representative(self, orbit, member, permutation):
+    def to_representative(self, orbit, member, perm):
         """Map a member port permutation back to its representative."""
 
-        permutation = np.asarray(permutation, int)
+        perm = np.asarray(perm, int)
         offsets = self.offset_map(orbit.representative, member, self.operation(orbit, member))
-        return permutation[offsets]
+        return perm[offsets]
 
     def transform(self, op_index, cell):
         """Return the row-vector Cartesian transform for an operation."""
@@ -448,22 +440,22 @@ class SymmetryPlacement:
         )
         return member
 
-    def diagnose(self, orbit, block, permutation, cell, tolerance):
+    def diagnose(self, orbit, block, perm, cell, tolerance):
         """Measure motif compatibility with an orbit stabilizer."""
         return StabilizerFit(self).diagnose(
             orbit,
             block,
-            permutation,
+            perm,
             cell,
             tolerance,
         )
 
-    def fit_torsion(self, orbit, block, permutation, cell, tolerance):
+    def fit_torsion(self, orbit, block, perm, cell, tolerance):
         """Fit the free linker-axis torsion to an edge-slot stabilizer."""
         return StabilizerFit(self).fit(
             orbit,
             block,
-            permutation,
+            perm,
             cell,
             tolerance,
         )

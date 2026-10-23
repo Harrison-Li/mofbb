@@ -6,7 +6,7 @@ import ase
 import numpy as np
 
 
-def wrap_fractional(values, tolerance=1.0e-12):
+def wrap_frac(values, tolerance=1.0e-12):
     """Return canonical fractional coordinates in the interval ``[0, 1)``."""
 
     wrapped = np.mod(values, 1.0)
@@ -19,7 +19,7 @@ def wrap_fractional(values, tolerance=1.0e-12):
     return np.where(on_boundary, 0.0, wrapped)
 
 
-def read_building_block_xyz(bb_file):
+def read_bb_xyz(bb_file):
     """Parse a building-block ``.xyz`` file into an :class:`ase.Atoms`."""
     path = Path(bb_file)
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -37,7 +37,7 @@ def read_building_block_xyz(bb_file):
         positions=[[float(value) for value in record[1:4]] for record in atoms],
         charges=[float(record[4]) if len(record) == 5 else 0 for record in atoms],
         info={
-            "cpi": [index for index, symbol in enumerate(symbols) if symbol == "X"],
+            "port_idx": [index for index, symbol in enumerate(symbols) if symbol == "X"],
             "name": path.stem,
             "bonds": (
                 np.asarray([[int(record[0]), int(record[1])] for record in bond_records])

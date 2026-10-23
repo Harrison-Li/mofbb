@@ -27,7 +27,7 @@ def bond_arrays(num_atoms, bonds, bond_shifts):
     return bonds, shifts.astype(int)
 
 
-def minimum_image_shifts(atoms, bonds):
+def mic_shifts(atoms, bonds):
     """Infer images for distinct atom pairs, including paired X caps."""
     bonds = np.asarray(bonds, dtype=int).reshape(-1, 2)
     if np.any(bonds[:, 0] == bonds[:, 1]):
@@ -109,7 +109,7 @@ def validate_3d_connectivity(
         bonds, bond_shifts = np.column_stack((i[keep], j[keep])), shifts[keep]
     else:
         if bond_shifts is None:
-            bond_shifts = minimum_image_shifts(atoms, bonds)
+            bond_shifts = mic_shifts(atoms, bonds)
         bonds, bond_shifts = bond_arrays(len(atoms), bonds, bond_shifts)
         vectors = (
             atoms.positions[bonds[:, 1]] - atoms.positions[bonds[:, 0]]

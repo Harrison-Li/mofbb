@@ -38,39 +38,39 @@ class NeighborList:
     def _build_explicit(self, atoms, edge_endpoints):
         """Build connectivity from expanded CGD edge endpoint coordinates."""
 
-        node_indices = np.flatnonzero(atoms.symbols == "C")
-        edge_indices = np.flatnonzero(atoms.symbols == "O")
-        if len(edge_endpoints) != len(edge_indices):
+        node_idx = np.flatnonzero(atoms.symbols == "C")
+        edge_idx = np.flatnonzero(atoms.symbols == "O")
+        if len(edge_endpoints) != len(edge_idx):
             raise ValueError(
                 "Explicit CGD edge endpoints do not match the edge-center count."
             )
 
         scaled_positions = atoms.get_scaled_positions(wrap=True)
         cell = np.asarray(atoms.cell, dtype=float)
-        for edge_index, raw_endpoints in zip(edge_indices, edge_endpoints):
+        for edge_index, raw_endpoints in zip(edge_idx, edge_endpoints):
             endpoints = np.asarray(raw_endpoints, dtype=float)
             center = np.mean(endpoints, axis=0)
             for endpoint in endpoints:
-                differences = endpoint - scaled_positions[node_indices]
+                differences = endpoint - scaled_positions[node_idx]
                 image_shifts = np.rint(differences)
                 residuals = (
-                    scaled_positions[node_indices] + image_shifts - endpoint
+                    scaled_positions[node_idx] + image_shifts - endpoint
                 ) @ cell
                 distances = np.linalg.norm(residuals, axis=1)
-                match = int(np.argmin(distances))
+                match = np.argmin(distances)
                 if distances[match] > 1e-5:
                     raise ValueError(
                         f"CGD edge slot {edge_index} endpoint {endpoint.tolist()} "
                         "does not match any topology node image."
                     )
 
-                node_index = int(node_indices[match])
+                node_index = node_idx[match]
                 vector = (endpoint - center) @ cell
                 self._neighbor_list[edge_index].append(
                     Neighbor(node_index, vector)
                 )
                 self._neighbor_list[node_index].append(
-                    Neighbor(int(edge_index), -vector)
+                    Neighbor(edge_index, -vector)
                 )
 
     def _build_by_distance(self, atoms):
@@ -88,9 +88,9 @@ class NeighborList:
 
     def _build_by_nearest_nodes(self, atoms):
         """Build connectivity by keeping each edge-center's two nearest nodes."""
-        node_indices = np.flatnonzero(atoms.symbols == "C")
-        edge_indices = np.flatnonzero(atoms.symbols == "O")
-        if len(node_indices) == 0:
+        node_idx = np.flatnonzero(atoms.symbols == "C")
+        edge_idx = np.flatnonzero(atoms.symbols == "O")
+        if len(node_idx) == 0:
             raise ValueError("A topology must contain at least one node.")
 
         periodic_images = [
@@ -99,10 +99,10 @@ class NeighborList:
         shifts = np.asarray(list(product(*periodic_images)), dtype=int)
         translations = shifts @ atoms.cell
 
-        for edge_index in edge_indices:
+        for edge_index in edge_idx:
             candidates = []
             edge_position = atoms.positions[edge_index]
-            for node_index in node_indices:
+            for node_index in node_idx:
                 vectors = (
                     atoms.positions[node_index]
                     + translations
@@ -111,9 +111,9 @@ class NeighborList:
                 for shift, vector in zip(shifts, vectors):
                     candidates.append(
                         (
-                            float(vector @ vector),
-                            int(node_index),
-                            tuple(int(value) for value in shift),
+                            vector @ vector,
+                            node_index,
+                            tuple(shift),
                             vector,
                         )
                     )
@@ -129,7 +129,7 @@ class NeighborList:
                     Neighbor(node_index, vector)
                 )
                 self._neighbor_list[node_index].append(
-                    Neighbor(int(edge_index), -vector)
+                    Neighbor(edge_index, -vector)
                 )
 
     def __getitem__(self, i):

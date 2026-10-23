@@ -10,9 +10,8 @@ from ase.data import covalent_radii
 from ase.neighborlist import natural_cutoffs
 
 from mofbb.compose.chemistry import coordination_profile
-from mofbb.compose.connectivity import bond_arrays
 from mofbb.compose.local_structure import LocalStructure
-from mofbb.compose.utils import read_building_block_xyz
+from mofbb.compose.utils import read_bb_xyz
 
 _FRAME_EPSILON = 1e-12
 _PCA_SIGN_TOLERANCE = 1e-8
@@ -73,7 +72,6 @@ def _orient_pca_axis(axis, transverse, axial):
         np.mean(p**5),
     )
     for score in scores:
-        score = float(score)
         if abs(score) >= _PCA_SIGN_TOLERANCE:
             return (axis if score > 0.0 else -axis), False
 
@@ -88,9 +86,9 @@ class BuildingBlock:
 
     def __init__(self, bb_file):
         """Read a building block from an ``.xyz`` file."""
-        self.atoms = read_building_block_xyz(bb_file)
+        self.atoms = read_bb_xyz(bb_file)
         self.name = self.atoms.info["name"]
-        self.connection_point_indices = np.array(self.atoms.info["cpi"])
+        self.port_idx = np.array(self.atoms.info["port_idx"])
         self._bonds = self.atoms.info["bonds"]
         self._bond_types = self.atoms.info["bond_types"]
 
@@ -98,14 +96,14 @@ class BuildingBlock:
         """Return an independent copy of this building block."""
         block = copy.copy(self)
         block.atoms = self.atoms.copy()
-        block.connection_point_indices = self.connection_point_indices.copy()
+        block.port_idx = self.port_idx.copy()
         block._bonds = self.bonds.copy()
         block._bond_types = self.bond_types.copy()
         return block
 
     def validate_connectivity(self, bond_scale=1.2):
         """Require connected real atoms and pass the generation coordination screen."""
-        bonds, _ = bond_arrays(self.n_atoms, self.bonds, np.zeros((len(self.bonds), 3)))
+        bonds = np.asarray(self.bonds, dtype=int).reshape(-1, 2)
         real = self.atoms.numbers != 0
         bonds = bonds[real[bonds].all(axis=1)]
         distances = np.linalg.norm(
@@ -133,8 +131,8 @@ class BuildingBlock:
         return profile
 
     def local_structure(self):
-        """Build the ``LocalStructure`` of the connection points."""
-        return LocalStructure(self.connection_points, self.connection_point_indices)
+        """Build the ``LocalStructure`` of the X ports."""
+        return LocalStructure(self.port_pos, self.port_idx)
 
     def set_centroid(self, centroid):
         """Rigidly translate the fragment to a new centroid."""
@@ -142,13 +140,13 @@ class BuildingBlock:
 
     @property
     def centroid(self):
-        """Geometric anchor of the building block."""
-        return np.mean(self.connection_points, axis=0)
+        """Centroid of the building block's X ports."""
+        return np.mean(self.port_pos, axis=0)
 
     @property
-    def connection_points(self):
-        """Cartesian positions of the ``"X"`` connection points."""
-        return self.atoms[self.connection_point_indices].positions
+    def port_pos(self):
+        """Cartesian positions of the X ports, indexed by ``port_idx``."""
+        return self.atoms[self.port_idx].positions
 
     def edge_frame(
         self,
@@ -157,25 +155,15 @@ class BuildingBlock:
     ):
         """Construct a PCA-only intrinsic frame for an edge linker."""
 
-        if not self.is_edge:
-            raise ValueError(
-                f"{self.name!r} has {self.n_connection_points} connection "
-                "points; an edge frame requires exactly two."
-            )
-        x0, x1 = np.asarray(self.connection_points, dtype=float)
+        x0, x1 = self.port_pos
         edge_center = 0.5 * (x0 + x1)
         z = _unit_vector(x1 - x0, "the X0-to-X1 axis")
 
         real_pos = self.atoms.positions[self.atoms.numbers != 0]
-        if len(real_pos) == 0:
-            raise ValueError(f"{self.name!r} contains no real atoms.")
-
         offsets = real_pos - edge_center
         axial = offsets @ z
         transverse = offsets - np.outer(axial, z)
-        radial_extent = float(
-            np.max(np.linalg.norm(transverse, axis=1))
-        )
+        radial_extent = np.max(np.linalg.norm(transverse, axis=1))
 
         pca_pos = transverse - np.mean(transverse, axis=0)
         covariance = pca_pos.T @ pca_pos / len(pca_pos)
@@ -235,76 +223,71 @@ class BuildingBlock:
         return _unit_vector(transverse, "a transverse gauge axis")
 
     @property
-    def connection_point_anchor_groups(self):
-        """Real anchors per port: one atom, or a bidentate oxygen pair."""
+    def conn_groups(self):
+        """Real connection-atom indices per port: one atom or an oxygen pair."""
         groups = []
         numbers = self.atoms.numbers
-        for x in self.connection_point_indices:
-            neighbors = tuple(int(b if a == x else a)
-                              for a, b in self.bonds if a == x or b == x)
+        for x in self.port_idx:
+            neighbors = tuple(
+                b if a == x else a
+                for a, b in self.bonds if a == x or b == x
+            )
             valid = (len(neighbors) == 1 and numbers[neighbors[0]] != 0) or (
                 len(neighbors) == 2 and all(numbers[i] == 8 for i in neighbors)
             )
             if not valid:
-                raise ValueError("Each X port must have exactly one real-atom anchor "
-                                 "or two oxygen anchors.")
+                raise ValueError("Each X port must have exactly one real connection atom "
+                                 "or two oxygen connection atoms.")
             groups.append(neighbors)
         return tuple(groups)
 
     @property
-    def connection_point_anchor_indices(self):
-        """Single anchors only; paired ports must use anchor_groups explicitly."""
-        groups = self.connection_point_anchor_groups
+    def conn_idx(self):
+        """Connection-atom indices for single-atom ports; pairs use conn_groups."""
+        groups = self.conn_groups
         if any(len(g) != 1 for g in groups):
-            raise ValueError("Paired oxygen ports do not have a single anchor index.")
+            raise ValueError("Paired oxygen ports do not have a single connection-atom index.")
         return np.asarray([g[0] for g in groups], dtype=int)
 
     @property
-    def connection_point_anchor_lengths(self):
-        """Maximum X-to-anchor distance, a conservative bound for paired sites."""
+    def conn_dists(self):
+        """Maximum X-to-connection-atom distance per port, including paired sites."""
         return np.asarray([
             max(np.linalg.norm(point - self.atoms.positions[i]) for i in group)
-            for point, group in zip(self.connection_points,
-                                    self.connection_point_anchor_groups, strict=True)
+            for point, group in zip(self.port_pos, self.conn_groups)
         ])
 
     @property
-    def connection_point_anchor_symbols(self):
-        """Anchor element; both anchors of a paired port are oxygen."""
+    def conn_symbols(self):
+        """Connection-atom element per port; both atoms of a pair are oxygen."""
         symbols = self.atoms.get_chemical_symbols()
-        return tuple(symbols[group[0]] for group in self.connection_point_anchor_groups)
+        return tuple(symbols[group[0]] for group in self.conn_groups)
 
     @cached_property
     def port_descriptors(self):
-        """Return ``(anchor element, X-anchor length)`` for each X site."""
-        return tuple(
-            zip(
-                self.connection_point_anchor_symbols,
-                self.connection_point_anchor_lengths,
-                strict=True,
-            )
-        )
+        """Return ``(connection element, max X-atom distance)`` for each X port."""
+        return tuple(zip(self.conn_symbols, self.conn_dists))
 
     @property
-    def n_connection_points(self):
-        """Number of connection points (the fragment's coordination)."""
-        return len(self.connection_point_indices)
+    def n_ports(self):
+        """Number of X ports (the fragment's coordination)."""
+        return len(self.port_idx)
 
     @property
-    def lengths(self):
-        """Distances from the centroid to each connection point."""
-        return np.linalg.norm(self.connection_points - self.centroid, axis=1)
+    def port_radii(self):
+        """Distances from the centroid to each X port."""
+        return np.linalg.norm(self.port_pos - self.centroid, axis=1)
 
     @property
     def is_edge(self):
         """Whether this fragment is an edge linker."""
-        return self.n_connection_points == 2
+        return self.n_ports == 2
 
     @property
     def bonds(self):
         """Atom-index pairs describing the fragment's bonds."""
         if self._bonds is None:
-            self.calculate_bonds()
+            self.calc_bonds_dist()
 
         return self._bonds
 
@@ -312,16 +295,16 @@ class BuildingBlock:
     def bond_types(self):
         """Bond-order label for each entry in ``bonds``."""
         if self._bond_types is None:
-            self.calculate_bonds()
+            self.calc_bonds_dist()
 
         return self._bond_types
 
     @property
     def n_atoms(self):
-        """Total number of atoms, including connection points."""
+        """Total number of atoms, including X ports."""
         return len(self.atoms)
 
-    def calculate_bonds(self):
+    def calc_bonds_dist(self):
         """Infer bonds from interatomic distances."""
         positions = self.atoms.positions
         cutoffs = 1.2 * np.asarray(natural_cutoffs(self.atoms))
@@ -331,4 +314,4 @@ class BuildingBlock:
         self._bond_types = ["S"] * len(self._bonds)
 
     def __repr__(self):
-        return f"BuildingBlock: {self.name}, # of connection points: {self.n_connection_points}"
+        return f"BuildingBlock: {self.name}, # of connection points: {self.n_ports}"

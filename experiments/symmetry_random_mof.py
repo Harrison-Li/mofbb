@@ -246,7 +246,7 @@ def topology_record_from_object(topology: object, path: Path) -> TopologyRecord:
         node_type = int(node_type)
         representative = next(
             int(index)
-            for index in topology.node_indices
+            for index in topology.node_idx
             if int(topology.node_types[index]) == node_type
         )
         directions = topology.local_structure(representative).positions
@@ -440,7 +440,7 @@ def build_and_validate(
         topology=topology,
         node_bbs={key: BuildingBlock(path) for key, path in node_paths.items()},
         edge_bbs={key: BuildingBlock(path) for key, path in edge_paths.items()},
-        accuracy=config.accuracy,
+        n_angles=config.accuracy,
     )
     max_rmsd = float(framework.info["max_rmsd"])
     if max_rmsd > config.max_rmsd:
@@ -509,7 +509,7 @@ def build_and_validate(
         "cell_parameters": [float(value) for value in structure.lattice.parameters],
         "max_rmsd": max_rmsd,
         "mean_rmsd": float(framework.info["mean_rmsd"]),
-        "relax_obj": float(framework.info["geometry_optimization_objective"]),
+        "relax_obj": float(framework.info["geometry_optimization_loss"]),
         "minimum_atom_distance_angstrom": closest,
     }
 

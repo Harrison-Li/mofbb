@@ -42,7 +42,7 @@ from mofbb.compose.locator import (
     find_best_permutation,
 )
 from mofbb.compose.pbc import PBC
-from mofbb.compose.placement.symmetry import SymmetryPlacement
+from mofbb.compose.placement.symmetry import SymPlacement
 
 
 DEFAULT_GENERATION_WORKERS = min(16, os.cpu_count() or 1)
@@ -624,7 +624,7 @@ def strict_node_record_fit(
         return None
 
     topology = cached_topology(str(topology_record.cgd_path))
-    symmetry = SymmetryPlacement.cached(topology)
+    symmetry = SymPlacement.cached(topology)
     orbit = next(
         orbit
         for orbit in symmetry.node_orbits
@@ -640,7 +640,7 @@ def strict_node_record_fit(
     for permutation in locator.candidate_permutations(
         target,
         block,
-        max_n_slices=max(4, config.accuracy),
+        n_angles=max(4, config.accuracy),
     ):
         rotation, candidate_rmsd = find_best_orientation(
             target_positions,
@@ -693,7 +693,7 @@ def strict_edge_record_compatible(
         return False
 
     topology = cached_topology(str(topology_record.cgd_path))
-    symmetry = SymmetryPlacement.cached(topology)
+    symmetry = SymPlacement.cached(topology)
     locator = Locator()
     cell = np.asarray(topology.atoms.cell, dtype=float)
     relevant_orbits = tuple(
@@ -1083,8 +1083,8 @@ def build_and_validate(
             key: cached_building_block(str(path))
             for key, path in edge_paths.items()
         },
-        accuracy=config.accuracy,
-        symmetry_tolerance=config.symmetry_tolerance,
+        n_angles=config.accuracy,
+        sym_tol=config.symmetry_tolerance,
         strict_symmetry=config.strict_symmetry,
     )
     max_rmsd = float(framework.info["max_rmsd"])
@@ -1109,10 +1109,10 @@ def build_and_validate(
         **structure_quality,
         "max_rmsd": max_rmsd,
         "mean_rmsd": float(framework.info["mean_rmsd"]),
-        "geometry_optimization_objective": float(
-            framework.info["geometry_optimization_objective"]
+        "geometry_optimization_loss": float(
+            framework.info["geometry_optimization_loss"]
         ),
-        "relax_obj": float(framework.info["geometry_optimization_objective"]),
+        "relax_obj": float(framework.info["geometry_optimization_loss"]),
         "symmetry_fallback_orbit_count": int(fallback_orbits),
     }
     if crystal_symmetry_symprec is not None:
@@ -1149,15 +1149,18 @@ def validate_staged_cif(
     max_rmsd = comment_value("# Max RMSD:")
     if max_rmsd is None or max_rmsd > config.max_rmsd:
         raise ValueError("staged CIF fails RMSD validation")
-    geometry_objective = comment_value("# Geometry optimization objective:")
-    if geometry_objective is None:
-        geometry_objective = comment_value("# Relax obj value:")
+    geometry_loss = comment_value("# Geometry optimization loss:")
+    if geometry_loss is None:
+        # Accept CIFs written before the loss metadata was renamed.
+        geometry_loss = comment_value("# Geometry optimization objective:")
+    if geometry_loss is None:
+        geometry_loss = comment_value("# Relax obj value:")
     return {
         **structure_quality,
         "max_rmsd": max_rmsd,
         "mean_rmsd": comment_value("# Mean RMSD:"),
-        "geometry_optimization_objective": geometry_objective,
-        "relax_obj": geometry_objective,
+        "geometry_optimization_loss": geometry_loss,
+        "relax_obj": geometry_loss,
         "symmetry_fallback_orbit_count": None,
         "cif_sha256": file_sha256(cif_path),
         "resumed_from_staging": True,

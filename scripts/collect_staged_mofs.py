@@ -154,12 +154,15 @@ def parse_accepted_cif(
     )
     cell_parameters = [float(cif_value(lines, key)) for key in cell_keys]
     declared_number = cif_value(lines, "_symmetry_Int_Tables_number")
-    geometry_objective = comment_float(
+    geometry_loss = comment_float(
         lines,
-        "# Geometry optimization objective:",
+        "# Geometry optimization loss:",
     )
-    if geometry_objective is None:
-        geometry_objective = comment_float(lines, "# Relax obj value:")
+    if geometry_loss is None:
+        # Accept CIFs written before the loss metadata was renamed.
+        geometry_loss = comment_float(lines, "# Geometry optimization objective:")
+    if geometry_loss is None:
+        geometry_loss = comment_float(lines, "# Relax obj value:")
     quality = {
         "num_atoms": sum(elements.values()),
         "formula": hill_formula(elements),
@@ -167,8 +170,8 @@ def parse_accepted_cif(
         "cell_parameters": cell_parameters,
         "max_rmsd": comment_float(lines, "# Max RMSD:"),
         "mean_rmsd": comment_float(lines, "# Mean RMSD:"),
-        "geometry_optimization_objective": geometry_objective,
-        "relax_obj": geometry_objective,
+        "geometry_optimization_loss": geometry_loss,
+        "relax_obj": geometry_loss,
         "minimum_atom_distance_angstrom": None,
         "declared_space_group_symbol": cif_value(
             lines, "_symmetry_space_group_name_H-M"

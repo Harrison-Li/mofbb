@@ -70,24 +70,24 @@ def load_case_inputs(decomposition_dir: Path) -> CaseInputs:
     )
     topology = Topology(decomposition_dir / reconstruction["topology"]["path"])
     slots = sorted(reconstruction["slots"], key=lambda item: item["slot_id"])
-    node_indices = [int(index) for index in topology.node_indices]
-    edge_indices = [int(index) for index in topology.edge_indices]
+    node_idx = [int(index) for index in topology.node_idx]
+    edge_idx = [int(index) for index in topology.edge_idx]
 
     if all("topology_slot" in slot for slot in slots):
         target_indices = []
         for slot in slots:
             target = slot["topology_slot"]
             candidates = (
-                node_indices if target["kind"] == "node" else edge_indices
+                node_idx if target["kind"] == "node" else edge_idx
             )
             target_indices.append(candidates[int(target["index"])])
     else:
-        if len(slots) != len(node_indices):
+        if len(slots) != len(node_idx):
             raise ValueError(
                 f"{decomposition_dir} has {len(slots)} BB slots but its topology "
-                f"has {len(node_indices)} node slots."
+                f"has {len(node_idx)} node slots."
             )
-        target_indices = node_indices
+        target_indices = node_idx
 
     group_records = {
         str(group["bb_id"]): group for group in reconstruction["bb_groups"]
@@ -117,7 +117,7 @@ def load_case_inputs(decomposition_dir: Path) -> CaseInputs:
             )
         )
 
-    missing_nodes = [index for index in node_indices if blocks[index] is None]
+    missing_nodes = [index for index in node_idx if blocks[index] is None]
     if missing_nodes:
         raise ValueError(f"Topology node slots are unassigned: {missing_nodes}.")
 
@@ -198,7 +198,7 @@ def run_case(
         framework = Builder().build(
             inputs.topology,
             inputs.blocks,
-            accuracy=accuracy,
+            n_angles=accuracy,
         )
         framework.write_cif(rebuilt_path)
         if not rebuilt_path.is_file():

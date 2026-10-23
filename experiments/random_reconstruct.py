@@ -317,7 +317,7 @@ def build_one(
         topology=topology,
         node_bbs={key: BuildingBlock(path) for key, path in node_paths.items()},
         edge_bbs={key: BuildingBlock(path) for key, path in edge_paths.items()},
-        accuracy=ACCURACY,
+        n_angles=ACCURACY,
     )
     if float(framework.info["max_rmsd"]) > MAX_RMSD:
         raise ValueError(
@@ -499,7 +499,7 @@ def generate(output: Path, count: int, seed: int, max_slots: int) -> None:
                             "cell_parameters": cell,
                             "max_rmsd": float(framework.info["max_rmsd"]),
                             "mean_rmsd": float(framework.info["mean_rmsd"]),
-                            "relax_obj": float(framework.info["geometry_optimization_objective"]),
+                            "relax_obj": float(framework.info["geometry_optimization_loss"]),
                             "minimum_atom_distance": minimum_distance,
                             "cif_sha256": hashlib.sha256(final_cif.read_bytes()).hexdigest(),
                         },

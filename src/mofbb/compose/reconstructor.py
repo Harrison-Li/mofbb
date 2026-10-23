@@ -13,7 +13,7 @@ from ase.geometry import cellpar_to_cell
 from mofbb.compose.building_block import BuildingBlock
 from mofbb.compose.framework import Framework
 from mofbb.compose.topology import Topology
-from mofbb.compose.utils import wrap_fractional
+from mofbb.compose.utils import wrap_frac
 
 
 def _read_topology_geometry(path: Path) -> tuple[np.ndarray, list[np.ndarray]]:
@@ -38,9 +38,9 @@ def _read_topology_geometry(path: Path) -> tuple[np.ndarray, list[np.ndarray]]:
 class Reconstructor:
     """Rebuild exact source geometry from decomposition artifacts."""
 
-    def __init__(self, decomposition_dir: str | Path) -> None:
-        self.decomposition_dir = Path(decomposition_dir)
-        self.map_path = self.decomposition_dir / "reconstruction_map.json"
+    def __init__(self, decomp_dir: str | Path) -> None:
+        self.decomp_dir = Path(decomp_dir)
+        self.map_path = self.decomp_dir / "reconstruction_map.json"
 
     def reconstruct(self) -> Framework:
         """Return the reconstructed periodic framework."""
@@ -60,7 +60,7 @@ class Reconstructor:
             )
         elif topology_path:
             cell, vertices = _read_topology_geometry(
-                self.decomposition_dir / topology_path
+                self.decomp_dir / topology_path
             )
         else:
             raise ValueError(
@@ -80,7 +80,7 @@ class Reconstructor:
 
         for slot, vertex in zip(slots, vertices):
             slot_id = int(slot["slot_id"])
-            block = BuildingBlock(self.decomposition_dir / slot["exact_instance_path"])
+            block = BuildingBlock(self.decomp_dir / slot["exact_instance_path"])
             source_indices = [int(value) for value in slot["source_indices"]]
             source_count = len(source_indices)
             block_symbols = block.atoms.get_chemical_symbols()
@@ -111,8 +111,6 @@ class Reconstructor:
                 positions_by_source[source_index] = position
 
             for (left, right), bond_type in zip(block.bonds, block.bond_types):
-                left = int(left)
-                right = int(right)
                 if left < source_count and right < source_count:
                     source_pair = tuple(
                         sorted((source_indices[left], source_indices[right]))
@@ -149,7 +147,7 @@ class Reconstructor:
             pbc=True,
         )
         atoms.set_scaled_positions(
-            wrap_fractional(atoms.get_scaled_positions(wrap=False))
+            wrap_frac(atoms.get_scaled_positions(wrap=False))
         )
 
         sorted_bonds = sorted(bond_types_by_source_pair.items())
@@ -167,13 +165,13 @@ class Reconstructor:
             bond_types,
             info={
                 "composition_mode": "exact-decomposition",
-                "decomposition_dir": str(self.decomposition_dir),
+                "decomposition_dir": str(self.decomp_dir),
             },
             wrap=False,
         )
 
 @dataclass
-class AbstractTopologyInput:
+class TopoInput:
     """Topology and grouped BB templates loaded without reconstruction data."""
 
     topology: Topology
@@ -182,10 +180,10 @@ class AbstractTopologyInput:
     template_paths: dict[str, str]
 
     @classmethod
-    def from_directory(cls, decomposition_dir: str | Path):
+    def from_dir(cls, decomp_dir: str | Path):
         """Read ``topology.cgd`` and grouped BBs from a decomposition directory."""
 
-        root = Path(decomposition_dir)
+        root = Path(decomp_dir)
         summary = json.loads((root / "decomposition_summary.json").read_text(encoding="utf-8"))
         topology_record = summary.get("topology")
         if not topology_record:
@@ -205,8 +203,7 @@ class AbstractTopologyInput:
         node_bb_ids = topology.atoms.info.get("node_bb_ids", {})
         edge_bb_ids = topology.atoms.info.get("edge_bb_ids", {})
         slot_bb_ids = []
-        for slot, raw_type in enumerate(topology.atoms.get_tags()):
-            bb_type = int(raw_type)
+        for slot, bb_type in enumerate(topology.atoms.get_tags()):
             bb_ids = node_bb_ids if bb_type >= 0 else edge_bb_ids
             if bb_type not in bb_ids:
                 raise ValueError(
@@ -228,8 +225,8 @@ class AbstractTopologyInput:
         for slot, bb_id in enumerate(slot_bb_ids):
             if bb_id is None:
                 continue
-            expected = int(topology.cn[slot])
-            actual = templates[bb_id].n_connection_points
+            expected = topology.cn[slot]
+            actual = templates[bb_id].n_ports
             if actual != expected:
                 raise ValueError(
                     f"Topology slot {slot} requires {expected} connection points, "
@@ -242,7 +239,7 @@ class AbstractTopologyInput:
             template_paths={bb_id: group_paths[bb_id] for bb_id in referenced},
         )
 
-    def blocks(self) -> list[BuildingBlock | None]:
+    def copy_bbs(self) -> list[BuildingBlock | None]:
         """Return independent per-slot copies of the grouped templates."""
 
         return [

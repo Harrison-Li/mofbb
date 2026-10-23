@@ -10,13 +10,13 @@ import numpy as np
 from mofbb.matching import BuildingBlockGraph, compare_building_blocks
 
 
-class BlockGroups:
+class BBGroups:
     """Compare the rigid templates assigned within one symmetry orbit."""
 
-    def __init__(self, blocks, symmetry, fixed):
+    def __init__(self, blocks, symmetry, fixed_perms):
         self.blocks = blocks
         self.symmetry = symmetry
-        self.fixed = fixed
+        self.fixed_perms = fixed_perms
 
     @cache
     def same(self, left, right):
@@ -25,7 +25,7 @@ class BlockGroups:
         if (
             left.atoms.get_chemical_symbols()
             == right.atoms.get_chemical_symbols()
-            and np.array_equal(left.connection_point_indices, right.connection_point_indices)
+            and np.array_equal(left.port_idx, right.port_idx)
             and np.array_equal(left.bonds, right.bonds)
             and np.array_equal(left.bond_types, right.bond_types)
             and np.allclose(
@@ -45,8 +45,8 @@ class BlockGroups:
             return False
         atom_map = dict(match.mapping)
         order = np.asarray([atom_map[i] for i in range(len(left.atoms))])
-        mapped_x = {atom_map[int(i)] for i in left.connection_point_indices}
-        if mapped_x != set(right.connection_point_indices) or not np.allclose(
+        mapped_x = {atom_map[i] for i in left.port_idx}
+        if mapped_x != set(right.port_idx) or not np.allclose(
             left.atoms.get_initial_charges(),
             right.atoms.get_initial_charges()[order],
         ):
@@ -64,22 +64,22 @@ class BlockGroups:
     def one(self, orbit):
         representative = self.blocks[orbit.representative]
         return all(
-            self.same(representative, self.blocks[int(member)])
+            self.same(representative, self.blocks[member])
             for member in orbit.members
         )
 
     def perm(self, orbit):
         source = min(
-            (int(member) for member in orbit.members if int(member) in self.fixed),
+            (member for member in orbit.members if member in self.fixed_perms),
             default=None,
         )
         if source is None:
             return None
-        return self.symmetry.to_representative(orbit, source, self.fixed[source])
+        return self.symmetry.to_representative(orbit, source, self.fixed_perms[source])
 
 
 class PortRules:
-    """Centralize chemistry checks shared by placement and fixed-cell fitting."""
+    """Centralize chemistry checks for port assignment and rigid-block placement."""
 
     def __init__(
         self,
@@ -88,7 +88,7 @@ class PortRules:
         locator,
         pbc,
         symmetry,
-        fixed,
+        fixed_perms,
         groups,
     ):
         self.topology = topology
@@ -96,7 +96,7 @@ class PortRules:
         self.locator = locator
         self.pbc = pbc
         self.symmetry = symmetry
-        self.fixed = fixed
+        self.fixed_perms = fixed_perms
         self.groups = groups
 
     def pref(self, edge):
@@ -110,20 +110,20 @@ class PortRules:
 
     def node_mask(self, node, edge_perms):
         """Return a target/source feasibility mask for one node slot."""
-        src_symbols = self.blocks[node].connection_point_anchor_symbols
+        src_symbols = self.blocks[node].conn_symbols
         neighbors = self.topology.neighbor_list[node]
         allowed = np.ones((len(neighbors), len(src_symbols)), dtype=bool)
         bad_pair = None
         for row, node_near in enumerate(neighbors):
-            edge = int(node_near.index)
+            edge = node_near.index
             other = self.blocks[edge]
             if other is None:
                 ends = [
-                    int(item.index)
+                    item.index
                     for item in self.topology.neighbor_list[edge]
                 ]
                 peer = ends[1] if ends[0] == node else ends[0]
-                dst_symbols = self.blocks[peer].connection_point_anchor_symbols
+                dst_symbols = self.blocks[peer].conn_symbols
             else:
                 end = next(
                     i
@@ -137,7 +137,7 @@ class PortRules:
                     < 0.01
                 )
                 dst_symbols = (
-                    other.connection_point_anchor_symbols[edge_perms[edge][end]],
+                    other.conn_symbols[edge_perms[edge][end]],
                 )
 
             for col, src_symbol in enumerate(src_symbols):
@@ -159,14 +159,14 @@ class PortRules:
 
     def choose(self):
         """Choose edge orientations jointly with all node port assignments."""
-        fixed, choices = self._options()
+        fixed_perms, choices = self._options()
         if not choices:
-            return fixed
+            return fixed_perms
 
         best = None
         scores = {}
         for selection in itertools.product(*choices):
-            perms = fixed.copy()
+            perms = fixed_perms.copy()
             for item in selection:
                 perms.update(item)
             score = self._score(perms, scores)
@@ -191,18 +191,18 @@ class PortRules:
             edge,
         )
         node_symbols = [
-            self.pbc.connection_port(placed[near.index], x)[0]
+            self.pbc.port_info(placed[near.index], x)[0]
             for near, x in zip(
                 self.topology.neighbor_list[edge],
                 node_x,
                 strict=True,
             )
         ]
-        edge_symbols = block.connection_point_anchor_symbols
+        edge_symbols = block.conn_symbols
         return all(
             not self.pbc.is_forbidden_fused_pair(
                 node_symbol,
-                edge_symbols[int(src)],
+                edge_symbols[src],
             )
             for node_symbol, src in zip(node_symbols, perm, strict=True)
         )
@@ -219,70 +219,31 @@ class PortRules:
             "a direct carbon-metal or metal-metal connection."
         )
 
-    def validate(self, placed, perms, scale):
-        """Reject assigned ports that predict forbidden or overlong bonds."""
-        for raw_edge in self.topology.edge_indices:
-            edge = int(raw_edge)
-            node_x_i, node_x_j = self.pbc.find_matched_x_sites(
-                self.topology,
-                placed,
-                perms,
-                edge,
-            )
-            near, far = self.topology.neighbor_list[edge]
-            node_i = placed[near.index]
-            node_j = placed[far.index]
-            block = placed[edge]
-            if block is None:
-                pairs = ((node_i, node_x_i, node_j, node_x_j),)
-            else:
-                edge_x_i, edge_x_j = block.connection_point_indices[perms[edge]]
-                pairs = (
-                    (node_i, node_x_i, block, int(edge_x_i)),
-                    (block, int(edge_x_j), node_j, node_x_j),
-                )
-            for left, x_i, right, x_j in pairs:
-                symbol_i, _, cap_i = self.pbc.connection_port(left, x_i)
-                symbol_j, _, cap_j = self.pbc.connection_port(right, x_j)
-                if self.pbc.is_forbidden_fused_pair(symbol_i, symbol_j):
-                    raise ValueError(
-                        "Forbidden fused-bond chemistry rejected assembly: "
-                        f"edge {edge} joins {symbol_i}-{symbol_j}."
-                    )
-                predicted = cap_i + cap_j
-                limit = self.pbc.max_bond_len(symbol_i, symbol_j, scale)
-                if predicted > limit:
-                    raise ValueError(
-                        "Predicted fused-bond gate rejected assembly: "
-                        f"edge {edge} {symbol_i}-{symbol_j} is "
-                        f"{predicted:.3f} Å; limit {limit:.3f} Å."
-                    )
-
     def _flip_matters(self, edge):
-        symbols = self.blocks[edge].connection_point_anchor_symbols
+        symbols = self.blocks[edge].conn_symbols
         return any(
             self.pbc.is_forbidden_fused_pair(node_symbol, symbols[0])
             != self.pbc.is_forbidden_fused_pair(node_symbol, symbols[1])
             for near in self.topology.neighbor_list[edge]
             for node_symbol in self.blocks[
-                int(near.index)
-            ].connection_point_anchor_symbols
+                near.index
+            ].conn_symbols
         )
 
     @staticmethod
-    def _candidates(pref, fixed=None, sensitive=False):
-        if fixed is not None:
-            return (fixed,)
+    def _candidates(pref, fixed_perm=None, sensitive=False):
+        if fixed_perm is not None:
+            return (fixed_perm,)
         if sensitive:
             return pref, pref[::-1]
         return (pref,)
 
     def _options(self):
-        fixed = {}
+        fixed_perms = {}
         choices = []
         for orbit in self.symmetry.edge_orbits:
             members = [
-                int(i) for i in orbit.members if self.blocks[int(i)] is not None
+                i for i in orbit.members if self.blocks[i] is not None
             ]
             if not members:
                 continue
@@ -302,7 +263,7 @@ class PortRules:
                     for candidate in candidates
                 ]
                 if len(options) == 1:
-                    fixed.update(options[0])
+                    fixed_perms.update(options[0])
                 else:
                     choices.append(options)
                 continue
@@ -311,22 +272,21 @@ class PortRules:
                 pref = self.pref(edge)
                 candidates = self._candidates(
                     pref,
-                    self.fixed.get(edge),
+                    self.fixed_perms.get(edge),
                     self._flip_matters(edge),
                 )
                 options = [{edge: candidate} for candidate in candidates]
                 if len(options) == 1:
-                    fixed.update(options[0])
+                    fixed_perms.update(options[0])
                 else:
                     choices.append(options)
-        return fixed, choices
+        return fixed_perms, choices
 
     def _score(self, perms, cache):
         score = 0.0
-        for raw_node in self.topology.node_indices:
-            node = int(raw_node)
+        for node in self.topology.node_idx:
             allowed, _ = self.node_mask(node, perms)
-            forced = self.fixed.get(node)
+            forced = self.fixed_perms.get(node)
             if forced is not None:
                 if not np.all(allowed[np.arange(len(forced)), forced]):
                     return None

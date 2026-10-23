@@ -5,16 +5,10 @@ from pathlib import Path
 
 import numpy as np
 from ase.cell import Cell
-from pymatgen.core import Element
 
-from mofbb.compose.chemistry import (
-    add_fused_coordination,
-    nonmetal_neighbor_counts,
-    validate_coordination,
-)
 from mofbb.compose.connectivity import (
     bond_arrays,
-    minimum_image_shifts,
+    mic_shifts,
     validate_3d_connectivity,
 )
 
@@ -26,7 +20,7 @@ class Framework:
         """Store copies of the geometry, bonds, and metadata."""
         self.atoms = atoms.copy()
         if bond_shifts is None:
-            bond_shifts = minimum_image_shifts(atoms, bonds)
+            bond_shifts = mic_shifts(atoms, bonds)
         pairs, shifts = bond_arrays(len(atoms), bonds, bond_shifts)
         self.bonds = pairs.copy()
         self.bond_shifts = shifts.copy()
@@ -61,11 +55,6 @@ class Framework:
         if path.suffix != ".cif":
             path = path.with_suffix(".cif")
         path.parent.mkdir(parents=True, exist_ok=True)
-        self._write_cif(path)
-        return path
-
-    def _write_cif(self, path):
-        """Emit the framework as a P1 CIF at ``path``."""
         stem = path.stem.replace(" ", "_")
 
         # Check the serialized geometry: rounding must not break a bridge.
@@ -100,16 +89,16 @@ class Framework:
             if topology is not None:
                 f.write(f"# {topology}\n")
                 f.write("# Building blocks:\n")
-                for i in topology.node_indices:
+                for i in topology.node_idx:
                     t = topology.node_types[i]
                     bb = self.info["located_bbs"][i]
                     f.write(f"#     Node {i}, Type {t}, {bb}\n")
-                for i in topology.edge_indices:
+                for i in topology.edge_idx:
                     t = tuple(topology.edge_types[i])
                     bb = self.info["located_bbs"][i]
                     f.write(f"#     Edge {i}, Type {t}, {bb}\n")
-                objective = self.info["geometry_optimization_objective"]
-                f.write(f"# Geometry optimization objective: {objective:.3f}\n")
+                loss = self.info["geometry_optimization_loss"]
+                f.write(f"# Geometry optimization loss: {loss:.3f}\n")
                 f.write(f"# Max RMSD: {self.info['max_rmsd']:.3f}\n")
                 f.write(f"# Mean RMSD: {self.info['mean_rmsd']:.3f}\n")
             elif self.info.get("decomposition_dir"):
@@ -189,201 +178,4 @@ class Framework:
                     f"{symbols[i]}{i} {symbols[j]}{j} "
                     f"{distance:.3f} {symmetry} {bond_type}\n"
                 )
-
-class FrameworkAssembler:
-    """Merge placed blocks, fuse their connection points, and validate geometry."""
-
-    def __init__(self, assignment, placement, overlap_scale):
-        self.topology = placement.topology
-        self.source_topology = assignment.topology
-        self.blocks = placement.blocks
-        self.permutations = placement.permutations
-        self.pbc = assignment.pbc
-        self.x_tolerance = placement.port_tolerance
-        self.bond_scale = placement.bond_scale
-        self.overlap_scale = overlap_scale
-
-    def build(self, info, *, wrap=True):
-        """Return the final framework after removing all dummy X atoms."""
-        counts = np.concatenate(
-            [
-                block.validate_chemistry().nonmetal_counts
-                for block in self.blocks if block is not None
-            ]
-        )
-        sizes = [0 if block is None else block.n_atoms for block in self.blocks]
-        offsets = np.cumsum([0, *sizes[:-1]], dtype=int)
-        block_bonds = np.concatenate(
-            [
-                block.bonds + offset
-                for offset, block in zip(offsets, self.blocks, strict=True)
-                if block is not None
-            ],
-            axis=0,
-        )
-        block_bond_types = [
-            bond_type
-            for block in self.blocks
-            if block is not None
-            for bond_type in block.bond_types
-        ]
-        connection_bonds, connection_shifts = self._connection_bonds(offsets)
-
-        block_atoms = [block.atoms for block in self.blocks if block is not None]
-        atoms = sum(block_atoms[1:], block_atoms[0].copy())
-        atoms.set_pbc(True)
-        atoms.set_cell(self.topology.atoms.cell)
-        self._validate_x_pairs(atoms, connection_bonds, connection_shifts)
-        bonds, bond_types, bond_shifts = self._fuse_x_atoms(
-            atoms,
-            block_bonds,
-            block_bond_types,
-            connection_bonds,
-            connection_shifts,
-            counts=counts,
-        )
-        self._validate_overlaps(atoms)
-        framework = Framework(
-            atoms, bonds, bond_types, info=info, wrap=wrap, bond_shifts=bond_shifts
-        )
-        if info.get("require_3d", False):
-            framework.validate_3d()
-        return framework
-
-    def _connection_bonds(self, offsets):
-        """Realize every topology edge in its declared periodic images."""
-        bonds, shifts = [], []
-        edge_shifts = self.topology.edge_shifts
-        for raw_edge_index in self.topology.edge_indices:
-            edge_index = int(raw_edge_index)
-            x_i, x_j = self.pbc.find_matched_x_sites(
-                self.source_topology,
-                self.blocks,
-                self.permutations,
-                edge_index,
-            )
-            neighbor_i, neighbor_j = self.topology.neighbor_list[edge_index]
-            x_i += offsets[neighbor_i.index]
-            x_j += offsets[neighbor_j.index]
-
-            edge = self.blocks[edge_index]
-            if edge is None:
-                bonds.append((x_i, x_j))
-                shifts.append(edge_shifts[edge_index][1] - edge_shifts[edge_index][0])
-                continue
-
-            edge_x = (
-                edge.connection_point_indices[self.permutations[edge_index]]
-                + offsets[edge_index]
-            )
-            bonds.extend(((edge_x[0], x_i), (edge_x[1], x_j)))
-            shifts.extend(edge_shifts[edge_index])
-
-        return bonds, np.asarray(shifts, dtype=int).reshape(-1, 3)
-
-    def _validate_x_pairs(self, atoms, x_pairs, shifts):
-        failures = self.pbc.calc_x_mid(atoms, x_pairs, self.x_tolerance, shifts=shifts)
-        if failures:
-            x_i, x_j, distance = failures[0]
-            raise ValueError(
-                "Geometric quality gate rejected assembly: "
-                f"X atoms {x_i}-{x_j} are {distance:.3f} Å apart."
-            )
-
-    def _fuse_x_atoms(
-        self, atoms, bonds, bond_types, x_pairs, x_shifts, *, counts=None
-    ):
-        symbols = np.asarray(atoms.get_chemical_symbols())
-        is_x = symbols == "X"
-        if counts is None:
-            counts = nonmetal_neighbor_counts(atoms.numbers, bonds)
-            validate_coordination(atoms.numbers, counts, context="building blocks")
-        new_indices = np.full(len(atoms), -1, dtype=int)
-        new_indices[~is_x] = np.arange(np.count_nonzero(~is_x))
-
-        x_neighbors = {}
-        fused_bonds = []
-        fused_bond_types = []
-        for (atom_i, atom_j), bond_type in zip(bonds, bond_types, strict=True):
-            atom_i = int(atom_i)
-            atom_j = int(atom_j)
-            if is_x[atom_i] and is_x[atom_j]:
-                raise ValueError("Each X port must have exactly one real-atom anchor.")
-            if is_x[atom_i]:
-                x_neighbors.setdefault(atom_i, []).append(atom_j)
-            elif is_x[atom_j]:
-                x_neighbors.setdefault(atom_j, []).append(atom_i)
-            else:
-                fused_bonds.append((atom_i, atom_j))
-                fused_bond_types.append(bond_type)
-
-        # Internal bonds belong to finite, unwrapped building blocks.
-        fused_shifts = [(0, 0, 0)] * len(fused_bonds)
-        consumed = set()
-        affected = set()
-        for (x_i, x_j), shift in zip(x_pairs, x_shifts, strict=True):
-            if (
-                x_i == x_j
-                or x_i in consumed
-                or x_j in consumed
-                or x_i not in x_neighbors
-                or x_j not in x_neighbors
-            ):
-                raise ValueError("Fusion must use each anchored X port exactly once.")
-            consumed.update((x_i, x_j))
-            left, right = x_neighbors[x_i], x_neighbors[x_j]
-            if len(left) > 1 or len(right) > 1:
-                pair, single = (left, right) if len(left) > 1 else (right, left)
-                if (len(pair) != 2 or len(single) != 1
-                        or any(symbols[i] != "O" for i in pair)
-                        or not Element(symbols[single[0]]).is_metal):
-                    raise ValueError("A paired oxygen port must join one metal anchor.")
-            for atom_i in left:
-                for atom_j in right:
-                    symbol_i, symbol_j = symbols[atom_i], symbols[atom_j]
-                    if self.pbc.is_forbidden_fused_pair(symbol_i, symbol_j):
-                        raise ValueError(
-                            "Forbidden fused-bond chemistry rejected assembly: "
-                            f"new {symbol_i}-{symbol_j} bond."
-                        )
-                    fused_bonds.append((atom_i, atom_j))
-                    fused_bond_types.append("S")
-                    fused_shifts.append(shift)
-                    add_fused_coordination(atoms.numbers, counts, atom_i, atom_j)
-                    affected.update((atom_i, atom_j))
-
-        if consumed != set(np.flatnonzero(is_x)):
-            raise ValueError("Fusion must use each anchored X port exactly once.")
-        validate_coordination(
-            atoms.numbers, counts, context="assembly", indices=sorted(affected)
-        )
-
-        failures = self.pbc.calc_fail_connection(
-            atoms,
-            x_pairs,
-            x_neighbors,
-            self.bond_scale,
-            shifts=x_shifts,
-        )
-        if failures:
-            atom_i, atom_j, distance, limit = failures[0]
-            raise ValueError(
-                "Fused-bond quality gate rejected assembly: "
-                f"atoms {atom_i}-{atom_j} are {distance:.3f} Å apart; "
-                f"limit {limit:.3f} Å."
-            )
-
-        fused_bonds = new_indices[np.asarray(fused_bonds, dtype=int).reshape(-1, 2)]
-        fused_shifts = np.asarray(fused_shifts, dtype=int).reshape(-1, 3)
-        del atoms[is_x.tolist()]
-        return fused_bonds, fused_bond_types, fused_shifts
-
-    def _validate_overlaps(self, atoms):
-        overlaps = self.pbc.calc_atomic_overlaps(atoms, scale=self.overlap_scale)
-        if overlaps:
-            atom_i, atom_j, distance, limit = overlaps[0]
-            raise ValueError(
-                "Atomic-overlap quality gate rejected assembly: "
-                f"atoms {atom_i}-{atom_j} are {distance:.3f} Å apart; "
-                f"minimum {limit:.3f} Å."
-            )
+        return path

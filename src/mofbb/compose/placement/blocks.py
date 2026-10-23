@@ -7,17 +7,17 @@ import numpy as np
 from mofbb.compose.placement.errors import SymmetryCompatibilityError
 
 
-class BlockPlacement:
-    """Optimize framework geometry, then place blocks in the final lattice."""
+class BBPlacement:
+    """Store joint-fit state and place linkers in the optimized lattice."""
 
-    def __init__(self, assignment, fixed_cell_fit, geometry_optimizer, edge_factory):
+    def __init__(self, assignment, edge_factory, *, port_tol, bond_scale):
+        self.assignment = assignment
         self.source_topology = assignment.topology
         self.topology = assignment.topology
-        self.blocks = fixed_cell_fit.blocks
-        self.permutations = fixed_cell_fit.permutations
+        self.blocks = assignment.placed
+        self.perms = assignment.perms
         self.symmetry = assignment.symmetry
         self.locator = assignment.locator
-        self.geometry_optimizer = geometry_optimizer
         self.pbc = assignment.pbc
         self.edge_factory = edge_factory
         self.symmetry_compatible_node_orbits = (
@@ -27,48 +27,23 @@ class BlockPlacement:
             assignment.symmetry_compatible_edge_orbits
         )
         self.symmetry_diagnostics = assignment.diag
-        self.fixed_cell_fitted = fixed_cell_fit.fitted
-        self.geometry_optimization_result = fixed_cell_fit.optimization_result
-        self.port_tolerance = fixed_cell_fit.tolerance
-        self.bond_scale = fixed_cell_fit.bond_scale
-        self.symmetry_tolerance = assignment.sym_tol
+        self.port_tol = port_tol
+        self.bond_scale = bond_scale
+        self.sym_tol = assignment.sym_tol
         self.strict_symmetry = assignment.strict_symmetry
         self.edge_targets = {}
         self.edge_frame_diagnostics = []
 
     def run(self):
         """Place all blocks in the final cell and return this stage."""
-        if not self.fixed_cell_fitted and hasattr(self.geometry_optimizer, "optimize_placement"):
-            self.geometry_optimizer.optimize_placement(self)
-            if any(self.blocks[int(i)] is not None for i in self.topology.edge_indices):
-                self.edge_targets = self.edge_factory(
-                    self.source_topology, self.topology, self.permutations, self.symmetry
-                ).build()
-        else:
-            self._prepare_topology()
-            if self.fixed_cell_fitted and self.strict_symmetry:
-                self._validate_fixed_cell_symmetry()
-            self.rmsds = np.asarray(self._place_nodes())
+        self.edge_shifts = self.topology.edge_shifts
+        self.edge_frame_diagnostics = []
+        if any(self.blocks[int(i)] is not None for i in self.topology.edge_idx):
+            self.edge_targets = self.edge_factory(
+                self.source_topology, self.topology, self.perms, self.symmetry
+            ).build()
         self._place_edges()
         return self
-
-    def _prepare_topology(self):
-        if self.fixed_cell_fitted:
-            self.topology = self.topology.copy()
-        else:
-            self.topology, self.geometry_optimization_result = self.geometry_optimizer.optimize(
-                topology=self.topology,
-                bbs=self.blocks,
-                perms=self.permutations,
-                return_result=True,
-            )
-
-        self.edge_shifts = self.topology.edge_shifts
-        has_edges = any(self.blocks[int(index)] is not None for index in self.topology.edge_indices)
-        if has_edges and not self.fixed_cell_fitted:
-            self.edge_targets = self.edge_factory(
-                self.source_topology, self.topology, self.permutations, self.symmetry
-            ).build()
 
     def _reject_symmetry(self, reason, kind, orbit, diagnostic=None, member=None):
         raise SymmetryCompatibilityError(
@@ -79,140 +54,12 @@ class BlockPlacement:
             diagnostic=diagnostic,
         )
 
-    def _validate_fixed_cell_symmetry(self):
-        """Audit fitted fixed-cell poses that otherwise skip placement checks."""
-        cell = np.asarray(self.topology.atoms.cell, dtype=float)
-        orbit_groups = (
-            (
-                "node",
-                self.symmetry.node_orbits,
-                self.symmetry_compatible_node_orbits,
-                self.symmetry_diagnostics["nodes"],
-            ),
-            (
-                "edge",
-                self.symmetry.edge_orbits,
-                self.symmetry_compatible_edge_orbits,
-                self.symmetry_diagnostics["edges"],
-            ),
-        )
-        for kind, orbits, compatible_orbits, diagnostics in orbit_groups:
-            for orbit in orbits:
-                occupied = [
-                    int(member)
-                    for member in orbit.members
-                    if self.blocks[int(member)] is not None
-                ]
-                if not occupied:
-                    continue
-                representative = orbit.representative
-                if representative not in compatible_orbits:
-                    self._reject_symmetry(
-                        "orbit_not_symmetry_compatible",
-                        kind,
-                        orbit,
-                    )
-                diagnostic = self.symmetry.diagnose(
-                    orbit,
-                    self.blocks[representative],
-                    self.permutations[representative],
-                    cell,
-                    self.symmetry_tolerance,
-                )
-                diagnostic.update({"kind": kind, "symmetry_propagated": True})
-                diagnostics.append(diagnostic)
-                if not diagnostic["compatible"]:
-                    diagnostic.update(
-                        {
-                            "symmetry_propagated": False,
-                            "reason": "final_stabilizer_incompatible",
-                        }
-                    )
-                    self._reject_symmetry(
-                        diagnostic["reason"],
-                        kind,
-                        orbit,
-                        diagnostic,
-                    )
-
-    def _place_nodes(self):
-        if self.fixed_cell_fitted:
-            return [0.0] * len(self.topology.node_indices)
-        rmsds = []
-        cell = np.asarray(self.topology.atoms.cell, dtype=float)
-        for orbit in self.symmetry.node_orbits:
-            representative = orbit.representative
-            if representative not in self.symmetry_compatible_node_orbits:
-                if self.strict_symmetry:
-                    self._reject_symmetry(
-                        "orbit_not_symmetry_compatible",
-                        "node",
-                        orbit,
-                    )
-                rmsds.extend(self._place_node_orbit_independently(orbit))
-                continue
-
-            representative_block, rmsd = self._located_node(representative)
-            representative_block.set_centroid(self.topology.atoms.positions[representative])
-            diagnostic = self.symmetry.diagnose(
-                orbit, representative_block, self.permutations[representative],
-                cell, self.symmetry_tolerance,
-            )
-            diagnostic.update({"kind": "node", "symmetry_propagated": True})
-            self.symmetry_diagnostics["nodes"].append(diagnostic)
-            if not diagnostic["compatible"]:
-                diagnostic.update(
-                    {
-                        "symmetry_propagated": False,
-                        "reason": "final_stabilizer_incompatible",
-                    }
-                )
-                if self.strict_symmetry:
-                    self._reject_symmetry(
-                        diagnostic["reason"],
-                        "node",
-                        orbit,
-                        diagnostic,
-                    )
-                rmsds.extend(self._place_node_orbit_independently(orbit))
-                continue
-
-            for raw_member in orbit.members:
-                member = int(raw_member)
-                operation_index = self.symmetry.operation(orbit, member)
-                self.blocks[member] = (
-                    representative_block
-                    if member == representative
-                    else self.symmetry.place(
-                        representative_block, operation_index,
-                        self.topology.atoms.positions[member], cell,
-                    )
-                )
-                rmsds.append(rmsd)
-        return rmsds
-
-    def _located_node(self, node_index):
-        block = self.blocks[node_index]
-        return self.locator.locate_with_permutation(
-            self.topology.local_structure(node_index), block, self.permutations[node_index]
-        )
-
-    def _place_node_orbit_independently(self, orbit):
-        rmsds = []
-        for raw_member in orbit.members:
-            member = int(raw_member)
-            block, rmsd = self._located_node(member)
-            block.set_centroid(self.topology.atoms.positions[member])
-            self.blocks[member] = block
-            rmsds.append(rmsd)
-        return rmsds
-
     def _edge_geometry(self, edge_index, cell):
         neighbor_i, neighbor_j = self.topology.neighbor_list[edge_index]
         block_i = self.blocks[neighbor_i.index]
         block_j = self.blocks[neighbor_j.index]
         x_i, x_j = self.pbc.find_matched_x_sites(
-            self.source_topology, self.blocks, self.permutations, edge_index
+            self.source_topology, self.blocks, self.perms, edge_index
         )
         point_i = block_i.atoms.positions[x_i]
         point_j = block_j.atoms.positions[x_j]
@@ -225,7 +72,7 @@ class BlockPlacement:
         edge, _, source_frame = self.locator.locate_edge_with_frame(
             target_points,
             self.blocks[edge_index],
-            self.permutations[edge_index],
+            self.perms[edge_index],
             target.transverse,
         )
         edge.set_centroid(centroid)
@@ -236,8 +83,9 @@ class BlockPlacement:
 
     @staticmethod
     def _edge_frame_diagnostic(edge_index, target, source_frame, **overrides):
+        """Convert NumPy scalars only when preparing serializable diagnostics."""
         diagnostic = {
-            "edge_index": int(edge_index),
+            "edge_index": edge_index,
             "symmetry_edge_type": target.symmetry_edge_type,
             "representative_edge": target.representative_edge,
             "operation_index": target.operation_index,
@@ -248,10 +96,13 @@ class BlockPlacement:
             "sign_degenerate": source_frame.sign_degenerate,
         }
         diagnostic.update(overrides)
-        return diagnostic
+        return {
+            key: value.item() if isinstance(value, np.generic) else value
+            for key, value in diagnostic.items()
+        }
 
     def _place_edges(self):
-        if self.fixed_cell_fitted or not self.edge_targets:
+        if not self.edge_targets:
             return
 
         cell = np.asarray(self.topology.atoms.cell, dtype=float)
@@ -282,13 +133,13 @@ class BlockPlacement:
         edge, _, source_frame = self.locator.locate_edge_with_frame(
             target_points,
             self.blocks[representative],
-            self.permutations[representative],
+            self.perms[representative],
             target.transverse,
         )
         edge.set_centroid(centroid)
         edge, diagnostic = self.symmetry.fit_torsion(
-            orbit, edge, self.permutations[representative],
-            cell, self.symmetry_tolerance,
+            orbit, edge, self.perms[representative],
+            cell, self.sym_tol,
         )
         diagnostic.update({"kind": "edge", "symmetry_propagated": True})
         self.symmetry_diagnostics["edges"].append(diagnostic)
@@ -335,12 +186,12 @@ class BlockPlacement:
             residual = float(
                 np.max(
                     np.linalg.norm(
-                        located.connection_points[self.permutations[member]]
+                        located.port_pos[self.perms[member]]
                         - member_points, axis=1,
                     )
                 )
             )
-            if member != representative and residual > self.port_tolerance:
+            if member != representative and residual > self.port_tol:
                 fallback_members.append(member)
                 if self.strict_symmetry:
                     diagnostic.update(

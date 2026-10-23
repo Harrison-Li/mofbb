@@ -212,17 +212,17 @@ def classify_block(
     try:
         block = BuildingBlock(path)
         row["connection_anchor_symbols"] = _compact_json(
-            block.connection_point_anchor_symbols
+            block.conn_symbols
         )
     except ValueError as error:
         row["classification_error"] = f"{type(error).__name__}: {error}"
         return row
 
-    if block.n_connection_points != candidate.coordination:
+    if block.n_ports != candidate.coordination:
         row["classification_status"] = "coordination_mismatch"
         row["classification_error"] = (
             f"manifest coordination {candidate.coordination} differs from "
-            f"the {block.n_connection_points} X atoms in {path}"
+            f"the {block.n_ports} X atoms in {path}"
         )
         return row
 
@@ -261,8 +261,8 @@ def classify_block(
     try:
         port_analyzer = PointGroupAnalyzer(
             Molecule(
-                ["He"] * block.n_connection_points,
-                _diagnostic_coordinates(block.connection_points),
+                ["He"] * block.n_ports,
+                _diagnostic_coordinates(block.port_pos),
             ),
             tolerance=POINT_GROUP_TOLERANCE,
             eigen_tolerance=POINT_GROUP_EIGEN_TOLERANCE,
@@ -281,7 +281,7 @@ def classify_block(
     except ValueError as error:
         row["port_point_group"] = "C1"
         row["port_point_group_action_order"] = 1
-        row["port_point_group_permutations"] = _compact_json([list(range(block.n_connection_points))])
+        row["port_point_group_permutations"] = _compact_json([list(range(block.n_ports))])
         row["port_point_group_max_mapping_residual"] = "0"
         row["graph_supports_port_point_group"] = _bool_field(True)
         row["classification_error"] = f"Port diagnostic identity fallback: {error}"

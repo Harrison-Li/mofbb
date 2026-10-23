@@ -87,10 +87,13 @@ class Locator:
         self,
         target,
         bb,
-        max_n_slices=4,
+        n_angles=4,
         allowed=None,
     ):
-        """Yield deterministic, distinct port mappings considered by locate."""
+        """Yield distinct port mappings, sampling ``n_angles`` per Euler axis.
+
+        For at most five ports, enumerate all permutations instead of sampling.
+        """
         p_coord = target.atoms.positions
         source_atoms = bb.local_structure().atoms
         n_points = p_coord.shape[0]
@@ -100,11 +103,11 @@ class Locator:
 
         if n_points <= 5:
             for values in itertools.permutations(range(n_points)):
-                permutation = np.asarray(values)
+                perm = np.asarray(values)
                 if allowed is None or np.all(
-                    allowed[np.arange(n_points), permutation]
+                    allowed[np.arange(n_points), perm]
                 ):
-                    yield permutation
+                    yield perm
             return
 
         points = source_atoms.positions
@@ -118,11 +121,10 @@ class Locator:
             if np.linalg.det(axes) < 0:
                 axes[:, 0] *= -1
             points = points @ axes
-        n_slices = max_n_slices
         angles = (
-            np.linspace(0, 360, n_slices),
-            np.linspace(0, 180, n_slices),
-            np.linspace(0, 360, n_slices),
+            np.linspace(0, 360, n_angles),
+            np.linspace(0, 180, n_angles),
+            np.linspace(0, 360, n_angles),
         )
         eulers = np.asarray(list(itertools.product(*angles)))
         matrices = scipy.spatial.transform.Rotation.from_euler(
@@ -131,22 +133,22 @@ class Locator:
         rotated = np.einsum("nij,pj->npi", matrices, points)
         seen = set()
         for positions in rotated:
-            permutation = find_best_permutation(
+            perm = find_best_permutation(
                 p_coord,
                 positions,
                 allowed=allowed,
             )
-            key = tuple(int(value) for value in permutation)
+            key = tuple(perm)
             if key in seen:
                 continue
             seen.add(key)
-            yield permutation
+            yield perm
 
     def locate(
         self,
         target,
         bb,
-        max_n_slices=4,
+        n_angles=4,
         allowed=None,
     ):
         """Orient ``bb`` onto ``target`` and find the best permutation."""
@@ -154,34 +156,34 @@ class Locator:
         source_atoms = bb.local_structure().atoms
 
         best = (np.inf, None, None)
-        for permutation in self.candidate_permutations(
+        for perm in self.candidate_permutations(
             target,
             bb,
-            max_n_slices=max_n_slices,
+            n_angles=n_angles,
             allowed=allowed,
         ):
             rotation, rmsd = find_best_orientation(
-                p_coord, source_atoms.positions[permutation]
+                p_coord, source_atoms.positions[perm]
             )
             if rmsd < best[0]:
-                best = rmsd, rotation, permutation
+                best = rmsd, rotation, perm
             if best[0] < 1e-4:
                 break
 
         if best[1] is None:
             return None, None, np.inf
-        rmsd, rotation, permutation = best
+        rmsd, rotation, perm = best
         located = bb.copy()
         located.atoms.set_positions(
             (bb.atoms.positions - bb.centroid) @ rotation + bb.centroid
         )
-        return located, permutation, rmsd
+        return located, perm, rmsd
 
-    def locate_with_permutation(self, target, bb, permutation):
+    def locate_with_permutation(self, target, bb, perm):
         """Orient ``bb`` onto ``target`` using a known permutation."""
         rotation, rmsd = find_best_orientation(
             target.atoms.positions,
-            bb.local_structure().atoms.positions[permutation],
+            bb.local_structure().atoms.positions[perm],
         )
         located = bb.copy()
         located.atoms.set_positions(
@@ -193,19 +195,19 @@ class Locator:
         self,
         target_points,
         bb,
-        permutation,
+        perm,
         target_transverse,
     ):
         """Place an edge linker using its complete PCA frame."""
 
         target_points = np.asarray(target_points, dtype=float)
         target_transverse = np.asarray(target_transverse, dtype=float)
-        permutation = np.asarray(permutation, dtype=int)
+        perm = np.asarray(perm, dtype=int)
         source_frame = bb.edge_frame()
 
-        # permutation[target] = source. Inverting it gives target positions
+        # perm[target] = source. Inverting it gives target positions
         # ordered by the linker's fixed intrinsic X0-to-X1 direction.
-        target_by_source = target_points[np.argsort(permutation)]
+        target_by_source = target_points[np.argsort(perm)]
         target_frame = _target_edge_frame(
             target_by_source[1] - target_by_source[0],
             target_transverse,
@@ -219,7 +221,7 @@ class Locator:
         positions = (bb.atoms.positions - bb.centroid) @ rotation
         located_bb.atoms.set_positions(positions + target_center)
 
-        source_directions = bb.connection_points - bb.centroid
+        source_directions = bb.port_pos - bb.centroid
         source_directions /= np.linalg.norm(
             source_directions, axis=1, keepdims=True
         )
@@ -227,7 +229,7 @@ class Locator:
         target_directions /= np.linalg.norm(
             target_directions, axis=1, keepdims=True
         )
-        residual = source_directions[permutation] @ rotation - target_directions
-        rmsd = float(np.sqrt(np.mean(np.sum(residual**2, axis=1))))
+        residual = source_directions[perm] @ rotation - target_directions
+        rmsd = np.sqrt(np.mean(np.sum(residual**2, axis=1)))
 
         return located_bb, rmsd, source_frame

@@ -141,7 +141,7 @@ def load_backend_inputs(backend: str, case: BenchmarkCase, database_root: Path):
     if backend == "mofbb":
         from mofbb.compose import Builder, BuildingBlock, Topology
 
-        build_kwargs = {"scale": 10.0, "tolerance": 10.0}
+        build_kwargs = {"bond_scale": 10.0, "port_tol": 10.0}
     else:
         from pormake import Builder, BuildingBlock, Topology
 

@@ -170,7 +170,7 @@ class BuildingBlockGraph:
             symbols=block.atoms.get_chemical_symbols(),
             bonds=block.bonds,
             bond_types=block.bond_types,
-            port_indices=block.connection_point_indices,
+            port_indices=block.port_idx,
         )
 
 
@@ -283,7 +283,7 @@ def _coerce_building_block_graph(
                 "BuildingBlockGraph."
             )
         return source
-    if hasattr(source, "atoms") and hasattr(source, "connection_point_indices"):
+    if hasattr(source, "atoms") and hasattr(source, "port_idx"):
         if bonds is not None or bond_types is not None or port_indices is not None:
             raise ValueError(
                 "Do not supply graph arrays when source is a BuildingBlock."

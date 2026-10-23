@@ -4,14 +4,14 @@ from ase.geometry import find_mic
 from ase.neighborlist import neighbor_list
 from pymatgen.core import Element
 
-from mofbb.compose.connectivity import minimum_image_shifts
+from mofbb.compose.connectivity import mic_shifts
 
 
 class PBC:
     """Utilities for validating connections under periodic boundary conditions."""
 
-    scale = 1.2
-    tolerance = 0.3
+    bond_scale = 1.2
+    port_tol = 0.3
     overlap_scale = 1.0
 
     @staticmethod
@@ -32,7 +32,7 @@ class PBC:
         if shifts is not None:
             return np.linalg.norm(vectors + np.asarray(shifts) @ atoms.cell, axis=1)
         _, distances = find_mic(vectors, atoms.cell, atoms.pbc)
-        return np.asarray(distances, dtype=float)
+        return distances
 
     @classmethod
     def calc_atomic_overlaps(
@@ -43,15 +43,10 @@ class PBC:
         """Return atom pairs closer than their smaller covalent radius."""
         if scale is None:
             scale = cls.overlap_scale
-        scale = float(scale)
-        if scale < 0.0:
-            raise ValueError("Atomic-overlap scale cannot be negative.")
-        if not len(atoms):
-            return []
-        if scale == 0.0:
+        if not len(atoms) or scale == 0:
             return []
 
-        radii = np.asarray(covalent_radii[atoms.numbers], dtype=float)
+        radii = covalent_radii[atoms.numbers]
 
         # ASE adds the two per-atom cutoffs. Half-radii therefore produce
         # (r_i + r_j) / 2, which is always a safe candidate cutoff for
@@ -64,28 +59,15 @@ class PBC:
         )
 
         shortest_contacts = {}
-        for atom_i, atom_j, distance in zip(
-            indices_i,
-            indices_j,
-            distances,
-            strict=True,
-        ):
-            atom_i = int(atom_i)
-            atom_j = int(atom_j)
-            distance = float(distance)
-            limit = float(scale * min(radii[atom_i], radii[atom_j]))
+        for atom_i, atom_j, distance in zip(indices_i, indices_j, distances):
+            limit = scale * min(radii[atom_i], radii[atom_j])
             if distance >= limit:
                 continue
 
             pair = tuple(sorted((atom_i, atom_j)))
             previous = shortest_contacts.get(pair)
             if previous is None or distance < previous[2]:
-                shortest_contacts[pair] = (
-                    pair[0],
-                    pair[1],
-                    distance,
-                    limit,
-                )
+                shortest_contacts[pair] = (*pair, distance, limit)
 
         return [shortest_contacts[pair] for pair in sorted(shortest_contacts)]
 
@@ -99,7 +81,7 @@ class PBC:
         else:
             return False
 
-        return other == "B" or bool(Element(other).is_metal)
+        return other == "B" or Element(other).is_metal
 
     @classmethod
     def is_forbidden_fused_pair(cls, symbol_i: str, symbol_j: str) -> bool:
@@ -109,27 +91,23 @@ class PBC:
         )
 
     @classmethod
-    def calc_x_mid(
+    def calc_x_gaps(
         cls,
         atoms,
         x_pairs: list[tuple[int, int]],
-        tolerance: float | None = None,
+        port_tol: float | None = None,
         *,
         shifts=None,
     ) -> list[tuple[int, int, float]]:
-        """Return X-X pairs farther apart than tolerance in the selected images."""
-        if tolerance is None:
-            tolerance = cls.tolerance
+        """Return X-X pairs beyond ``port_tol`` in the selected images."""
+        if port_tol is None:
+            port_tol = cls.port_tol
 
         distances = cls._pair_distances(atoms, x_pairs, shifts)
         return [
-            (x_i, x_j, float(distance))
-            for (x_i, x_j), distance in zip(
-                x_pairs,
-                distances,
-                strict=True,
-            )
-            if distance > tolerance
+            (x_i, x_j, distance)
+            for (x_i, x_j), distance in zip(x_pairs, distances)
+            if distance > port_tol
         ]
 
     @classmethod
@@ -137,16 +115,16 @@ class PBC:
         cls,
         symbol_i: str,
         symbol_j: str,
-        scale: float | None = None,
+        bond_scale: float | None = None,
     ) -> float:
         """Return the maximum allowed bond distance after merging dummy sites."""
-        if scale is None:
-            scale = cls.scale
+        if bond_scale is None:
+            bond_scale = cls.bond_scale
 
         radius_i = covalent_radii[atomic_numbers[symbol_i]]
         radius_j = covalent_radii[atomic_numbers[symbol_j]]
 
-        return float(scale * (radius_i + radius_j))
+        return bond_scale * (radius_i + radius_j)
 
     @classmethod
     def calc_fail_connection(
@@ -154,38 +132,37 @@ class PBC:
         atoms,
         x_pairs: list[tuple[int, int]],
         x_neighbors: dict[int, int | list[int]],
-        scale: float | None = None,
+        bond_scale: float | None = None,
         *,
         shifts=None,
     ) -> list[tuple[int, int, float, float]]:
         """Return real-atom bonds that are too long after X-site fusion."""
-        if scale is None:
-            scale = cls.scale
+        if bond_scale is None:
+            bond_scale = cls.bond_scale
 
         atom_pairs = []
         expanded_shifts = []
         if shifts is None:
-            shifts = minimum_image_shifts(atoms, x_pairs)
+            shifts = mic_shifts(atoms, x_pairs)
         for (x_i, x_j), shift in zip(x_pairs, shifts, strict=True):
             for atom_i in np.atleast_1d(x_neighbors[x_i]):
                 for atom_j in np.atleast_1d(x_neighbors[x_j]):
-                    atom_pairs.append((int(atom_i), int(atom_j)))
+                    atom_pairs.append((atom_i, atom_j))
                     expanded_shifts.append(shift)
         pair_indices = np.asarray(atom_pairs, dtype=int).reshape(-1, 2)
         shifts = np.asarray(expanded_shifts, dtype=int).reshape(-1, 3)
         distances = cls._pair_distances(atoms, atom_pairs, shifts)
         radii = covalent_radii[atoms.numbers]
-        limits = scale * (
+        limits = bond_scale * (
             radii[pair_indices[:, 0]] + radii[pair_indices[:, 1]]
         )
 
         return [
-            (atom_i, atom_j, float(distance), float(limit))
+            (atom_i, atom_j, distance, limit)
             for (atom_i, atom_j), distance, limit in zip(
                 atom_pairs,
                 distances,
                 limits,
-                strict=True,
             )
             if distance > limit
         ]
@@ -194,10 +171,10 @@ class PBC:
         self,
         topology,
         bbs,
-        permutations,
+        perms,
         edge_index: int,
     ) -> tuple[int, ...]:
-        """Return node connection points matched to a topology edge."""
+        """Return node X-port atom indices matched to a topology edge."""
         edge_neighbors = topology.neighbor_list[edge_index]
         matched = []
 
@@ -211,11 +188,8 @@ class PBC:
                 if node_neighbor.index == edge_index and np.linalg.norm(
                     node_neighbor.distance_vector + edge_neighbor.distance_vector
                 ) < 0.01:
-                    permutation = permutations[node_index]
-                    connection_index = (
-                        node_bb.connection_point_indices[permutation][offset]
-                    )
-                    matched.append(int(connection_index))
+                    perm = perms[node_index]
+                    matched.append(node_bb.port_idx[perm][offset])
                     break
             else:
                 raise ValueError(
@@ -226,26 +200,14 @@ class PBC:
         return tuple(matched)
 
     @staticmethod
-    def connection_port(
+    def port_info(
         bb,  # building block
         x_index: int,
     ) -> tuple[str, int | tuple[int, ...], float]:
-        """Return anchor element, index or paired indices, and maximum cap length."""
-        x_indices = np.asarray(
-            bb.connection_point_indices
-        )
-
-        matches = np.where(x_indices == x_index)[0]
-
-        if len(matches) != 1:
-            raise ValueError(
-                f"Connection point {x_index} occurs {len(matches)} times in "
-                f"{bb.name!r}; expected exactly one occurrence."
-            )
-
-        port_index = int(matches[0])
-        group = bb.connection_point_anchor_groups[port_index]
-        anchor_index = group[0] if len(group) == 1 else group
+        """Return connection element, atom index or pair, and max X-atom distance."""
+        port_index = np.flatnonzero(bb.port_idx == x_index)[0]
+        group = bb.conn_groups[port_index]
+        conn_idx = group[0] if len(group) == 1 else group
 
         symbol, cap_length = bb.port_descriptors[port_index]
-        return symbol, anchor_index, float(cap_length)
+        return symbol, conn_idx, cap_length

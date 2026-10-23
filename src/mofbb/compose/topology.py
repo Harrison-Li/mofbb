@@ -52,7 +52,7 @@ class Topology:
         positions = self.atoms.positions
         inverse_cell = np.linalg.inv(self.atoms.cell)
         shifts = {}
-        for edge in self.edge_indices:
+        for edge in self.edge_idx:
             vectors = np.array([
                 positions[edge] + neighbor.distance_vector - positions[neighbor.index]
                 for neighbor in self.neighbor_list[edge]
@@ -91,11 +91,11 @@ class Topology:
     def calculate_properties(self):
         """Derive cached node/edge indices, types, and counts."""
         self._node_types = self.atoms.get_tags()
-        self._node_indices = np.flatnonzero(self._node_types >= 0)
-        self._edge_indices = np.flatnonzero(self._node_types < 0)
+        self._node_idx = np.flatnonzero(self._node_types >= 0)
+        self._edge_idx = np.flatnonzero(self._node_types < 0)
 
         self._edge_types = np.full((self.n_slots, 2), -1, dtype=int)
-        for edge in self.edge_indices:
+        for edge in self.edge_idx:
             self._edge_types[edge] = sorted(
                 self.node_types[neighbor.index] for neighbor in self.neighbor_list[edge]
             )
@@ -119,12 +119,12 @@ class Topology:
     @property
     def unique_node_types(self):
         """Return the distinct node types present in the net."""
-        return np.unique(self.node_types[self.node_indices])
+        return np.unique(self.node_types[self.node_idx])
 
     @property
     def unique_edge_types(self):
         """Return the distinct edge types present in the net."""
-        return np.unique(self.edge_types[self.edge_indices], axis=0)
+        return np.unique(self.edge_types[self.edge_idx], axis=0)
 
     @property
     def node_types(self):
@@ -142,24 +142,24 @@ class Topology:
         return len(self.atoms)
 
     @property
-    def node_indices(self):
+    def node_idx(self):
         """Return the slot indices that are nodes (vertices)."""
-        return self._node_indices
+        return self._node_idx
 
     @property
-    def edge_indices(self):
+    def edge_idx(self):
         """Return the slot indices that are edge-centers."""
-        return self._edge_indices
+        return self._edge_idx
 
     @property
     def n_nodes(self):
         """Return the number of node (vertex) slots."""
-        return len(self.node_indices)
+        return len(self.node_idx)
 
     @property
     def n_edges(self):
         """Return the number of edge-center slots."""
-        return len(self.edge_indices)
+        return len(self.edge_idx)
 
     @property
     def n_node_types(self):

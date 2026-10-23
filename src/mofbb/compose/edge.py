@@ -12,7 +12,7 @@ EPSILON = 1e-12
 
 
 @dataclass(frozen=True)
-class EdgeOrientationTarget:
+class EdgeTarget:
     """Orientation target and symmetry metadata for one topology edge."""
 
     transverse: np.ndarray
@@ -30,16 +30,13 @@ class Edge:
         self,
         original_topology,
         scaled_topology,
-        permutations,
+        perms,
         symmetry,
         tolerance=2e-3,
     ):
-        if tolerance <= 0:
-            raise ValueError("Edge symmetry matching tolerance must be positive.")
-
         self.original = original_topology
         self.scaled = scaled_topology
-        self.permutations = permutations
+        self.perms = perms
         self.symmetry = symmetry
         self.tolerance = tolerance
 
@@ -68,12 +65,12 @@ class Edge:
 
         targets = {}
 
-        for _, edge_indices in self.edges_by_type.items():
-            representative = min(edge_indices)
+        for _, edge_idx in self.edges_by_type.items():
+            representative = min(edge_idx)
             edge_type = int(self.original.node_types[representative])
             transverse, gauge = self._choose_transverse(representative)
 
-            targets[representative] = EdgeOrientationTarget(
+            targets[representative] = EdgeTarget(
                 transverse=transverse,
                 symmetry_edge_type=edge_type,
                 representative_edge=representative,
@@ -82,7 +79,7 @@ class Edge:
                 representative_gauge=gauge,
             )
 
-            for edge_index in edge_indices:
+            for edge_index in edge_idx:
                 if edge_index == representative:
                     continue
 
@@ -101,7 +98,7 @@ class Edge:
                 start, end = self.scaled_endpoints[edge_index]
                 transformed = self._perpendicular(transformed, end - start)
 
-                targets[edge_index] = EdgeOrientationTarget(
+                targets[edge_index] = EdgeTarget(
                     transverse=transformed,
                     symmetry_edge_type=edge_type,
                     representative_edge=representative,
@@ -115,13 +112,12 @@ class Edge:
     def _prepare_edges(self):
         """Cache ordered endpoints and group occupied edges by symmetry type."""
 
-        for raw_edge_index in self.original.edge_indices:
-            edge_index = int(raw_edge_index)
-            permutation = self.permutations[edge_index]
-            if permutation is None:
+        for edge_index in self.original.edge_idx:
+            perm = self.perms[edge_index]
+            if perm is None:
                 continue
 
-            order = np.argsort(np.asarray(permutation, dtype=int))
+            order = np.argsort(np.asarray(perm, dtype=int))
             self.endpoint_order[edge_index] = order
 
             original_center = self.original.atoms.positions[edge_index]
@@ -165,7 +161,7 @@ class Edge:
         best_transverse = None
 
         for endpoint in self.endpoint_order[edge_index]:
-            node_index = edge_neighbors[int(endpoint)].index
+            node_index = edge_neighbors[endpoint].index
 
             for neighbor in self.scaled.neighbor_list[node_index]:
                 if neighbor.index == edge_index:
@@ -173,11 +169,11 @@ class Edge:
 
                 vector = np.asarray(neighbor.distance_vector, dtype=float)
                 perpendicular = vector - np.dot(vector, unit_axis) * unit_axis
-                length = float(np.linalg.norm(perpendicular))
+                length = np.linalg.norm(perpendicular)
                 if length < EPSILON:
                     continue
 
-                key = (length, -int(neighbor.index))
+                key = (length, -neighbor.index)
                 if best_key is None or key > best_key:
                     best_key = key
                     best_transverse = perpendicular / length
@@ -199,13 +195,7 @@ class Edge:
         representative_points = self.original_endpoints[representative]
         target_center = self.original_centers[edge_index]
         target_points = self.original_endpoints[edge_index]
-        mapped_candidates = set(
-            int(index)
-            for index in self.symmetry.operations_between(
-                representative,
-                edge_index,
-            )
-        )
+        mapped_candidates = set(self.symmetry.operations_between(representative, edge_index))
         candidates = []
         for raw_index, (operation, operation_index) in enumerate(
             zip(
@@ -220,7 +210,7 @@ class Edge:
                 operation.operate(representative_center) - target_center
             )
             center_difference -= np.round(center_difference)
-            center_error = float(np.linalg.norm(center_difference))
+            center_error = np.linalg.norm(center_difference)
             if center_error >= self.tolerance:
                 continue
 
@@ -229,14 +219,10 @@ class Edge:
             )
             direct_difference = transformed_points - target_points
             direct_difference -= np.round(direct_difference)
-            direct_error = float(
-                np.max(np.linalg.norm(direct_difference, axis=1))
-            )
+            direct_error = np.max(np.linalg.norm(direct_difference, axis=1))
             reversed_difference = transformed_points - target_points[::-1]
             reversed_difference -= np.round(reversed_difference)
-            reversed_error = float(
-                np.max(np.linalg.norm(reversed_difference, axis=1))
-            )
+            reversed_error = np.max(np.linalg.norm(reversed_difference, axis=1))
             endpoint_reversed = reversed_error < direct_error
             endpoint_error = min(direct_error, reversed_error)
             key = (

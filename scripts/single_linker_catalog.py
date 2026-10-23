@@ -218,29 +218,29 @@ def load_block_pools(
             block = core.BuildingBlock(path)
             block.validate_connectivity()
             contains_carbon = "C" in block.atoms.get_chemical_symbols()
-            anchor_symbols = tuple(block.connection_point_anchor_symbols)
-            anchor_lengths = tuple(
-                float(value) for value in block.connection_point_anchor_lengths
+            conn_symbols = tuple(block.conn_symbols)
+            conn_dists = tuple(
+                float(value) for value in block.conn_dists
             )
             port_directions = tuple(
                 tuple(float(value) for value in direction)
                 for direction in block.local_structure().positions
             )
             port_radii = np.linalg.norm(
-                block.connection_points
-                - np.mean(block.connection_points, axis=0),
+                block.port_pos
+                - np.mean(block.port_pos, axis=0),
                 axis=1,
             )
         except Exception:
             skipped["invalid_block_metadata"] += 1
             continue
-        if block.n_connection_points != coordination:
+        if block.n_ports != coordination:
             skipped["connection_point_count_mismatch"] += 1
             continue
         if (
-            len(anchor_symbols) != coordination
-            or len(anchor_lengths) != coordination
-            or not all(anchor_symbols)
+            len(conn_symbols) != coordination
+            or len(conn_dists) != coordination
+            or not all(conn_symbols)
         ):
             skipped["invalid_connection_anchor_symbols"] += 1
             continue
@@ -266,8 +266,8 @@ def load_block_pools(
             graph_port_automorphism_order=graph_order,
             graph_supports_port_point_group=graph_supports_port_group,
             sha256=row["xyz_sha256"],
-            connection_anchor_symbols=anchor_symbols,
-            connection_anchor_lengths=anchor_lengths,
+            connection_anchor_symbols=conn_symbols,
+            connection_anchor_lengths=conn_dists,
             port_shape=core.port_shape_signature(np.asarray(port_directions)),
             port_radius_span=float(np.max(port_radii) - np.min(port_radii)),
             port_directions=port_directions,
@@ -293,7 +293,7 @@ def topology_record_from_object(
     topology: object,
     path: Path,
 ) -> core.TopologyRecord:
-    symmetry = core.SymmetryPlacement.cached(topology)
+    symmetry = core.SymPlacement.cached(topology)
 
     def port_permutations(orbit) -> tuple[tuple[int, ...], ...]:
         return tuple(sorted({
@@ -314,7 +314,7 @@ def topology_record_from_object(
         node_type = int(node_type)
         representative = next(
             int(index)
-            for index in topology.node_indices
+            for index in topology.node_idx
             if int(topology.node_types[index]) == node_type
         )
         directions = np.asarray(

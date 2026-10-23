@@ -7,7 +7,7 @@ from pathlib import Path
 
 from mofbb.compose.builder import Builder
 from mofbb.compose.building_block import BuildingBlock
-from mofbb.compose.reconstructor import AbstractTopologyInput, Reconstructor
+from mofbb.compose.reconstructor import TopoInput, Reconstructor
 from mofbb.compose.topology import Topology
 
 NodeAssignment = tuple[int, Path]
@@ -61,12 +61,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output CIF path. Default: composed.cif.",
     )
     parser.add_argument(
+        "--n-angles",
         "--accuracy",
         type=int,
         default=6,
-        help="Orientation-search accuracy. Default: 6.",
+        help="Samples per Euler-angle axis (minimum 4 when sampling). Default: 6.",
     )
     parser.add_argument(
+        "--port-tol",
         "--x-mid-tolerance",
         type=float,
         default=0.3,
@@ -77,6 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--bond-scale",
         "--fused-bond-scale",
         type=float,
         default=1.2,
@@ -139,13 +142,13 @@ def main(argv: list[str] | None = None) -> int:
                 "decomposition directory."
             )
         if args.abstract_topology:
-            abstract = AbstractTopologyInput.from_directory(args.source)
+            abstract = TopoInput.from_dir(args.source)
             framework = Builder().build(
                 abstract.topology,
-                abstract.blocks(),
-                accuracy=args.accuracy,
-                tolerance=args.x_mid_tolerance,
-                scale=args.fused_bond_scale,
+                abstract.copy_bbs(),
+                n_angles=args.n_angles,
+                port_tol=args.port_tol,
+                bond_scale=args.bond_scale,
                 overlap_scale=args.atomic_overlap_scale,
                 wrap=not args.no_wrap,
                 require_3d=not args.allow_low_dimensional,
@@ -168,9 +171,9 @@ def main(argv: list[str] | None = None) -> int:
             topology,
             node_bbs,
             edge_bbs,
-            accuracy=args.accuracy,
-            tolerance=args.x_mid_tolerance,
-            scale=args.fused_bond_scale,
+            n_angles=args.n_angles,
+            port_tol=args.port_tol,
+            bond_scale=args.bond_scale,
             overlap_scale=args.atomic_overlap_scale,
             wrap=not args.no_wrap,
             require_3d=not args.allow_low_dimensional,

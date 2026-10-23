@@ -83,17 +83,17 @@ def prepare_template(plan, output):
     assets = output / 'template'
     assets.mkdir(exist_ok=True)
     metal, organic = BuildingBlock(plan['template_metal_path']), BuildingBlock(plan['organic_path'])
-    assert organic.n_connection_points == 3 and metal.n_connection_points == 4
+    assert organic.n_ports == 3 and metal.n_ports == 4
     metal.validate_connectivity(); organic.validate_connectivity()
     topology = Topology(plan['topology_path'])
-    frame = Builder().build_by_type(topology, {plan['metal_node_type']: metal, plan['organic_node_type']: organic}, accuracy=4)
+    frame = Builder().build_by_type(topology, {plan['metal_node_type']: metal, plan['organic_node_type']: organic}, n_angles=4)
     maps, offset = [], 0
     placed_topology = frame.info['topology']
     for slot, block in enumerate(frame.info['located_bbs']):
         if block is None:
             continue
         real = np.flatnonzero(block.atoms.numbers != 0)
-        if slot in placed_topology.node_indices and int(placed_topology.node_types[slot]) == plan['metal_node_type']:
+        if slot in placed_topology.node_idx and int(placed_topology.node_types[slot]) == plan['metal_node_type']:
             assert np.array_equal(block.atoms.numbers, metal.atoms.numbers)
             maps.append(list(range(offset, offset+len(real))))
         offset += len(real)

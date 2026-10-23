@@ -11,7 +11,16 @@ assemble them into new MOFs with this Python toolkit.
 
 ## Install
 
-Requires **Python 3.10+**. Run from the repository directory:
+Requires **Python 3.10+**. From the repository directory:
+
+```bash
+pip install uv
+uv venv .venv --python 3.10
+source .venv/bin/activate
+uv pip install -e .
+```
+
+Alternatively, install with pip in your existing environment:
 
 ```bash
 python -m pip install -e .
@@ -62,28 +71,19 @@ Assign a block to every node type. CLI types start at `0` (`NODE 1` in CGD maps
 to type `0`), and each node block needs one `X` site per connection. Edge blocks
 are optional; omitted edges connect nodes directly.
 
-Assembly checks connections, bond lengths, overlaps, and basic chemistry.
-**3D periodic connectivity** is required by default; use
-`--allow-low-dimensional` for layers, chains, or finite structures.
+```python
+from mofbb.compose import Builder, BuildingBlock, Topology
 
-After assigning connection ports and initial orientations, MOFBB jointly fits
-rigid node positions, node rotations, and the cell in one geometry optimization.
-The objective matches node-port separations to rigid linker spans, or makes node
-ports coincide when there are no edge blocks. Compatible rotations remain related
-by symmetry. The cell starts from an analytically estimated physical scale;
-linkers are placed after the solve. Internal block geometry and final acceptance
-thresholds are preserved. An optional fixed-cell stage fits block poses in the
-supplied topology cell.
-For the original center-distance/angle optimizer, use
-`Builder(geometry_optimizer=NodeLatticeOptimizer())` in the Python API.
-
-Cell optimization lives in `mofbb.compose.scaler`: `Scaler`,
-`NodeLatticeOptimizer`, their symmetry parameterizations, and
-`FixedCellFrameworkFitter` share this module. The two optimizers are also imported
-directly from `mofbb.compose`. `Builder()` uses `Scaler()` by default; configure
-it with `Builder(geometry_optimizer=Scaler(max_nfev=120))`.
-Diagnostics use `geometry_optimization_objective`,
-`fixed_cell_fitted`, and `symmetry_propagated` consistently.
+topology = Topology("topology.cgd")
+framework = Builder().build_by_type(
+    topology,
+    node_bbs={0: BuildingBlock("node_type_0.xyz")},
+    port_tol=0.3, # permutation loss tolerance
+    bond_scale=1.2, # maximum created bond < atom raddi
+    sym_tol=0.1, # compatible symmetry tolerance of building blocks which has operation with annouced topology
+    #n_angles=6, # interval for searching best permuation between [0, 360]
+)
+```
 
 ## Validate a CIF
 

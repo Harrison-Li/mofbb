@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from mofbb.compose.placement.chemistry import BlockGroups, PortRules
+from mofbb.compose.placement.chemistry import BBGroups, PortRules
 from mofbb.compose.placement.errors import SymmetryCompatibilityError
-from mofbb.compose.placement.symmetry import SymmetryPlacement
+from mofbb.compose.placement.symmetry import SymPlacement
 
 
 class SlotAssignment:
@@ -18,9 +18,9 @@ class SlotAssignment:
         blocks,
         locator,
         pbc,
-        fixed=None,
+        fixed_perms=None,
         *,
-        accuracy=6,
+        n_angles=6,
         sym_tol=0.1,
         strict_symmetry=False,
     ):
@@ -28,37 +28,37 @@ class SlotAssignment:
         self.blocks = blocks
         self.locator = locator
         self.pbc = pbc
-        self.accuracy = accuracy
+        self.n_angles = n_angles
         self.sym_tol = sym_tol
         self.strict_symmetry = bool(strict_symmetry)
-        self.symmetry = SymmetryPlacement.cached(topology)
+        self.symmetry = SymPlacement.cached(topology)
         self.cell = np.asarray(topology.atoms.cell, dtype=float)
-        self.fixed = {
-            int(slot): np.asarray(perm, dtype=int)
-            for slot, perm in (fixed or {}).items()
+        self.fixed_perms = {
+            slot: np.asarray(perm, dtype=int)
+            for slot, perm in (fixed_perms or {}).items()
         }
         self.perms = [None] * topology.n_slots
-        for slot, perm in self.fixed.items():
+        for slot, perm in self.fixed_perms.items():
             self.perms[slot] = perm.copy()
         self.placed = [None] * topology.n_slots
         self.symmetry_compatible_node_orbits = set()
         self.symmetry_compatible_edge_orbits = set()
         self.diag = {
-            "mapping_tolerance": self.symmetry.mapping_tolerance,
+            "mapping_tolerance": self.symmetry.map_tol,
             "stabilizer_tolerance": sym_tol,
             "strict": self.strict_symmetry,
             "nodes": [],
             "edges": [],
         }
         self.edge_perms = {}
-        self.groups = BlockGroups(self.blocks, self.symmetry, self.fixed)
+        self.groups = BBGroups(self.blocks, self.symmetry, self.fixed_perms)
         self.rules = PortRules(
             self.topology,
             self.blocks,
             self.locator,
             self.pbc,
             self.symmetry,
-            self.fixed,
+            self.fixed_perms,
             self.groups,
         )
 
@@ -107,7 +107,7 @@ class SlotAssignment:
         placed, perm, rmsd = self.locator.locate(
             target,
             block,
-            max_n_slices=max(4, self.accuracy),
+            n_angles=max(4, self.n_angles),
             allowed=allowed,
         )
         if placed is None:
@@ -135,7 +135,7 @@ class SlotAssignment:
         block,
         allowed,
         placed,
-        permutation,
+        perm,
         rmsd,
     ):
         """Resolve arbitrary port-symmetry ties in favor of site symmetry."""
@@ -152,18 +152,18 @@ class SlotAssignment:
                 self.sym_tol,
             )["compatible"]
 
-        if compatible(placed.copy(), permutation):
-            return placed, permutation, rmsd
+        if compatible(placed.copy(), perm):
+            return placed, perm, rmsd
 
         best = None
-        initial = tuple(int(value) for value in permutation)
+        initial = tuple(perm)
         for candidate_permutation in self.locator.candidate_permutations(
             target,
             block,
-            max_n_slices=max(4, self.accuracy),
+            n_angles=max(4, self.n_angles),
             allowed=allowed,
         ):
-            key = tuple(int(value) for value in candidate_permutation)
+            key = tuple(candidate_permutation)
             if key == initial:
                 continue
             candidate, candidate_rmsd = self.locator.locate_with_permutation(
@@ -175,14 +175,14 @@ class SlotAssignment:
                 continue
             if best is None or candidate_rmsd < best[0]:
                 best = (
-                    float(candidate_rmsd),
+                    candidate_rmsd,
                     candidate,
                     np.asarray(candidate_permutation, dtype=int),
                 )
                 if candidate_rmsd < 1.0e-4:
                     break
         if best is None:
-            return placed, permutation, rmsd
+            return placed, perm, rmsd
         return best[1], best[2], best[0]
 
     def _place_node_orbits(self):
@@ -215,8 +215,7 @@ class SlotAssignment:
                 )
                 continue
 
-            for raw in orbit.members:
-                member = int(raw)
+            for member in orbit.members:
                 self.perms[member] = self.symmetry.to_member(
                     orbit,
                     member,
@@ -253,8 +252,7 @@ class SlotAssignment:
         self._place_nodes_independently(orbit)
 
     def _place_nodes_independently(self, orbit, skip=None):
-        for raw in orbit.members:
-            member = int(raw)
+        for member in orbit.members:
             if member == skip:
                 continue
             block, perm, _ = self._locate_node(member, self.perms[member])
@@ -292,7 +290,7 @@ class SlotAssignment:
     def _initialize_edge_orbits(self):
         for orbit in self.symmetry.edge_orbits:
             rep = orbit.representative
-            if all(self.blocks[int(i)] is None for i in orbit.members):
+            if all(self.blocks[i] is None for i in orbit.members):
                 continue
             if not self.groups.one(orbit):
                 self._initialize_distinct_edge_templates(orbit)
@@ -307,8 +305,7 @@ class SlotAssignment:
                     self.perms,
                 )
             block = self.blocks[rep]
-            for raw in orbit.members:
-                member = int(raw)
+            for member in orbit.members:
                 member_perm = self.symmetry.to_member(
                     orbit,
                     member,
@@ -344,8 +341,7 @@ class SlotAssignment:
                 representative=orbit.representative,
                 diagnostic=diagnostic,
             )
-        for raw in orbit.members:
-            member = int(raw)
+        for member in orbit.members:
             block = self.blocks[member]
             if block is None:
                 continue
@@ -381,7 +377,3 @@ class SlotAssignment:
         ):
             self.symmetry_compatible_node_orbits.clear()
             self.symmetry_compatible_edge_orbits.clear()
-
-    def validate_connections(self, placed, perms, scale):
-        """Reject assigned ports that predict forbidden or overlong bonds."""
-        self.rules.validate(placed, perms, scale)
