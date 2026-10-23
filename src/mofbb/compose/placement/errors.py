@@ -29,8 +29,8 @@ class SymmetryCompatibilityError(ValueError):
         details = []
         if diagnostic is not None:
             for key in (
-                "atom_residual",
-                "port_residual",
+                "max_atom_residual",
+                "max_port_residual",
                 "best_torsion_residual",
                 "propagated_port_residual",
             ):

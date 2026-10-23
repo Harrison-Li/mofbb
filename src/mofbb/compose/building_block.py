@@ -86,14 +86,13 @@ def _orient_pca_axis(axis, transverse, axial):
 class BuildingBlock:
     """Represent a molecular fragment placed onto a topology slot."""
 
-    def __init__(self, bb_file, local_structure_func=None):
+    def __init__(self, bb_file):
         """Read a building block from an ``.xyz`` file."""
         self.atoms = read_building_block_xyz(bb_file)
         self.name = self.atoms.info["name"]
         self.connection_point_indices = np.array(self.atoms.info["cpi"])
         self._bonds = self.atoms.info["bonds"]
         self._bond_types = self.atoms.info["bond_types"]
-        self.local_structure_func = local_structure_func
 
     def copy(self):
         """Return an independent copy of this building block."""
@@ -135,27 +134,16 @@ class BuildingBlock:
 
     def local_structure(self):
         """Build the ``LocalStructure`` of the connection points."""
-        connection_points = self.atoms[self.connection_point_indices].positions
-        return LocalStructure(
-            connection_points,
-            self.connection_point_indices,
-            normalization_func=self.local_structure_func,
-        )
+        return LocalStructure(self.connection_points, self.connection_point_indices)
 
     def set_centroid(self, centroid):
         """Rigidly translate the fragment to a new centroid."""
-        positions = self.atoms.positions
-        # Move centroid to zero.
-        positions = positions - self.centroid
-        # Recentroid by given value.
-        positions = positions + centroid
-        self.atoms.set_positions(positions)
+        self.atoms.set_positions(self.atoms.positions - self.centroid + centroid)
 
     @property
     def centroid(self):
         """Geometric anchor of the building block."""
-        centroid = np.mean(self.connection_points, axis=0)
-        return centroid
+        return np.mean(self.connection_points, axis=0)
 
     @property
     def connection_points(self):
@@ -174,17 +162,11 @@ class BuildingBlock:
                 f"{self.name!r} has {self.n_connection_points} connection "
                 "points; an edge frame requires exactly two."
             )
-        if radial_tolerance < 0.0:
-            raise ValueError("radial_tolerance must be non-negative.")
-        if pca_gap_tolerance < 0.0:
-            raise ValueError("pca_gap_tolerance must be non-negative.")
-
         x0, x1 = np.asarray(self.connection_points, dtype=float)
         edge_center = 0.5 * (x0 + x1)
         z = _unit_vector(x1 - x0, "the X0-to-X1 axis")
 
-        symbols = np.asarray(self.atoms.get_chemical_symbols())
-        real_pos = self.atoms.positions[symbols != "X"]
+        real_pos = self.atoms.positions[self.atoms.numbers != 0]
         if len(real_pos) == 0:
             raise ValueError(f"{self.name!r} contains no real atoms.")
 
@@ -227,9 +209,8 @@ class BuildingBlock:
             centered_axial,
         )
 
-        leading_value = max(float(eigenvalues[-1]), _FRAME_EPSILON)
         pca_gap = float(
-            (eigenvalues[-1] - eigenvalues[-2]) / leading_value
+            (eigenvalues[-1] - eigenvalues[-2]) / eigenvalues[-1]
         )
         pca_degenerate = pca_gap < pca_gap_tolerance
         nearly_linear = radial_extent < radial_tolerance
@@ -312,9 +293,7 @@ class BuildingBlock:
     @property
     def lengths(self):
         """Distances from the centroid to each connection point."""
-        dists = self.connection_points - self.centroid
-        norms = np.linalg.norm(dists, axis=1)
-        return norms
+        return np.linalg.norm(self.connection_points - self.centroid, axis=1)
 
     @property
     def is_edge(self):

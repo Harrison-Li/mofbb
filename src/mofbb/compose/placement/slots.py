@@ -385,21 +385,3 @@ class SlotAssignment:
     def validate_connections(self, placed, perms, scale):
         """Reject assigned ports that predict forbidden or overlong bonds."""
         self.rules.validate(placed, perms, scale)
-
-    @property
-    def node_cov(self):
-        """Compatibility alias for symmetry-compatible node orbits."""
-        return self.symmetry_compatible_node_orbits
-
-    @node_cov.setter
-    def node_cov(self, value):
-        self.symmetry_compatible_node_orbits = value
-
-    @property
-    def edge_cov(self):
-        """Compatibility alias for symmetry-compatible edge orbits."""
-        return self.symmetry_compatible_edge_orbits
-
-    @edge_cov.setter
-    def edge_cov(self, value):
-        self.symmetry_compatible_edge_orbits = value

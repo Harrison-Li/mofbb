@@ -6,7 +6,6 @@ import ase
 import numpy as np
 
 
-
 def wrap_fractional(values, tolerance=1.0e-12):
     """Return canonical fractional coordinates in the interval ``[0, 1)``."""
 

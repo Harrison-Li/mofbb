@@ -499,7 +499,7 @@ def generate(output: Path, count: int, seed: int, max_slots: int) -> None:
                             "cell_parameters": cell,
                             "max_rmsd": float(framework.info["max_rmsd"]),
                             "mean_rmsd": float(framework.info["mean_rmsd"]),
-                            "relax_obj": float(framework.info["relax_obj"]),
+                            "relax_obj": float(framework.info["geometry_optimization_objective"]),
                             "minimum_atom_distance": minimum_distance,
                             "cif_sha256": hashlib.sha256(final_cif.read_bytes()).hexdigest(),
                         },

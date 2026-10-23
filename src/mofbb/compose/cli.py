@@ -126,26 +126,6 @@ def _load_assignments(
     return loaded
 
 
-def _validate_node_assignments(
-    topology: Topology,
-    node_bbs: dict[object, BuildingBlock],
-) -> None:
-    required = {int(value) for value in topology.unique_node_types}
-    missing = sorted(required - set(node_bbs))
-    if missing:
-        raise ValueError(f"Missing node building blocks for types {missing}.")
-
-    for node_index in topology.node_indices:
-        node_type = int(topology.node_types[node_index])
-        expected = int(topology.cn[node_index])
-        actual = node_bbs[node_type].n_connection_points
-        if actual != expected:
-            raise ValueError(
-                f"Node type {node_type} requires {expected} connection points, "
-                f"but {node_bbs[node_type].name!r} has {actual}."
-            )
-
-
 def main(argv: list[str] | None = None) -> int:
     """Compose a framework and write it as CIF."""
 
@@ -184,7 +164,6 @@ def main(argv: list[str] | None = None) -> int:
         topology = Topology(args.source)
         node_bbs = _load_assignments(args.node_bb)
         edge_bbs = _load_assignments(args.edge_bb)
-        _validate_node_assignments(topology, node_bbs)
         framework = Builder().build_by_type(
             topology,
             node_bbs,
@@ -196,10 +175,7 @@ def main(argv: list[str] | None = None) -> int:
             wrap=not args.no_wrap,
             require_3d=not args.allow_low_dimensional,
         )
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    framework.write_cif(args.output)
-
-    output = args.output.with_suffix(".cif")
+    output = framework.write_cif(args.output)
     print(f"Wrote composed framework to {output}")
     return 0
 

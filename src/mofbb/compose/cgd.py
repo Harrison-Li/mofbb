@@ -11,13 +11,12 @@ from ase.geometry import cellpar_to_cell
 import numpy as np
 import pymatgen.core as mg
 
+
 class CgdReader:
     """Read conventional CGD files and MOFBB's decorated CGD variant."""
 
-    def __init__(self, path: str | Path, node="C", edge="O"):
+    def __init__(self, path: str | Path):
         self.path = Path(path)
-        self.node_symbol = node
-        self.edge_symbol = edge
         self.expanded = False
         self.symops = []
         self.edge_types = {}
@@ -135,31 +134,31 @@ class CgdReader:
         return ids
 
     def _node_types(self):
-        numeric, used = {}, set()
+        by_label, used = {}, set()
         for label in self.node_labels:
             match = re.fullmatch(r"[Vv]?(\d+)", label)
             if match:
                 kind = int(match.group(1)) - 1
                 if kind < 0:
                     raise ValueError("CGD NODE IDs must be positive.")
-                numeric[label] = kind
+                by_label[label] = kind
                 used.add(kind)
-        named, result = {}, []
+        result = []
         for label in self.node_labels:
-            if label not in numeric and label not in named:
+            if label not in by_label:
                 kind = next(
                     value
-                    for value in range(len(used) + len(named) + 1)
+                    for value in range(len(used) + 1)
                     if value not in used
                 )
-                named[label] = kind
+                by_label[label] = kind
                 used.add(kind)
-            result.append(numeric.get(label, named.get(label)))
+            result.append(by_label[label])
         return result
 
     def _check_coordination(self, types):
         by_type = {}
-        for kind, cn in zip(types, self.node_cn, strict=True):
+        for kind, cn in zip(types, self.node_cn):
             previous = by_type.setdefault(kind, cn)
             if previous != cn:
                 raise ValueError(
@@ -185,7 +184,7 @@ class CgdReader:
             )
         mappings = [self.slot_maps[op] for op in range(len(self.symops))]
         for op, mapping in enumerate(mappings, start=1):
-            if len(mapping) != count or sorted(mapping) != list(range(count)):
+            if sorted(mapping) != list(range(count)):
                 raise ValueError(f"CGD SLOT_MAP {op} is not a {count}-slot permutation.")
         return mappings
 
@@ -212,8 +211,7 @@ class CgdReader:
     def _explicit_atoms(self, properties, mappings):
         coordinates = np.concatenate((self.node_pos, self.edge_pos))
         return ase.Atoms(
-            symbols=[self.node_symbol] * len(self.node_pos)
-            + [self.edge_symbol] * len(self.edge_pos),
+            symbols=["C"] * len(self.node_pos) + ["O"] * len(self.edge_pos),
             scaled_positions=np.mod(coordinates, 1.0),
             cell=cellpar_to_cell(self.cell),
             tags=properties["type"],
@@ -226,8 +224,7 @@ class CgdReader:
         structure = mg.Structure.from_spacegroup(
             sg=group,
             lattice=mg.Lattice.from_parameters(*self.cell),
-            species=[self.node_symbol] * len(self.node_pos)
-            + [self.edge_symbol] * len(self.edge_pos),
+            species=["C"] * len(self.node_pos) + ["O"] * len(self.edge_pos),
             coords=np.concatenate((self.node_pos, self.edge_pos)),
             site_properties=properties,
         )

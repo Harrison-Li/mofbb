@@ -247,9 +247,6 @@ class PortAssignmentSolver:
                 0.0,
             )
 
-PortSolver = PortAssignmentSolver
-
-
 class DirectEdgeRepair:
     """Repair node permutations that make forbidden direct connections."""
 

@@ -45,11 +45,6 @@ class Reconstructor:
     def reconstruct(self) -> Framework:
         """Return the reconstructed periodic framework."""
 
-        if not self.map_path.is_file():
-            raise ValueError(
-                f"Decomposition directory {self.decomposition_dir} does not "
-                "contain reconstruction_map.json."
-            )
         data = json.loads(self.map_path.read_text(encoding="utf-8"))
         topology = data["topology"]
         topology_path = topology.get("path")
@@ -85,12 +80,7 @@ class Reconstructor:
 
         for slot, vertex in zip(slots, vertices):
             slot_id = int(slot["slot_id"])
-            relative_path = slot.get("exact_instance_path") or slot.get(
-                "debug_instance"
-            )
-            if relative_path is None:
-                raise ValueError(f"Slot {slot_id} has no exact instance path.")
-            block = BuildingBlock(self.decomposition_dir / relative_path)
+            block = BuildingBlock(self.decomposition_dir / slot["exact_instance_path"])
             source_indices = [int(value) for value in slot["source_indices"]]
             source_count = len(source_indices)
             block_symbols = block.atoms.get_chemical_symbols()
@@ -196,10 +186,7 @@ class AbstractTopologyInput:
         """Read ``topology.cgd`` and grouped BBs from a decomposition directory."""
 
         root = Path(decomposition_dir)
-        summary_path = root / "decomposition_summary.json"
-        if not summary_path.is_file():
-            raise ValueError(f"Decomposition directory {root} has no summary file.")
-        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        summary = json.loads((root / "decomposition_summary.json").read_text(encoding="utf-8"))
         topology_record = summary.get("topology")
         if not topology_record:
             raise ValueError(
@@ -217,11 +204,10 @@ class AbstractTopologyInput:
 
         node_bb_ids = topology.atoms.info.get("node_bb_ids", {})
         edge_bb_ids = topology.atoms.info.get("edge_bb_ids", {})
-        node_slots = {int(index) for index in topology.node_indices}
         slot_bb_ids = []
         for slot, raw_type in enumerate(topology.atoms.get_tags()):
-            bb_ids = node_bb_ids if slot in node_slots else edge_bb_ids
             bb_type = int(raw_type)
+            bb_ids = node_bb_ids if bb_type >= 0 else edge_bb_ids
             if bb_type not in bb_ids:
                 raise ValueError(
                     f"Abstract topology slot {slot} has no declared BB type."

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 from ase.cell import Cell
+from pymatgen.core import Element
 
 from mofbb.compose.chemistry import (
     add_fused_coordination,
@@ -229,7 +230,7 @@ class FrameworkAssembler:
         connection_bonds, connection_shifts = self._connection_bonds(offsets)
 
         block_atoms = [block.atoms for block in self.blocks if block is not None]
-        atoms = sum(block_atoms[1:], block_atoms[0])
+        atoms = sum(block_atoms[1:], block_atoms[0].copy())
         atoms.set_pbc(True)
         atoms.set_cell(self.topology.atoms.cell)
         self._validate_x_pairs(atoms, connection_bonds, connection_shifts)
@@ -333,7 +334,6 @@ class FrameworkAssembler:
             left, right = x_neighbors[x_i], x_neighbors[x_j]
             if len(left) > 1 or len(right) > 1:
                 pair, single = (left, right) if len(left) > 1 else (right, left)
-                from pymatgen.core import Element
                 if (len(pair) != 2 or len(single) != 1
                         or any(symbols[i] != "O" for i in pair)
                         or not Element(symbols[single[0]]).is_metal):

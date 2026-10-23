@@ -10,7 +10,7 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment, minimize_scalar
 from scipy.spatial.transform import Rotation
 
-from mofbb.compose.geometry_parameterization import Symmetry
+from mofbb.compose.scaler import Symmetry
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,11 +45,6 @@ class StabilizerFit:
             offsets = self.symmetry.offset_map(
                 orbit.representative, orbit.representative, operation
             )
-            if permutation.shape != offsets.shape:
-                raise ValueError(
-                    f"Slot {orbit.representative} has {len(offsets)} neighbors, "
-                    f"but permutation shape is {permutation.shape}."
-                )
             source = ports[permutation]
             target = ports[permutation[offsets]]
             errors = np.linalg.norm(moved[source] - positions[target], axis=1)
@@ -66,8 +61,6 @@ class StabilizerFit:
         }
 
     def fit(self, orbit, block, permutation, cell, tolerance):
-        if not block.is_edge:
-            raise ValueError("Stabilizer torsion optimization requires an edge.")
         base = self.diagnose(orbit, block, permutation, cell, tolerance)
         error = max(base["max_atom_residual"], base["max_port_residual"])
         base.update(
@@ -380,8 +373,6 @@ class SymmetryPlacement:
         """Return the operation mapping an orbit representative to a member."""
 
         matches = np.flatnonzero(orbit.members == member)
-        if len(matches) != 1:
-            raise ValueError(f"Slot {member} is not a unique member of orbit tag {orbit.tag}.")
         return int(orbit.operations[int(matches[0])])
 
     def operations_between(self, source, target):
@@ -425,11 +416,6 @@ class SymmetryPlacement:
 
         permutation = np.asarray(permutation, int)
         offsets = self.offset_map(orbit.representative, member, self.operation(orbit, member))
-        if permutation.shape != offsets.shape:
-            raise ValueError(
-                f"Slot {orbit.representative} has {len(offsets)} neighbors, "
-                f"but permutation shape is {permutation.shape}."
-            )
         result = np.empty_like(permutation)
         result[offsets] = permutation
         return result
@@ -439,11 +425,6 @@ class SymmetryPlacement:
 
         permutation = np.asarray(permutation, int)
         offsets = self.offset_map(orbit.representative, member, self.operation(orbit, member))
-        if permutation.shape != offsets.shape:
-            raise ValueError(
-                f"Slot {member} has {len(offsets)} neighbors, "
-                f"but permutation shape is {permutation.shape}."
-            )
         return permutation[offsets]
 
     def transform(self, op_index, cell):
@@ -486,8 +467,3 @@ class SymmetryPlacement:
             cell,
             tolerance,
         )
-
-    @staticmethod
-    def species_residual(transformed, reference, symbols):
-        """Return the largest optimal same-species assignment distance."""
-        return StabilizerFit.species_error(transformed, reference, symbols)

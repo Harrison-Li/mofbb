@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Topology-first generation of metal/organic-node MOFs without replacement."""
+"""Shared records, geometry, and validation for single-linker MOF generators.
+
+Library loading lives in single_linker_catalog; the balanced 10k workflow lives
+in single_linker_quota. Their public entry points below load those modules on
+demand. Record classes stay here to preserve stored candidate/checkpoint types.
+"""
 
 from __future__ import annotations
 
-from concurrent.futures import ProcessPoolExecutor, as_completed
 import csv
 from functools import lru_cache
 import hashlib
@@ -12,27 +16,21 @@ import json
 import logging
 import math
 import os
-import pickle
-import random
 import resource
-import shutil
-import statistics
 import warnings
-from collections import Counter, defaultdict
-from dataclasses import asdict, dataclass
+from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 import time
 
 import ase.neighborlist
+from ase import Atoms
 from ase.io import read as read_ase
 import numpy as np
-from pymatgen.core import Molecule
-from pymatgen.symmetry.analyzer import PointGroupAnalyzer
 from pymatgen.symmetry.groups import SpaceGroup
 from scipy.spatial.transform import Rotation
 import spglib
 from sympy.combinatorics import Permutation, PermutationGroup
-from threadpoolctl import threadpool_limits
 
 from mofbb.compose import Builder, BuildingBlock, Locator, Topology
 from mofbb.compose.connectivity import CONNECTIVITY_POLICY_VERSION, validate_3d_connectivity
@@ -49,19 +47,8 @@ from mofbb.compose.placement.symmetry import SymmetryPlacement
 
 DEFAULT_GENERATION_WORKERS = min(16, os.cpu_count() or 1)
 
-POINT_GROUP_TOLERANCE = 0.3
-POINT_GROUP_EIGEN_TOLERANCE = 0.01
-POINT_GROUP_MATRIX_TOLERANCE = 0.1
 EDGE_POINT_GROUP = "D*h"
 ALL_NODE_POINT_GROUP = "*"
-GRAPH_SYMMETRY_BASIS = "element_and_bond_labeled_graph_automorphism"
-GRAPH_SYMMETRY_FIELDS = (
-    "symmetry_basis",
-    "graph_port_automorphism_order",
-    "graph_port_automorphism_generators",
-    "graph_supports_port_point_group",
-)
-TOPOLOGY_CACHE_MTIME_TOLERANCE_NS = 5_000_000_000
 RESUME_CHECKPOINT_VERSION = 3
 
 
@@ -179,10 +166,6 @@ class FittedBlock:
     rmsd: float
 
 
-_CANDIDATE_WORKER_CONFIG: GenerationConfig | None = None
-_CANDIDATE_WORKER_POOLS: (
-    dict[tuple[str, int, str], list[BlockRecord]] | None
-) = None
 _GENERATION_WORKER_BUILDER: Builder | None = None
 
 
@@ -227,84 +210,12 @@ def configure_generation_worker(memory_limit_gib: int) -> None:
     resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
 
 
-def configure_candidate_worker(
-    config: GenerationConfig,
-    pools: dict[tuple[str, int, str], list[BlockRecord]],
-) -> None:
-    """Initialize one parallel topology-candidate worker."""
-
-    global _CANDIDATE_WORKER_CONFIG, _CANDIDATE_WORKER_POOLS
-    _CANDIDATE_WORKER_CONFIG = config
-    _CANDIDATE_WORKER_POOLS = pools
-    configure_quiet_builder_logging()
-    limit = config.worker_memory_limit_gib * 1024**3
-    resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
-
-
-def enumerate_topology_candidates_job(
-    topology: TopologyRecord,
-) -> tuple[str, tuple[CandidateAssignment, ...], dict[str, object]]:
-    """Enumerate one bounded topology queue in a worker process."""
-
-    if _CANDIDATE_WORKER_CONFIG is None or _CANDIDATE_WORKER_POOLS is None:
-        raise RuntimeError("candidate worker was not initialized")
-    started = time.monotonic()
-    node_stats: dict[str, int] = {}
-    edge_stats: dict[str, int] = {}
-    # Small 3x3 alignment problems become dramatically slower when every
-    # process starts a large OpenBLAS pool. Match the already-thread-limited
-    # build stage and let process-level parallelism provide concurrency.
-    with threadpool_limits(limits=1, user_api="blas"):
-        pools = _CANDIDATE_WORKER_POOLS
-        if (
-            _CANDIDATE_WORKER_CONFIG.strict_symmetry
-            and _CANDIDATE_WORKER_CONFIG.strict_prefilter
-        ):
-            pools, node_stats = strict_node_compatible_pools(
-                _CANDIDATE_WORKER_CONFIG,
-                topology,
-                pools,
-            )
-            pools, edge_stats = strict_edge_compatible_pools(topology, pools)
-        candidates = enumerate_topology_candidates(
-            _CANDIDATE_WORKER_CONFIG,
-            topology,
-            pools,
-        )
-        exact_symmetry_stats: dict[str, int | float] = {}
-        if (
-            _CANDIDATE_WORKER_CONFIG.strict_symmetry
-            and _CANDIDATE_WORKER_CONFIG.strict_prefilter
-        ):
-            candidates, exact_symmetry_stats = prefilter_candidate_queue(
-                _CANDIDATE_WORKER_CONFIG,
-                topology,
-                candidates,
-            )
-    return topology.name, candidates, {
-        "elapsed_seconds": time.monotonic() - started,
-        "nodes": node_stats,
-        "edges": edge_stats,
-        "exact_symmetry": exact_symmetry_stats,
-    }
-
-
 def file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
-
-
-def block_kind_from_path(path: Path) -> str | None:
-    if path.name.startswith("m_node"):
-        return "metal_node"
-    if path.name.startswith("o_node"):
-        return "organic_node"
-    if path.name.startswith("edge"):
-        return "edge"
-    return None
 
 
 def edge_conformer_is_selected(
@@ -319,78 +230,6 @@ def edge_conformer_is_selected(
         "molecular_point_group", ""
     )
     return point_group not in {"", "C1", "unclassified"}
-
-
-def resolve_manifest_block_paths(
-    config: GenerationConfig,
-    rows: list[dict[str, str]],
-) -> tuple[dict[int, Path], int, dict[int, str]]:
-    """Resolve renamed library blocks only when their recorded bytes match."""
-
-    resolved: dict[int, Path] = {}
-    unresolved: dict[tuple[str, str], list[int]] = defaultdict(list)
-    unresolved_reasons: dict[int, str] = {}
-    library_roots = {config.topology_dir.parent}
-
-    for index, row in enumerate(rows):
-        raw_path = row.get("output_path", "")
-        expected_sha256 = row.get("xyz_sha256", "")
-        kind = row.get("bb_kind", "")
-        path = Path(raw_path)
-        if raw_path:
-            library_roots.add(path.parent.parent)
-        if not expected_sha256:
-            unresolved_reasons[index] = "malformed_manifest_row"
-            continue
-        try:
-            if path.is_file() and file_sha256(path) == expected_sha256:
-                resolved[index] = path
-                continue
-            reason = "xyz_hash_mismatch" if path.is_file() else "missing_xyz"
-        except OSError:
-            reason = "unreadable_xyz"
-        unresolved[(kind, expected_sha256)].append(index)
-        unresolved_reasons[index] = reason
-
-    if not unresolved:
-        return resolved, 0, {}
-
-    search_directories: set[Path] = set()
-    for root in library_roots:
-        search_directories.update(
-            {
-                root / "node",
-                root / "nodes",
-                root / "edge",
-                root / "bbs" / "node",
-                root / "bbs" / "nodes",
-                root / "bbs" / "edge",
-            }
-        )
-
-    relocated = 0
-    seen_paths: set[Path] = set()
-    for directory in sorted(search_directories):
-        if not directory.is_dir():
-            continue
-        for path in sorted(directory.glob("*.xyz")):
-            if path in seen_paths:
-                continue
-            seen_paths.add(path)
-            kind = block_kind_from_path(path)
-            if kind is None:
-                continue
-            try:
-                key = (kind, file_sha256(path))
-            except OSError:
-                continue
-            indices = unresolved.pop(key, ())
-            for index in indices:
-                resolved[index] = path
-                unresolved_reasons.pop(index, None)
-                relocated += 1
-
-    return resolved, relocated, unresolved_reasons
 
 
 def port_shape_signature(
@@ -525,328 +364,6 @@ def screened_port_fit_rmsd(
     )
 
 
-def load_block_pools(
-    config: GenerationConfig,
-) -> tuple[dict[tuple[str, int, str], list[BlockRecord]], Counter[str]]:
-    """Load symmetry-eligible blocks, bucketed by geometric port point group."""
-
-    pools: dict[tuple[str, int, str], list[BlockRecord]] = defaultdict(list)
-    skipped: Counter[str] = Counter()
-    with config.manifest.open(encoding="utf-8", newline="") as handle:
-        rows = list(csv.DictReader(handle))
-    resolved_paths, relocated, unresolved_paths = resolve_manifest_block_paths(
-        config,
-        rows,
-    )
-    if relocated or unresolved_paths:
-        print(
-            f"manifest_paths_relocated_by_hash={relocated} "
-            f"unresolved_manifest_blocks={len(unresolved_paths)}",
-            flush=True,
-        )
-
-    for index, row in enumerate(rows):
-        if index in unresolved_paths:
-            skipped[unresolved_paths[index]] += 1
-            continue
-        try:
-            kind = row["bb_kind"]
-            coordination = int(row["coordination_number"])
-            num_atoms = int(row["num_atoms"])
-            path = resolved_paths[index]
-            point_group = row["port_point_group"]
-        except (KeyError, TypeError, ValueError):
-            skipped["malformed_manifest_row"] += 1
-            continue
-
-        graph_fields_present = any(field in row for field in GRAPH_SYMMETRY_FIELDS)
-        graph_metadata: (
-            tuple[str, int, str, tuple[tuple[int, ...], ...] | None] | None
-        ) = None
-        if graph_fields_present:
-            try:
-                basis = row["symmetry_basis"].strip()
-                graph_order = int(row["graph_port_automorphism_order"])
-                raw_generators = row.get("graph_port_automorphism_generators")
-                graph_generators = (
-                    tuple(
-                        tuple(int(value) for value in permutation)
-                        for permutation in json.loads(raw_generators)
-                    )
-                    if raw_generators not in {None, ""}
-                    else None
-                )
-                supports_value = (
-                    row["graph_supports_port_point_group"].strip().lower()
-                )
-                if supports_value not in {"true", "false", "unclassified"}:
-                    raise ValueError
-                graph_metadata = (
-                    basis,
-                    graph_order,
-                    supports_value,
-                    graph_generators,
-                )
-            except (
-                json.JSONDecodeError,
-                KeyError,
-                AttributeError,
-                TypeError,
-                ValueError,
-            ):
-                skipped["malformed_graph_symmetry"] += 1
-                continue
-
-        if row.get("classification_status") != "complete":
-            skipped["incomplete_symmetry_classification"] += 1
-            continue
-        if kind not in {"metal_node", "organic_node", "edge"}:
-            skipped["unsupported_kind"] += 1
-            continue
-        if (
-            kind == "edge"
-            and not edge_conformer_is_selected(row, config.edge_conformer_filter)
-        ):
-            skipped["edge_c1_conformer"] += 1
-            continue
-        atom_limit = (
-            config.max_edge_atoms if kind == "edge" else config.max_node_atoms
-        )
-        if num_atoms > atom_limit:
-            skipped["atom_limit"] += 1
-            continue
-        if graph_metadata is not None:
-            (
-                basis,
-                graph_order,
-                graph_supports_port_group,
-                graph_generators,
-            ) = graph_metadata
-            if basis != GRAPH_SYMMETRY_BASIS:
-                skipped["unsupported_symmetry_basis"] += 1
-                continue
-        else:
-            # Legacy cache manifests contain only conformer-derived fields.
-            # Their accepted rows were already symmetry-filtered by the cache
-            # producer, so retain them without re-imposing molecular equality.
-            basis = None
-            graph_order = None
-            graph_supports_port_group = None
-            graph_generators = None
-            if point_group in {"C1", "unclassified"}:
-                skipped["legacy_trivial_or_unclassified_port_symmetry"] += 1
-                continue
-        if kind == "edge" and (
-            coordination != 2
-            or point_group != EDGE_POINT_GROUP
-        ):
-            skipped["edge_symmetry"] += 1
-            continue
-        if kind != "edge" and coordination < 3:
-            skipped["node_coordination"] += 1
-            continue
-
-        try:
-            block = BuildingBlock(path)
-            block.validate_connectivity()
-            contains_carbon = "C" in block.atoms.get_chemical_symbols()
-            anchor_symbols = tuple(block.connection_point_anchor_symbols)
-            anchor_lengths = tuple(
-                float(value) for value in block.connection_point_anchor_lengths
-            )
-            port_directions = tuple(
-                tuple(float(value) for value in direction)
-                for direction in block.local_structure().positions
-            )
-            port_radii = np.linalg.norm(
-                block.connection_points
-                - np.mean(block.connection_points, axis=0),
-                axis=1,
-            )
-        except Exception:
-            skipped["invalid_block_metadata"] += 1
-            continue
-        if block.n_connection_points != coordination:
-            skipped["connection_point_count_mismatch"] += 1
-            continue
-        if (
-            len(anchor_symbols) != coordination
-            or len(anchor_lengths) != coordination
-            or not all(anchor_symbols)
-        ):
-            skipped["invalid_connection_anchor_symbols"] += 1
-            continue
-
-        record = BlockRecord(
-            path=path,
-            source_key=row["source_key"],
-            structure_id=row["structure_id"],
-            kind=kind,
-            contains_carbon=contains_carbon,
-            num_atoms=num_atoms,
-            coordination=coordination,
-            port_point_group=point_group,
-            molecular_point_group=(
-                row.get("conformer_point_group")
-                or row.get("molecular_point_group", "unclassified")
-            ),
-            chirality=row.get("chirality", "unclassified"),
-            linker_end_equivalence=row.get(
-                "linker_end_equivalence", "unclassified"
-            ),
-            symmetry_basis=basis,
-            graph_port_automorphism_order=graph_order,
-            graph_supports_port_point_group=graph_supports_port_group,
-            sha256=row["xyz_sha256"],
-            connection_anchor_symbols=anchor_symbols,
-            connection_anchor_lengths=anchor_lengths,
-            port_shape=port_shape_signature(np.asarray(port_directions)),
-            port_radius_span=float(np.max(port_radii) - np.min(port_radii)),
-            port_directions=port_directions,
-            graph_port_automorphism_generators=graph_generators,
-        )
-        pools[(kind, coordination, point_group)].append(record)
-        if kind != "edge":
-            pools[(kind, coordination, ALL_NODE_POINT_GROUP)].append(record)
-    return dict(pools), skipped
-
-
-def point_group_from_directions(directions: np.ndarray) -> str:
-    analyzer = PointGroupAnalyzer(
-        Molecule(["He"] * len(directions), directions),
-        tolerance=POINT_GROUP_TOLERANCE,
-        eigen_tolerance=POINT_GROUP_EIGEN_TOLERANCE,
-        matrix_tolerance=POINT_GROUP_MATRIX_TOLERANCE,
-    )
-    return analyzer.sch_symbol
-
-
-def topology_record_from_object(
-    topology: object,
-    path: Path,
-) -> TopologyRecord:
-    symmetry = SymmetryPlacement.cached(topology)
-    node_orbit_by_type = {
-        int(topology.node_types[orbit.representative]): orbit
-        for orbit in symmetry.node_orbits
-    }
-    sites: list[NodeSite] = []
-    for node_type, coordination in zip(
-        topology.unique_node_types, topology.unique_cn, strict=True
-    ):
-        node_type = int(node_type)
-        representative = next(
-            int(index)
-            for index in topology.node_indices
-            if int(topology.get_node_type(index)) == node_type
-        )
-        directions = np.asarray(
-            topology.local_structure(representative).positions,
-            dtype=float,
-        )
-        port_directions = tuple(
-            tuple(float(value) for value in direction)
-            for direction in directions
-        )
-        incident_edge_types = tuple(
-            tuple(
-                int(value)
-                for value in topology.edge_types[int(neighbor.index)]
-            )
-            for neighbor in topology.neighbor_list[representative]
-        )
-        orbit = node_orbit_by_type[node_type]
-        stabilizer_port_permutations = tuple(
-            sorted(
-                {
-                    tuple(
-                        int(value)
-                        for value in symmetry.offset_map(
-                            representative,
-                            representative,
-                            int(operation),
-                        )
-                    )
-                    for operation in orbit.stabilizers
-                }
-            )
-        )
-        sites.append(
-            NodeSite(
-                node_type=node_type,
-                coordination=int(coordination),
-                point_group=point_group_from_directions(directions),
-                port_shape=port_shape_signature(directions),
-                port_directions=port_directions,
-                incident_edge_types=incident_edge_types,
-                stabilizer_order=len(orbit.stabilizers),
-                stabilizer_port_permutations=stabilizer_port_permutations,
-            )
-        )
-
-    edge_sites = []
-    for orbit in symmetry.edge_orbits:
-        representative = orbit.representative
-        edge_type = tuple(
-            int(value) for value in topology.edge_types[representative]
-        )
-        port_permutations = tuple(
-            sorted(
-                {
-                    tuple(
-                        int(value)
-                        for value in symmetry.offset_map(
-                            representative,
-                            representative,
-                            int(operation),
-                        )
-                    )
-                    for operation in orbit.stabilizers
-                }
-            )
-        )
-        edge_sites.append(
-            EdgeSite(
-                edge_type=edge_type,
-                stabilizer_order=len(orbit.stabilizers),
-                stabilizer_port_permutations=port_permutations,
-            )
-        )
-
-    return TopologyRecord(
-        name=str(topology.name),
-        cgd_path=path.with_suffix(".cgd"),
-        space_group=str(topology.spacegroup),
-        num_nodes=int(topology.n_nodes),
-        num_edges=int(topology.n_edges),
-        node_sites=tuple(sites),
-        edge_types=tuple(
-            tuple(int(value) for value in edge_type)
-            for edge_type in topology.unique_edge_types
-        ),
-        edge_sites=tuple(edge_sites),
-    )
-
-
-def compatible_topology_cache(topology: object) -> bool:
-    """Accept current topologies and the legacy PORMAKE database cache."""
-
-    topology_type = type(topology)
-    return isinstance(topology, Topology) or (
-        topology_type.__module__ == "pormake.topology"
-        and topology_type.__name__ == "Topology"
-    )
-
-
-def topology_cache_is_stale(cgd_path: Path, pickle_path: Path) -> bool:
-    """Allow small timestamp skew introduced while copying cache files."""
-
-    return (
-        cgd_path.stat().st_mtime_ns
-        > pickle_path.stat().st_mtime_ns + TOPOLOGY_CACHE_MTIME_TOLERANCE_NS
-    )
-
-
 def node_pool_key(
     kind: str,
     site: NodeSite,
@@ -895,169 +412,6 @@ def unique_library_blocks(pools: dict[tuple, list]) -> tuple[BlockRecord, ...]:
     return tuple(unique.values())
 
 
-def load_eligible_topologies(
-    config: GenerationConfig,
-    pools: dict[tuple[str, int, str], list[BlockRecord]],
-    *,
-    topology_mode: str = "binodal",
-    symmetry_mode: str = "strict",
-) -> tuple[list[TopologyRecord], Counter[str]]:
-    """Load topologies supported by the requested single-linker formulation.
-
-    ``binodal`` retains the historical formulation of one metal node and one
-    organic node, with an optional edge block.  ``uninodal`` uses one metal
-    node and requires an organic linker on the topology's self-edge.
-    ``both`` includes both topology families and all three constructions.
-    """
-
-    if topology_mode == "both":
-        uninodal, skipped_uninodal = load_eligible_topologies(
-            config, pools, topology_mode="uninodal", symmetry_mode=symmetry_mode
-        )
-        binodal, skipped_binodal = load_eligible_topologies(
-            config, pools, topology_mode="binodal", symmetry_mode=symmetry_mode
-        )
-        skipped = Counter({f"uninodal:{k}": v for k, v in skipped_uninodal.items()})
-        skipped.update({f"binodal:{k}": v for k, v in skipped_binodal.items()})
-        return uninodal + binodal, skipped
-    if topology_mode not in {"binodal", "uninodal"}:
-        raise ValueError(f"unknown topology mode: {topology_mode}")
-    if symmetry_mode not in {"strict", "relaxed"}:
-        raise ValueError(f"unknown symmetry mode: {symmetry_mode}")
-
-    records: list[TopologyRecord] = []
-    skipped: Counter[str] = Counter()
-    requested_groups = set(config.requested_space_groups)
-
-    cgd_paths = sorted(config.topology_dir.glob("*.cgd"))
-    pickle_paths = sorted(config.topology_dir.glob("*.pickle"))
-    if pickle_paths:
-        cached_names = {path.stem for path in pickle_paths}
-        skipped["uncached_topology"] += sum(
-            cgd_path.stem not in cached_names for cgd_path in cgd_paths
-        )
-        topology_sources: list[tuple[Path, Path | None]] = [
-            (pickle_path.with_suffix(".cgd"), pickle_path)
-            for pickle_path in pickle_paths
-        ]
-    else:
-        topology_sources = [(cgd_path, None) for cgd_path in cgd_paths]
-
-    print(
-        f"screening_topologies={len(topology_sources)} "
-        f"cached={len(pickle_paths)}",
-        flush=True,
-    )
-    for cgd_path, pickle_path in topology_sources:
-        if not cgd_path.is_file():
-            skipped["missing_cgd"] += 1
-            continue
-        try:
-            if pickle_path is not None:
-                try:
-                    # These are trusted database pickles, not user-supplied files.
-                    with pickle_path.open("rb") as handle:
-                        topology = pickle.load(handle)
-                    if not compatible_topology_cache(topology):
-                        raise TypeError("topology pickle uses a different class")
-                    if topology_cache_is_stale(cgd_path, pickle_path):
-                        raise ValueError("topology pickle is older than its CGD")
-                except Exception:
-                    topology = Topology(cgd_path)
-            else:
-                topology = Topology(cgd_path)
-        except Exception:
-            skipped["unreadable_topology"] += 1
-            continue
-        topology_space_group = str(topology.spacegroup)
-        if requested_groups and topology_space_group not in requested_groups:
-            skipped["space_group_filter"] += 1
-            continue
-        if int(topology.n_slots) > config.max_topology_slots:
-            skipped["slot_limit"] += 1
-            continue
-        expected_node_types = 2 if topology_mode == "binodal" else 1
-        if len(topology.unique_node_types) != expected_node_types:
-            skipped["type_limit"] += 1
-            continue
-        try:
-            # Read legacy PORMAKE topologies from CGD to apply the current rules.
-            if not hasattr(topology, "validate_3d"):
-                topology = Topology(cgd_path)
-            topology.validate_3d()
-        except ValueError:
-            skipped["non_3d_topology"] += 1
-            continue
-        try:
-            record = topology_record_from_object(topology, cgd_path)
-        except Exception:
-            skipped["point_group_classification"] += 1
-            continue
-        if topology_mode == "binodal":
-            if symmetry_mode == "relaxed" and config.relaxed_all_node_shapes:
-                # P1 fallback need not reproduce a special site's point group.
-                # Coordination is the eligibility gate; make_space still applies
-                # the normal port-fit RMSD and the Builder validates assembly.
-                if not any(
-                    metal.node_type != organic.node_type
-                    and pools.get(("metal_node", metal.coordination, ALL_NODE_POINT_GROUP))
-                    and pools.get(("organic_node", organic.coordination, ALL_NODE_POINT_GROUP))
-                    for metal in record.node_sites
-                    for organic in record.node_sites
-                ):
-                    skipped["no_relaxed_coordination_assignment"] += 1
-                    continue
-                records.append(record)
-                continue
-            if not all(
-                node_records_for_site(pools, "metal_node", site)
-                or node_records_for_site(pools, "organic_node", site)
-                for site in record.node_sites
-            ):
-                skipped["missing_site_compatible_node_pool"] += 1
-                continue
-            if not compatible_metal_organic_pairs(record, pools):
-                skipped["no_metal_organic_assignment"] += 1
-                continue
-        else:
-            site = record.node_sites[0]
-            if symmetry_mode == "strict":
-                if not node_records_for_site(pools, "metal_node", site):
-                    skipped["missing_site_compatible_metal_pool"] += 1
-                    continue
-            elif not pools.get(
-                ("metal_node", site.coordination, ALL_NODE_POINT_GROUP), ()
-            ):
-                # Relaxed placement does not require a block to reproduce the
-                # crystallographic site stabilizer, but coordination must still
-                # be supported.  The geometric RMSD gate is applied when the
-                # candidate space is prepared.
-                skipped["missing_relaxed_coordination_metal_pool"] += 1
-                continue
-            self_edge = (site.node_type, site.node_type)
-            if not record.edge_types or any(
-                edge_type != self_edge for edge_type in record.edge_types
-            ):
-                skipped["missing_required_self_edge"] += 1
-                continue
-            if symmetry_mode == "strict":
-                edge_pools, _ = strict_edge_compatible_pools(record, pools)
-                if any(
-                    not edge_pools.get(
-                        ("edge", edge_type, 2, EDGE_POINT_GROUP),
-                        (),
-                    )
-                    for edge_type in record.edge_types
-                ):
-                    skipped["missing_site_compatible_edge_pool"] += 1
-                    continue
-            elif not pools.get(("edge", 2, EDGE_POINT_GROUP), ()):
-                skipped["missing_relaxed_edge_pool"] += 1
-                continue
-        records.append(record)
-    return records, skipped
-
-
 def compatible_metal_organic_pairs(
     topology: TopologyRecord,
     pools: dict[tuple[str, int, str], list[BlockRecord]],
@@ -1072,6 +426,7 @@ def compatible_metal_organic_pairs(
         and node_records_for_site(pools, "metal_node", metal_site)
         and node_records_for_site(pools, "organic_node", organic_site)
     ]
+
 
 
 def strict_node_compatible_pools(
@@ -1564,10 +919,7 @@ def assignment_prebuild_risk(
 ) -> float | None:
     """Require a feasible, geometry-aware bijection at every node type.
 
-    The previous gate retained an assignment whenever *one* port pair was
-    compatible.  That allowed the same rare compatible source port to be
-    implicitly reused for every incident edge.  This gate mirrors the
-    builder's one-port-per-neighbor assignment and jointly tests the two
+    Mirror the builder's one-port-per-neighbor assignment and jointly test both
     orientations of each heterotypic inserted edge.
     """
 
@@ -1616,26 +968,6 @@ def assignment_prebuild_risk(
     return None if not math.isfinite(best_risk) else best_risk
 
 
-def copy_selected_blocks(
-    directory: Path,
-    nodes: dict[int, BlockRecord],
-    edges: dict[tuple[int, int], BlockRecord],
-) -> tuple[dict[int, Path], dict[tuple[int, int], Path]]:
-    directory.mkdir(parents=True)
-    node_paths: dict[int, Path] = {}
-    for node_type, record in nodes.items():
-        target = directory / f"node_type_{node_type}.xyz"
-        shutil.copy2(record.path, target)
-        node_paths[node_type] = target
-    edge_paths: dict[tuple[int, int], Path] = {}
-    for edge_type, record in edges.items():
-        label = "_".join(str(value) for value in edge_type)
-        target = directory / f"edge_type_{label}.xyz"
-        shutil.copy2(record.path, target)
-        edge_paths[edge_type] = target
-    return node_paths, edge_paths
-
-
 @lru_cache(maxsize=256)
 def canonical_space_group_number(symbol: str) -> int:
     with warnings.catch_warnings():
@@ -1668,6 +1000,63 @@ def detect_crystal_symmetry(
         "detected_symmetry_operations": int(len(dataset.rotations)),
         "detected_symprec_angstrom": float(symprec),
         "detected_angle_tolerance_degree": float(angle_tolerance),
+    }
+
+
+def _validate_structure(
+    config: GenerationConfig,
+    atoms: Atoms,
+    *,
+    staged: bool = False,
+) -> dict[str, object]:
+    """Apply shared structure checks and collect quality metadata."""
+
+    source = "staged CIF" if staged else "assembled framework"
+    symbols = atoms.get_chemical_symbols()
+    if staged and ("X" in symbols or "C" not in symbols):
+        raise ValueError("staged CIF fails carbon/connection-site validation")
+    if "X" in symbols:
+        raise ValueError("assembled framework still contains X connection sites")
+    if "C" not in symbols:
+        raise ValueError("assembled framework contains no carbon")
+    if (
+        not np.isfinite(atoms.positions).all()
+        or atoms.cell.volume <= 0
+        or (staged and not np.isfinite(atoms.get_scaled_positions(wrap=False)).all())
+    ):
+        raise ValueError(f"{source} has invalid coordinates or cell")
+    if config.max_output_atoms and len(atoms) > config.max_output_atoms:
+        raise ValueError(
+            f"{source} has {len(atoms)} atoms, exceeding the "
+            f"configured limit of {config.max_output_atoms}"
+        )
+    connectivity = {}
+    if config.require_3d_connectivity:
+        connectivity = validate_3d_connectivity(atoms, minimum_distance_cutoff=3.0)
+        closest = connectivity["minimum_atom_distance_angstrom"]
+    else:
+        distances = ase.neighborlist.neighbor_list("d", atoms, 3.0)
+        closest = float(distances.min()) if len(distances) else None
+    if closest is not None and closest < config.minimum_atom_distance:
+        if staged:
+            raise ValueError("staged CIF fails minimum-distance validation")
+        raise ValueError(
+            f"minimum atom distance {closest:.3f} A is below "
+            f"{config.minimum_atom_distance:.3f} A"
+        )
+
+    return {
+        **connectivity,
+        **validate_single_linker(atoms),
+        "num_atoms": len(atoms),
+        "formula": atoms.get_chemical_formula(mode="metal"),
+        "cell_parameters": [float(value) for value in atoms.cell.cellpar()],
+        "minimum_atom_distance_angstrom": closest,
+        "cif_space_group_symbol": "P1",
+        "cif_space_group_number": 1,
+        "placement_mode": (
+            "strict_symmetry" if config.strict_symmetry else "allow_p1_fallback"
+        ),
     }
 
 
@@ -1704,64 +1093,26 @@ def build_and_validate(
             f"node-placement RMSD {max_rmsd:.3f} exceeds {config.max_rmsd:.3f}"
         )
     atoms = framework.atoms
-    symbols = atoms.get_chemical_symbols()
-    if "X" in symbols:
-        raise ValueError("assembled framework still contains X connection sites")
-    if "C" not in symbols:
-        raise ValueError("assembled framework contains no carbon")
-    if not np.isfinite(atoms.positions).all() or atoms.cell.volume <= 0:
-        raise ValueError("assembled framework has invalid coordinates or cell")
-    if config.max_output_atoms and len(atoms) > config.max_output_atoms:
-        raise ValueError(
-            f"assembled framework has {len(atoms)} atoms, exceeding the "
-            f"configured limit of {config.max_output_atoms}"
-        )
-    connectivity = {}
-    if config.require_3d_connectivity:
-        connectivity = validate_3d_connectivity(atoms, minimum_distance_cutoff=3.0)
-        closest = connectivity["minimum_atom_distance_angstrom"]
-    else:
-        distances = ase.neighborlist.neighbor_list("d", atoms, 3.0)
-        closest = float(distances.min()) if len(distances) else None
-    if closest is not None and closest < config.minimum_atom_distance:
-        raise ValueError(
-            f"minimum atom distance {closest:.3f} A is below "
-            f"{config.minimum_atom_distance:.3f} A"
-        )
-
-    linker_quality = validate_single_linker(atoms)
+    structure_quality = _validate_structure(config, atoms)
     framework.write_cif(cif_path)
     if not cif_path.is_file() or cif_path.stat().st_size == 0:
         raise ValueError("MOFBB did not write a nonempty CIF")
 
     diagnostics = framework.info.get("symmetry_placement_diagnostics", {})
     fallback_orbits = sum(
-        not item.get(
-            "symmetry_propagated",
-            item.get("covariant", True),
-        )
+        not item["symmetry_propagated"]
         for kind in ("nodes", "edges")
         for item in diagnostics.get(kind, ())
     )
 
     quality = {
-        **connectivity,
-        **linker_quality,
-        "num_atoms": len(atoms),
-        "formula": atoms.get_chemical_formula(mode="metal"),
-        "cell_parameters": [float(value) for value in atoms.cell.cellpar()],
+        **structure_quality,
         "max_rmsd": max_rmsd,
         "mean_rmsd": float(framework.info["mean_rmsd"]),
         "geometry_optimization_objective": float(
             framework.info["geometry_optimization_objective"]
         ),
-        "relax_obj": float(framework.info["relax_obj"]),
-        "minimum_atom_distance_angstrom": closest,
-        "cif_space_group_symbol": "P1",
-        "cif_space_group_number": 1,
-        "placement_mode": (
-            "strict_symmetry" if config.strict_symmetry else "allow_p1_fallback"
-        ),
+        "relax_obj": float(framework.info["geometry_optimization_objective"]),
         "symmetry_fallback_orbit_count": int(fallback_orbits),
     }
     if crystal_symmetry_symprec is not None:
@@ -1794,30 +1145,7 @@ def validate_staged_cif(
         return None
 
     atoms = read_ase(cif_path)
-    symbols = atoms.get_chemical_symbols()
-    if "X" in symbols or "C" not in symbols:
-        raise ValueError("staged CIF fails carbon/connection-site validation")
-    if (
-        not np.isfinite(atoms.positions).all()
-        or not np.isfinite(atoms.get_scaled_positions(wrap=False)).all()
-        or atoms.cell.volume <= 0
-    ):
-        raise ValueError("staged CIF has invalid coordinates or cell")
-    if config.max_output_atoms and len(atoms) > config.max_output_atoms:
-        raise ValueError(
-            f"staged CIF has {len(atoms)} atoms, exceeding the configured "
-            f"limit of {config.max_output_atoms}"
-        )
-    connectivity = {}
-    if config.require_3d_connectivity:
-        connectivity = validate_3d_connectivity(atoms, minimum_distance_cutoff=3.0)
-        closest = connectivity["minimum_atom_distance_angstrom"]
-    else:
-        distances = ase.neighborlist.neighbor_list("d", atoms, 3.0)
-        closest = float(distances.min()) if len(distances) else None
-    if closest is not None and closest < config.minimum_atom_distance:
-        raise ValueError("staged CIF fails minimum-distance validation")
-    linker_quality = validate_single_linker(atoms)
+    structure_quality = _validate_structure(config, atoms, staged=True)
     max_rmsd = comment_value("# Max RMSD:")
     if max_rmsd is None or max_rmsd > config.max_rmsd:
         raise ValueError("staged CIF fails RMSD validation")
@@ -1825,32 +1153,15 @@ def validate_staged_cif(
     if geometry_objective is None:
         geometry_objective = comment_value("# Relax obj value:")
     return {
-        **connectivity,
-        **linker_quality,
-        "num_atoms": len(atoms),
-        "formula": atoms.get_chemical_formula(mode="metal"),
-        "cell_parameters": [float(value) for value in atoms.cell.cellpar()],
+        **structure_quality,
         "max_rmsd": max_rmsd,
         "mean_rmsd": comment_value("# Mean RMSD:"),
         "geometry_optimization_objective": geometry_objective,
         "relax_obj": geometry_objective,
-        "minimum_atom_distance_angstrom": closest,
-        "cif_space_group_symbol": "P1",
-        "cif_space_group_number": 1,
-        "placement_mode": (
-            "strict_symmetry" if config.strict_symmetry else "allow_p1_fallback"
-        ),
         "symmetry_fallback_orbit_count": None,
         "cif_sha256": file_sha256(cif_path),
         "resumed_from_staging": True,
     }
-
-
-def block_manifest(record: BlockRecord, saved_path: Path) -> dict[str, object]:
-    data = asdict(record)
-    data["path"] = str(record.path)
-    data["saved_xyz"] = str(saved_path)
-    return data
 
 
 def atomic_json(path: Path, value: object) -> None:
@@ -1957,11 +1268,7 @@ def write_results(output: Path, rows: list[dict], summary: dict) -> None:
     atomic_json(output / "generation_summary.json", summary)
     temporary = output / "manifest.csv.tmp"
     with temporary.open("w", encoding="utf-8", newline="") as handle:
-        fields = [
-            "sample_id",
-            "topology",
-            "topology_space_group",
-            "cif_space_group",
+        quality_fields = [
             "cif_space_group_number",
             "placement_mode",
             "symmetry_fallback_orbit_count",
@@ -1969,7 +1276,10 @@ def write_results(output: Path, rows: list[dict], summary: dict) -> None:
             "num_atoms",
             "max_rmsd",
             "minimum_atom_distance_angstrom",
-            "cif",
+        ]
+        fields = [
+            "sample_id", "topology", "topology_space_group", "cif_space_group",
+            *quality_fields, "cif",
         ]
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
@@ -1979,22 +1289,8 @@ def write_results(output: Path, rows: list[dict], summary: dict) -> None:
                     "sample_id": row["sample_id"],
                     "topology": row["topology"]["name"],
                     "topology_space_group": row["topology"]["space_group"],
-                    "cif_space_group": row["quality"][
-                        "cif_space_group_symbol"
-                    ],
-                    "cif_space_group_number": row["quality"][
-                        "cif_space_group_number"
-                    ],
-                    "placement_mode": row["quality"]["placement_mode"],
-                    "symmetry_fallback_orbit_count": row["quality"][
-                        "symmetry_fallback_orbit_count"
-                    ],
-                    "formula": row["quality"]["formula"],
-                    "num_atoms": row["quality"]["num_atoms"],
-                    "max_rmsd": row["quality"]["max_rmsd"],
-                    "minimum_atom_distance_angstrom": row["quality"][
-                        "minimum_atom_distance_angstrom"
-                    ],
+                    "cif_space_group": row["quality"]["cif_space_group_symbol"],
+                    **{field: row["quality"][field] for field in quality_fields},
                     "cif": row["cif"],
                 }
             )
@@ -2025,386 +1321,6 @@ def candidate_assignment_signature(
         separators=(",", ":"),
     ).encode()
     return hashlib.sha256(encoded).hexdigest()
-
-
-def enumerate_topology_candidates(
-    config: GenerationConfig,
-    topology: TopologyRecord,
-    pools: dict[tuple[str, int, str], list[BlockRecord]],
-) -> tuple[CandidateAssignment, ...]:
-    """Build a bounded deterministic queue without materializing its product."""
-
-    site_candidates: dict[
-        tuple[int, str],
-        list[tuple[BlockRecord, float]],
-    ] = {}
-    for site in topology.node_sites:
-        for kind in ("metal_node", "organic_node"):
-            if config.strict_symmetry and config.strict_prefilter:
-                fitted = pools.get(
-                    (kind, site.node_type, site.coordination, site.point_group),
-                    [],
-                )
-                site_candidates[(site.node_type, kind)] = [
-                    (item.block, item.rmsd) for item in fitted
-                ]
-                continue
-            compatible = []
-            for block in node_records_for_site(pools, kind, site):
-                fit = screened_port_fit_rmsd(
-                    site,
-                    block,
-                    config.max_rmsd,
-                    config.accuracy,
-                )
-                if fit <= config.max_rmsd:
-                    compatible.append((block, fit))
-            site_candidates[(site.node_type, kind)] = compatible
-
-    orientations = []
-    for metal_site in topology.node_sites:
-        for organic_site in topology.node_sites:
-            if metal_site.node_type == organic_site.node_type:
-                continue
-            metal_blocks = tuple(
-                site_candidates[(metal_site.node_type, "metal_node")]
-            )
-            organic_blocks = tuple(
-                site_candidates[(organic_site.node_type, "organic_node")]
-            )
-            if metal_blocks and organic_blocks:
-                orientations.append(
-                    (
-                        metal_site,
-                        organic_site,
-                        metal_blocks,
-                        organic_blocks,
-                    )
-                )
-
-    def permuted_indices(size: int, label: str):
-        """Traverse a Cartesian index space bijectively in seeded order."""
-
-        if size <= 0:
-            return
-        digest = hashlib.sha256(
-            f"{config.seed}:{topology.name}:{label}".encode()
-        ).digest()
-        offset = int.from_bytes(digest[:16], "big") % size
-        if size == 1:
-            yield 0
-            return
-        step = int.from_bytes(digest[16:], "big") % size or 1
-        while math.gcd(step, size) != 1:
-            step += 1
-            if step >= size:
-                step = 1
-        scan_limit = min(
-            size,
-            config.max_candidates_per_topology
-            * config.candidate_scan_multiplier,
-        )
-        for index in range(scan_limit):
-            yield (offset + index * step) % size
-
-    def locate_orientation(
-        global_index: int,
-        sizes: list[int],
-    ) -> tuple[
-        tuple[
-            NodeSite,
-            NodeSite,
-            tuple[tuple[BlockRecord, float], ...],
-            tuple[tuple[BlockRecord, float], ...],
-        ],
-        int,
-    ]:
-        for orientation, size in zip(orientations, sizes, strict=True):
-            if global_index < size:
-                return orientation, global_index
-            global_index -= size
-        raise IndexError("candidate Cartesian index exceeds its spaces")
-
-    if config.strict_symmetry and config.strict_prefilter:
-        edge_options = tuple(
-            (edge_type, block)
-            for edge_type in topology.edge_types
-            for block in pools.get(
-                ("edge", edge_type, 2, EDGE_POINT_GROUP),
-                [],
-            )
-        )
-    else:
-        edge_options = tuple(
-            (edge_type, block)
-            for edge_type in topology.edge_types
-            for block in pools.get(("edge", 2, EDGE_POINT_GROUP), [])
-        )
-    direct: dict[str, CandidateAssignment] = {}
-    inserted: dict[str, CandidateAssignment] = {}
-
-    def order_key(candidate: CandidateAssignment) -> tuple[object, ...]:
-        tie_breaker = hashlib.sha256(
-            f"{config.seed}:{topology.name}:{candidate.signature}".encode()
-        ).hexdigest()
-        return (*candidate.score, tie_breaker)
-
-    direct_sizes = [
-        len(metal_blocks) * len(organic_blocks)
-        for _, _, metal_blocks, organic_blocks in orientations
-    ]
-    for global_index in permuted_indices(sum(direct_sizes), "direct"):
-        direct_cap = (
-            config.direct_candidate_cap
-            if config.direct_candidate_cap > 0
-            else config.max_candidates_per_topology
-        )
-        if len(direct) >= direct_cap:
-            break
-        orientation, local_index = locate_orientation(
-            global_index,
-            direct_sizes,
-        )
-        metal_site, organic_site, metal_blocks, organic_blocks = orientation
-        organic_index = local_index % len(organic_blocks)
-        metal_index = local_index // len(organic_blocks)
-        metal_block, metal_fit = metal_blocks[metal_index]
-        organic_block, organic_fit = organic_blocks[organic_index]
-        if (
-            not organic_block.contains_carbon
-            or metal_block.sha256 == organic_block.sha256
-            or metal_block.structure_id == organic_block.structure_id
-        ):
-            continue
-        nodes = {
-            metal_site.node_type: metal_block,
-            organic_site.node_type: organic_block,
-        }
-        risk = assignment_prebuild_risk(
-            topology,
-            nodes,
-            {},
-            maximum_rmsd=config.max_rmsd,
-            accuracy=config.accuracy,
-        )
-        if risk is None:
-            continue
-        signature = candidate_assignment_signature(topology.name, nodes, {})
-        candidate = CandidateAssignment(
-            signature=signature,
-            nodes=tuple(sorted(nodes.items())),
-            edges=(),
-            score=(
-                risk,
-                max(metal_fit, organic_fit),
-                max(block.port_radius_span for block in nodes.values()),
-            ),
-        )
-        if signature not in direct or order_key(candidate) < order_key(
-            direct[signature]
-        ):
-            direct[signature] = candidate
-
-    inserted_sizes = [
-        len(metal_blocks)
-        * len(organic_blocks)
-        * len(edge_options)
-        for _, _, metal_blocks, organic_blocks in orientations
-    ]
-    for global_index in permuted_indices(sum(inserted_sizes), "inserted"):
-        if len(inserted) >= config.max_candidates_per_topology:
-            break
-        orientation, local_index = locate_orientation(
-            global_index,
-            inserted_sizes,
-        )
-        metal_site, organic_site, metal_blocks, organic_blocks = orientation
-        edge_option_index = local_index % len(edge_options)
-        local_index //= len(edge_options)
-        organic_index = local_index % len(organic_blocks)
-        metal_index = local_index // len(organic_blocks)
-        metal_block, metal_fit = metal_blocks[metal_index]
-        organic_block, organic_fit = organic_blocks[organic_index]
-        edge_type, edge_block = edge_options[edge_option_index]
-        if (
-            metal_block.sha256 == organic_block.sha256
-            or metal_block.structure_id == organic_block.structure_id
-            or edge_block.sha256
-            in {metal_block.sha256, organic_block.sha256}
-            or edge_block.structure_id
-            in {metal_block.structure_id, organic_block.structure_id}
-            or (
-                not organic_block.contains_carbon
-                and not edge_block.contains_carbon
-            )
-        ):
-            continue
-        nodes = {
-            metal_site.node_type: metal_block,
-            organic_site.node_type: organic_block,
-        }
-        edges = {edge_type: edge_block}
-        risk = assignment_prebuild_risk(
-            topology,
-            nodes,
-            edges,
-            maximum_rmsd=config.max_rmsd,
-            accuracy=config.accuracy,
-        )
-        if risk is None:
-            continue
-        signature = candidate_assignment_signature(topology.name, nodes, edges)
-        candidate = CandidateAssignment(
-            signature=signature,
-            nodes=tuple(sorted(nodes.items())),
-            edges=tuple(sorted(edges.items())),
-            score=(
-                risk,
-                max(metal_fit, organic_fit),
-                max(block.port_radius_span for block in nodes.values()),
-            ),
-        )
-        if signature not in inserted or order_key(candidate) < order_key(
-            inserted[signature]
-        ):
-            inserted[signature] = candidate
-
-    queues = [
-        sorted(direct.values(), key=order_key),
-        sorted(inserted.values(), key=order_key),
-    ]
-    if config.strict_symmetry and config.strict_prefilter:
-        return tuple(sorted((*queues[0], *queues[1]), key=order_key))
-    ordered: list[CandidateAssignment] = []
-    positions = [0, 0]
-    turn = 0
-    while (
-        len(ordered) < config.max_candidates_per_topology
-        and any(position < len(queue) for position, queue in zip(positions, queues))
-    ):
-        queue_index = turn % 2
-        if positions[queue_index] >= len(queues[queue_index]):
-            queue_index = 1 - queue_index
-        ordered.append(queues[queue_index][positions[queue_index]])
-        positions[queue_index] += 1
-        turn += 1
-    return tuple(ordered)
-
-
-def build_topology_quota(job: dict[str, object]) -> dict[str, object]:
-    """Consume one topology's candidate queue without replacement."""
-
-    config = job["config"]
-    topology_record = job["topology"]
-    candidates = job["candidates"]
-    start = int(job["start"])
-    target = int(job["target"])
-    attempt_limit = int(job["attempt_limit"])
-    pass_index = int(job["pass_index"])
-    staging = Path(job["staging"])
-    staging.mkdir(parents=True, exist_ok=True)
-    configure_quiet_builder_logging()
-    successes = []
-    failure_types: Counter[str] = Counter()
-    failure_examples = []
-    attempted = 0
-    cursor = start
-
-    with threadpool_limits(limits=1, user_api="blas"):
-        try:
-            topology = cached_topology(str(topology_record.cgd_path))
-        except Exception as error:
-            return {
-                "topology": topology_record.name,
-                "pass_index": pass_index,
-                "start": start,
-                "next_cursor": start,
-                "attempted": 0,
-                "requested": target,
-                "successes": [],
-                "failure_types": {type(error).__name__: 1},
-                "failure_examples": [
-                    {
-                        "candidate_index": None,
-                        "error_type": type(error).__name__,
-                        "error": str(error)[:1000],
-                    }
-                ],
-                "topology_error": True,
-            }
-
-        stop = min(len(candidates), start + attempt_limit)
-        for candidate_index in range(start, stop):
-            if len(successes) >= target:
-                break
-            candidate = candidates[candidate_index]
-            attempted += 1
-            cursor = candidate_index + 1
-            cif_path = staging / f"{candidate.signature}.cif"
-            nodes = dict(candidate.nodes)
-            edges = dict(candidate.edges)
-            try:
-                quality = build_and_validate(
-                    config,
-                    topology_record,
-                    {key: block.path for key, block in nodes.items()},
-                    {key: block.path for key, block in edges.items()},
-                    cif_path,
-                    topology=topology,
-                )
-                quality["cif_sha256"] = file_sha256(cif_path)
-                successes.append(
-                    {
-                        "candidate_index": candidate_index,
-                        "candidate": candidate,
-                        "cif_path": str(cif_path),
-                        "quality": quality,
-                    }
-                )
-            except Exception as error:
-                cif_path.unlink(missing_ok=True)
-                error_type = type(error).__name__
-                failure_types[error_type] += 1
-                if len(failure_examples) < 20:
-                    failure_examples.append(
-                        {
-                            "candidate_index": candidate_index,
-                            "error_type": error_type,
-                            "error": str(error)[:1000],
-                        }
-                    )
-
-    return {
-        "topology": topology_record.name,
-        "pass_index": pass_index,
-        "start": start,
-        "next_cursor": cursor,
-        "attempted": attempted,
-        "requested": target,
-        "successes": successes,
-        "failure_types": dict(failure_types),
-        "failure_examples": failure_examples,
-        "topology_error": False,
-    }
-
-
-def balanced_extra_targets(
-    current_counts: dict[str, int],
-    active_names: list[str],
-    needed: int,
-) -> dict[str, int]:
-    """Water-fill extra quotas so productive topologies stay balanced."""
-
-    targets: Counter[str] = Counter()
-    projected = dict(current_counts)
-    for _ in range(needed):
-        name = min(
-            active_names,
-            key=lambda value: (projected[value], value),
-        )
-        targets[name] += 1
-        projected[name] += 1
-    return dict(targets)
 
 
 def wilson_upper_bound(successes: int, attempts: int, z: float = 1.96) -> float:
@@ -2448,24 +1364,35 @@ def low_yield_retirement(
     }
 
 
-def round_robin_successes(
-    successes: dict[str, list[dict[str, object]]],
-) -> list[tuple[str, dict[str, object]]]:
-    """Interleave topology outputs instead of grouping one net at a time."""
 
-    ordered = []
-    names = sorted(successes)
-    index = 0
-    while True:
-        added = False
-        for name in names:
-            if index < len(successes[name]):
-                ordered.append((name, successes[name][index]))
-                added = True
-        if not added:
-            break
-        index += 1
-    return ordered
+
+def load_block_pools(
+    config: GenerationConfig,
+) -> tuple[dict[tuple[str, int, str], list[BlockRecord]], Counter[str]]:
+    """Load the building-block catalog used by all generation workflows."""
+    from single_linker_catalog import load_block_pools as load
+
+    return load(config)
+
+
+def topology_record_from_object(topology: object, path: Path) -> TopologyRecord:
+    """Extract the topology's node and edge site records."""
+    from single_linker_catalog import topology_record_from_object as convert
+
+    return convert(topology, path)
+
+
+def load_eligible_topologies(
+    config: GenerationConfig,
+    pools: dict[tuple[str, int, str], list[BlockRecord]],
+    *,
+    topology_mode: str = "binodal",
+    symmetry_mode: str = "strict",
+) -> tuple[list[TopologyRecord], Counter[str]]:
+    """Load topologies supported by the requested generation formulation."""
+    from single_linker_catalog import load_eligible_topologies as load
+
+    return load(config, pools, topology_mode=topology_mode, symmetry_mode=symmetry_mode)
 
 
 def generate_topology_balanced(
@@ -2475,757 +1402,7 @@ def generate_topology_balanced(
     max_passes: int = 30,
     resume: bool = False,
 ) -> list[dict]:
-    """Generate a balanced, without-replacement set topology by topology."""
+    """Run the balanced 10k workflow, including checkpoint recovery."""
+    from single_linker_quota import generate_topology_balanced as generate
 
-    if (
-        config.count < 1
-        or workers < 1
-        or max_passes < 1
-        or config.max_candidates_per_topology < 1
-        or config.edge_conformer_filter not in {"all", "non_c1"}
-        or config.candidate_scan_multiplier < 1
-        or config.attempt_batch_size < 1
-        or config.adaptive_min_attempts < 1
-        or not 0.0 <= config.adaptive_minimum_yield <= 1.0
-        or config.adaptive_confidence_z <= 0.0
-        or config.worker_memory_limit_gib < 1
-        or config.symmetry_tolerance <= 0.0
-    ):
-        raise ValueError(
-            "generation counts, workers, and limits must be positive; "
-            "edge_conformer_filter must be 'all' or 'non_c1'; "
-            "adaptive_minimum_yield must be between zero and one"
-        )
-    output = config.output
-    protected = [
-        output / "mofs",
-        output / "building_blocks",
-        output / "manifest.json",
-        output / "manifest.csv",
-        output / "generation_summary.json",
-    ]
-    existing = [path for path in protected if path.exists()]
-    if existing:
-        raise FileExistsError(f"refusing to overwrite existing results: {existing}")
-
-    started = time.monotonic()
-    output.mkdir(parents=True, exist_ok=True)
-    staging = output / ".topology_quota_staging"
-    if staging.exists() and not resume:
-        raise FileExistsError(f"refusing to overwrite staging: {staging}")
-    if resume and not staging.is_dir():
-        raise FileNotFoundError(f"resume staging directory not found: {staging}")
-    staging.mkdir(exist_ok=True)
-    configure_quiet_builder_logging()
-    # Point-group and small alignment calculations do not benefit from a large
-    # BLAS team.  Limiting this serial phase also prevents it from contending
-    # with the process-parallel candidate phase that follows.
-    with threadpool_limits(limits=1, user_api="blas"):
-        pools, skipped_blocks = load_block_pools(config)
-        selected_block_counts = Counter(
-            record.kind for record in unique_library_blocks(pools)
-        )
-        print(
-            f"selected_blocks={dict(sorted(selected_block_counts.items()))} "
-            f"edge_conformer_filter={config.edge_conformer_filter}",
-            flush=True,
-        )
-        if not selected_block_counts["edge"]:
-            raise RuntimeError(
-                "the selected symmetry cache contains no usable edges"
-            )
-        if config.strict_symmetry and config.strict_prefilter:
-            strict_edges = strict_edge_conformer_pool(pools)
-            print(
-                f"site_routed_edge_pool={len(strict_edges)} "
-                f"including_c1_and_directional=true",
-                flush=True,
-            )
-        topologies, skipped_topologies = load_eligible_topologies(config, pools)
-    topologies = sorted(topologies, key=lambda item: item.name)
-    if not topologies:
-        raise RuntimeError("no eligible two-node topologies were found")
-
-    candidate_queues: dict[str, tuple[CandidateAssignment, ...]] = {}
-    candidate_preparation_stats: dict[str, dict[str, object]] = {}
-    topology_by_name = {topology.name: topology for topology in topologies}
-    with ProcessPoolExecutor(
-        max_workers=min(workers, len(topologies)),
-        initializer=configure_candidate_worker,
-        initargs=(config, pools),
-    ) as executor:
-        futures = {
-            executor.submit(enumerate_topology_candidates_job, topology): topology
-            for topology in topologies
-        }
-        for index, future in enumerate(as_completed(futures), start=1):
-            topology = futures[future]
-            try:
-                name, candidates, preparation_stats = future.result()
-            except Exception as error:
-                name = topology.name
-                candidates = ()
-                preparation_stats = {}
-                skipped_topologies[
-                    f"candidate_enumeration_{type(error).__name__}"
-                ] += 1
-                print(
-                    f"candidate_topology_error name={name} "
-                    f"error={type(error).__name__}:{str(error)[:500]}",
-                    flush=True,
-                )
-            candidate_queues[name] = candidates
-            candidate_preparation_stats[name] = preparation_stats
-            exact_stats = preparation_stats.get("exact_symmetry", {})
-            print(
-                f"candidate_topology={index}/{len(topologies)} "
-                f"name={name} unique_assignments={len(candidates)} "
-                f"symmetry_pruned={exact_stats.get('rejected_candidates', 0)}",
-                flush=True,
-            )
-
-    preparation_elapsed_seconds = time.monotonic() - started
-    build_phase_started = time.monotonic()
-
-    base_quota, remainder = divmod(config.count, len(topologies))
-    quota_order = [topology.name for topology in topologies]
-    random.Random(config.seed).shuffle(quota_order)
-    initial_quotas = {
-        name: base_quota + int(index < remainder)
-        for index, name in enumerate(quota_order)
-    }
-    print(
-        f"topology_first_plan={len(topologies)} target={config.count} "
-        f"base_quota={base_quota} remainder={remainder} "
-        f"mean_quota={config.count / len(topologies):.6f}",
-        flush=True,
-    )
-    queue_fingerprints = {
-        name: candidate_queue_fingerprint(candidates)
-        for name, candidates in candidate_queues.items()
-    }
-    checkpoint_path = staging / "resume_checkpoint.jsonl"
-
-    cursors = {name: 0 for name in topology_by_name}
-    successes: dict[str, list[dict[str, object]]] = {
-        name: [] for name in topology_by_name
-    }
-    seen_signatures: set[str] = set()
-    seen_cif_hashes: set[str] = set()
-    attempted_counts: Counter[str] = Counter()
-    failure_types: Counter[str] = Counter()
-    failure_examples: list[dict[str, object]] = []
-    duplicates = Counter()
-    quarantined_topologies: set[str] = set()
-    retired_low_yield: dict[str, dict[str, float | int]] = {}
-    low_yield_fallbacks: list[dict[str, object]] = []
-    pass_summaries = []
-    resumed_count = 0
-    resume_start_pass = 1
-
-    def update_low_yield_status(name: str, pass_index: int) -> bool:
-        retirement = low_yield_retirement(
-            len(successes[name]),
-            attempted_counts[name],
-            minimum_attempts=config.adaptive_min_attempts,
-            minimum_yield=config.adaptive_minimum_yield,
-            confidence_z=config.adaptive_confidence_z,
-        )
-        if retirement is None:
-            return False
-        if name not in retired_low_yield:
-            retired_low_yield[name] = {
-                **retirement,
-                "retired_after_pass": pass_index,
-                "cursor": cursors[name],
-                "queue_size": len(candidate_queues[name]),
-            }
-            print(
-                f"topology_queue_retired name={name} pass={pass_index} "
-                f"successes={len(successes[name])} "
-                f"attempts={attempted_counts[name]} "
-                f"observed_yield={retirement['observed_yield']:.6f} "
-                f"upper_bound={retirement['yield_upper_bound']:.6f} "
-                f"minimum_yield={config.adaptive_minimum_yield:.6f}",
-                flush=True,
-            )
-        return True
-
-    def productive_topology_names(pass_index: int) -> list[str]:
-        normal = [
-            name
-            for name in topology_by_name
-            if successes[name]
-            and name not in quarantined_topologies
-            and name not in retired_low_yield
-            and cursors[name] < len(candidate_queues[name])
-        ]
-        if normal:
-            productive_cap = max(32, workers * 4)
-            normal.sort(
-                key=lambda name: (
-                    len(successes[name]) / max(1, attempted_counts[name]),
-                    len(successes[name]),
-                    name,
-                ),
-                reverse=True,
-            )
-            return normal[:productive_cap]
-
-        # Retired queues are a reserve, not a hard exclusion: if they are the
-        # only source left, probe only the statistically strongest ones so a
-        # strict yield cutoff cannot make an otherwise achievable target fail.
-        fallback = [
-            name
-            for name in retired_low_yield
-            if successes[name]
-            and name not in quarantined_topologies
-            and cursors[name] < len(candidate_queues[name])
-        ]
-        fallback.sort(
-            key=lambda name: (
-                wilson_upper_bound(
-                    len(successes[name]),
-                    attempted_counts[name],
-                    config.adaptive_confidence_z,
-                ),
-                len(successes[name]),
-                name,
-            ),
-            reverse=True,
-        )
-        selected = fallback[:workers]
-        if selected:
-            event = {
-                "pass_index": pass_index,
-                "topologies": selected,
-                "reason": "all_nonretired_productive_queues_exhausted",
-            }
-            low_yield_fallbacks.append(event)
-            print(
-                f"low_yield_fallback pass={pass_index} "
-                f"topologies={','.join(selected)}",
-                flush=True,
-            )
-        return selected
-
-    if resume:
-        checkpoint_records = read_resume_checkpoint(checkpoint_path)
-        valid_jobs: dict[tuple[int, str], dict[str, object]] = {}
-        checkpoint_successes: dict[
-            tuple[str, str], dict[str, object]
-        ] = {}
-        expected_validation = validation_fingerprint(config)
-        for record in checkpoint_records:
-            try:
-                name = str(record["topology"])
-                topology = topology_by_name[name]
-                topology_stat = topology.cgd_path.stat()
-                valid = (
-                    int(record["version"]) == RESUME_CHECKPOINT_VERSION
-                    and record["validation_fingerprint"] == expected_validation
-                    and record["queue_fingerprint"] == queue_fingerprints[name]
-                    and int(record["topology_size"]) == topology_stat.st_size
-                    and int(record["topology_mtime_ns"])
-                    == topology_stat.st_mtime_ns
-                )
-            except (KeyError, TypeError, ValueError):
-                continue
-            if not valid:
-                continue
-            pass_index = int(record["pass_index"])
-            valid_jobs[(pass_index, name)] = record
-            for saved in record.get("successes", []):
-                checkpoint_successes[(name, str(saved["signature"]))] = saved
-
-        for (pass_index, name), record in sorted(valid_jobs.items()):
-            attempted_counts[name] += int(record["attempted"])
-            cursors[name] = max(cursors[name], int(record["next_cursor"]))
-            resume_start_pass = max(resume_start_pass, pass_index + 1)
-
-        recovered_by_name: dict[
-            str,
-            list[tuple[int, dict[str, object]]],
-        ] = defaultdict(list)
-        recovery_jobs = []
-        staged_count = 0
-        checkpoint_loaded = 0
-
-        def add_recovered(
-            name: str,
-            candidate_index: int,
-            candidate: CandidateAssignment,
-            cif_path: Path,
-            quality: dict[str, object],
-        ) -> None:
-            if candidate.signature in seen_signatures:
-                raise ValueError(
-                    f"duplicate staged assignment signature: {candidate.signature}"
-                )
-            cif_hash = str(quality["cif_sha256"])
-            if cif_hash in seen_cif_hashes:
-                raise ValueError(f"duplicate staged CIF hash: {cif_hash}")
-            seen_signatures.add(candidate.signature)
-            seen_cif_hashes.add(cif_hash)
-            quality = {**quality, "resumed_from_staging": True}
-            recovered_by_name[name].append(
-                (
-                    candidate_index,
-                    {
-                        "candidate_index": candidate_index,
-                        "candidate": candidate,
-                        "cif_path": str(cif_path),
-                        "quality": quality,
-                    },
-                )
-            )
-
-        for name, candidates in candidate_queues.items():
-            by_signature = {
-                candidate.signature: (index, candidate)
-                for index, candidate in enumerate(candidates)
-            }
-            for cif_path in sorted((staging / name).glob("*.cif")):
-                candidate_entry = by_signature.get(cif_path.stem)
-                if candidate_entry is None:
-                    raise ValueError(
-                        f"staged signature is absent from regenerated queue: "
-                        f"{cif_path}"
-                    )
-                candidate_index, candidate = candidate_entry
-                staged_count += 1
-                saved = checkpoint_successes.get((name, candidate.signature))
-                trusted = False
-                if saved is not None and not config.resume_revalidate:
-                    try:
-                        cif_stat = cif_path.stat()
-                        quality = dict(saved["quality"])
-                        trusted = (
-                            int(saved["candidate_index"]) == candidate_index
-                            and saved["cif_name"] == cif_path.name
-                            and int(saved["cif_size"]) == cif_stat.st_size
-                            and int(saved["cif_mtime_ns"])
-                            == cif_stat.st_mtime_ns
-                            and len(str(quality["cif_sha256"])) == 64
-                            and quality.get("connectivity_policy_version")
-                            == CONNECTIVITY_POLICY_VERSION
-                            and quality.get("single_linker_policy_version")
-                            == SINGLE_LINKER_POLICY_VERSION
-                            and quality.get("num_linker_types") == 1
-                        )
-                    except (KeyError, TypeError, ValueError):
-                        trusted = False
-                if trusted:
-                    add_recovered(
-                        name,
-                        candidate_index,
-                        candidate,
-                        cif_path,
-                        quality,
-                    )
-                    checkpoint_loaded += 1
-                else:
-                    recovery_jobs.append(
-                        (name, candidate_index, candidate, cif_path)
-                    )
-
-        if not staged_count:
-            raise RuntimeError("resume staging contains no CIF files")
-        print(
-            f"resume_recovery_plan={staged_count} "
-            f"checkpoint_loaded={checkpoint_loaded} "
-            f"revalidate={len(recovery_jobs)}",
-            flush=True,
-        )
-        if recovery_jobs:
-            with ProcessPoolExecutor(
-                max_workers=min(workers, len(recovery_jobs)),
-                initializer=configure_generation_worker,
-                initargs=(config.worker_memory_limit_gib,),
-            ) as executor:
-                validated = 0
-                batch_size = max(32, workers * 4)
-                for batch_start in range(0, len(recovery_jobs), batch_size):
-                    batch = recovery_jobs[batch_start : batch_start + batch_size]
-                    futures = {
-                        executor.submit(validate_staged_cif, config, cif_path): (
-                            name,
-                            candidate_index,
-                            candidate,
-                            cif_path,
-                        )
-                        for name, candidate_index, candidate, cif_path in batch
-                    }
-                    for future in as_completed(futures):
-                        name, candidate_index, candidate, cif_path = futures[future]
-                        add_recovered(
-                            name,
-                            candidate_index,
-                            candidate,
-                            cif_path,
-                            future.result(),
-                        )
-                        validated += 1
-                        if validated % 250 == 0 or validated == len(recovery_jobs):
-                            print(
-                                f"resume_validated={validated}/{len(recovery_jobs)}",
-                                flush=True,
-                            )
-
-        for name in candidate_queues:
-            recovered = recovered_by_name[name]
-            recovered.sort(key=lambda value: value[0])
-            successes[name].extend(value for _, value in recovered)
-            if recovered:
-                cursors[name] = max(cursors[name], recovered[-1][0] + 1)
-
-        resumed_count = sum(len(values) for values in successes.values())
-        prior_failures = max(0, sum(attempted_counts.values()) - resumed_count)
-        failure_types["prior_run_rejected_candidate"] += prior_failures
-        print(
-            f"resume_loaded={resumed_count}/{config.count} "
-            f"resume_start_pass={resume_start_pass} "
-            f"prior_attempted={sum(attempted_counts.values())}",
-            flush=True,
-        )
-        for name in topology_by_name:
-            update_low_yield_status(name, max(0, resume_start_pass - 1))
-
-    def accept_result(result: dict[str, object]) -> int:
-        name = str(result["topology"])
-        cursors[name] = max(cursors[name], int(result["next_cursor"]))
-        attempted_counts[name] += int(result["attempted"])
-        failure_types.update(result["failure_types"])
-        for failure in result["failure_examples"]:
-            if len(failure_examples) < 1000:
-                failure_examples.append(
-                    {
-                        **failure,
-                        "topology": name,
-                        "pass_index": result["pass_index"],
-                    }
-                )
-        accepted_successes = []
-        for success in result["successes"]:
-            candidate = success["candidate"]
-            cif_path = Path(success["cif_path"])
-            if candidate.signature in seen_signatures:
-                duplicates["assignment"] += 1
-                cif_path.unlink(missing_ok=True)
-                continue
-            cif_hash = success["quality"]["cif_sha256"]
-            if cif_hash in seen_cif_hashes:
-                duplicates["cif"] += 1
-                cif_path.unlink(missing_ok=True)
-                continue
-            seen_signatures.add(candidate.signature)
-            seen_cif_hashes.add(cif_hash)
-            successes[name].append(success)
-            accepted_successes.append(success)
-        append_resume_checkpoint(
-            checkpoint_path,
-            config,
-            topology_by_name[name],
-            queue_fingerprints[name],
-            result,
-            accepted_successes,
-        )
-        return len(accepted_successes)
-
-    if resumed_count:
-        active_names = productive_topology_names(resume_start_pass)
-        if resumed_count < config.count and not active_names:
-            raise RuntimeError("no productive candidate queues remain for resume")
-        targets = balanced_extra_targets(
-            {name: len(successes[name]) for name in topology_by_name},
-            active_names,
-            config.count - resumed_count,
-        )
-    else:
-        targets = initial_quotas
-    generation_executor = ProcessPoolExecutor(
-        max_workers=min(workers, len(topology_by_name)),
-        initializer=configure_generation_worker,
-        initargs=(config.worker_memory_limit_gib,),
-    )
-    for pass_index in range(resume_start_pass, max_passes + 1):
-        jobs = []
-        for name, target in sorted(targets.items()):
-            remaining_candidates = len(candidate_queues[name]) - cursors[name]
-            if target <= 0 or remaining_candidates <= 0:
-                continue
-            jobs.append(
-                {
-                    "config": config,
-                    "topology": topology_by_name[name],
-                    "candidates": candidate_queues[name],
-                    "start": cursors[name],
-                    "target": target,
-                    "attempt_limit": min(
-                        remaining_candidates,
-                        config.attempt_batch_size,
-                    ),
-                    "pass_index": pass_index,
-                    "staging": str(staging / name),
-                }
-            )
-        if not jobs:
-            break
-
-        pass_attempted = 0
-        pass_accepted = 0
-        futures = {
-            generation_executor.submit(build_topology_quota, job): job
-            for job in jobs
-        }
-        for future in as_completed(futures):
-            job = futures[future]
-            name = str(job["topology"].name)
-            try:
-                result = future.result()
-            except Exception as error:
-                quarantined_topologies.add(name)
-                result = {
-                    "topology": name,
-                    "pass_index": pass_index,
-                    "next_cursor": len(candidate_queues[name]),
-                    "attempted": 0,
-                    "successes": [],
-                    "failure_types": {type(error).__name__: 1},
-                    "failure_examples": [
-                        {
-                            "candidate_index": None,
-                            "error_type": type(error).__name__,
-                            "error": str(error)[:1000],
-                        }
-                    ],
-                }
-            accepted = accept_result(result)
-            update_low_yield_status(name, pass_index)
-            pass_attempted += int(result["attempted"])
-            pass_accepted += accepted
-            print(
-                f"quota_pass={pass_index} topology={name} "
-                f"accepted={accepted}/{job['target']} "
-                f"total={len(successes[name])} "
-                f"attempted={result['attempted']} "
-                f"cursor={cursors[name]}/{len(candidate_queues[name])}",
-                flush=True,
-            )
-
-        total = sum(len(values) for values in successes.values())
-        pass_summaries.append(
-            {
-                "pass_index": pass_index,
-                "jobs": len(jobs),
-                "attempted": pass_attempted,
-                "accepted": pass_accepted,
-                "cumulative": total,
-                "retired_low_yield_topologies": len(retired_low_yield),
-            }
-        )
-        print(
-            f"quota_pass_complete={pass_index} attempted={pass_attempted} "
-            f"accepted={pass_accepted} total={total}/{config.count}",
-            flush=True,
-        )
-        if total >= config.count:
-            break
-
-        productive = productive_topology_names(pass_index + 1)
-        if not productive:
-            break
-        needed = config.count - total
-        targets = balanced_extra_targets(
-            {name: len(successes[name]) for name in topology_by_name},
-            productive,
-            needed,
-        )
-    generation_executor.shutdown()
-    build_elapsed_seconds = time.monotonic() - build_phase_started
-
-    finalization_started = time.monotonic()
-    ordered_successes = round_robin_successes(successes)[: config.count]
-    mofs_dir = output / "mofs"
-    blocks_dir = output / "building_blocks"
-    topology_dir = output / "topologies"
-    for directory in (mofs_dir, blocks_dir, topology_dir):
-        directory.mkdir()
-    used_topologies = sorted({name for name, _ in ordered_successes})
-    for name in used_topologies:
-        shutil.copy2(
-            topology_by_name[name].cgd_path,
-            topology_dir / f"{name}.cgd",
-        )
-
-    rows = []
-    for index, (name, success) in enumerate(ordered_successes, start=1):
-        topology = topology_by_name[name]
-        candidate = success["candidate"]
-        sample_id = f"single_linker_mof_{index:05d}_{name}"
-        final_cif = mofs_dir / f"{sample_id}.cif"
-        os.replace(success["cif_path"], final_cif)
-        final_blocks = blocks_dir / sample_id
-        nodes = dict(candidate.nodes)
-        edges = dict(candidate.edges)
-        node_paths, edge_paths = copy_selected_blocks(
-            final_blocks,
-            nodes,
-            edges,
-        )
-        row = {
-            "sample_id": sample_id,
-            "cif": str(final_cif.relative_to(output)),
-            "assignment_signature": candidate.signature,
-            "generation_seed": config.seed,
-            "topology": {
-                "name": topology.name,
-                "cgd_path": str(topology.cgd_path),
-                "saved_cgd": str(
-                    (topology_dir / f"{name}.cgd").relative_to(output)
-                ),
-                "space_group": topology.space_group,
-                "num_nodes": topology.num_nodes,
-                "num_edges": topology.num_edges,
-                "node_sites": [asdict(site) for site in topology.node_sites],
-                "edge_types": [list(value) for value in topology.edge_types],
-            },
-            "node_assignments": [
-                {
-                    "node_type": node_type,
-                    "block": block_manifest(
-                        block,
-                        final_blocks.relative_to(output)
-                        / node_paths[node_type].name,
-                    ),
-                }
-                for node_type, block in nodes.items()
-            ],
-            "edge_assignments": [
-                {
-                    "edge_type": list(edge_type),
-                    "block": block_manifest(
-                        block,
-                        final_blocks.relative_to(output)
-                        / edge_paths[edge_type].name,
-                    ),
-                }
-                for edge_type, block in edges.items()
-            ],
-            "quality": success["quality"],
-        }
-        rows.append(row)
-
-    final_counts = {
-        name: sum(row["topology"]["name"] == name for row in rows)
-        for name in topology_by_name
-    }
-    count_values = list(final_counts.values())
-    finalization_elapsed_seconds = time.monotonic() - finalization_started
-    preparation_totals = {
-        section: dict(
-            sum(
-                (
-                    Counter(stats.get(section, {}))
-                    for stats in candidate_preparation_stats.values()
-                ),
-                Counter(),
-            )
-        )
-        for section in ("nodes", "edges", "exact_symmetry")
-    }
-    summary = {
-        "requested": config.count,
-        "completed": len(rows),
-        "seed": config.seed,
-        "mode": "topology_first_without_replacement",
-        "resumed_from_staging": resumed_count,
-        "elapsed_seconds": time.monotonic() - started,
-        "phase_elapsed_seconds": {
-            "block_loading_topology_screening_candidate_enumeration": (
-                preparation_elapsed_seconds
-            ),
-            "building_and_testing": build_elapsed_seconds,
-            "finalization": finalization_elapsed_seconds,
-        },
-        "candidate_preparation_totals": preparation_totals,
-        "source_manifest": str(config.manifest),
-        "topology_directory": str(config.topology_dir),
-        "eligible_topologies": len(topologies),
-        "productive_topologies": sum(value > 0 for value in count_values),
-        "initial_mean_quota": config.count / len(topologies),
-        "initial_quota_by_topology": dict(sorted(initial_quotas.items())),
-        "candidate_count_by_topology": {
-            name: len(candidate_queues[name]) for name in sorted(candidate_queues)
-        },
-        "attempted_count_by_topology": dict(sorted(attempted_counts.items())),
-        "final_count_by_topology": dict(sorted(final_counts.items())),
-        "final_count_statistics_all_eligible": {
-            "mean": statistics.fmean(count_values),
-            "median": statistics.median(count_values),
-            "minimum": min(count_values),
-            "maximum": max(count_values),
-        },
-        "unique_assignment_signatures": len(
-            {row["assignment_signature"] for row in rows}
-        ),
-        "unique_cif_hashes": len(
-            {row["quality"]["cif_sha256"] for row in rows}
-        ),
-        "duplicates_removed": dict(duplicates),
-        "quarantined_topologies": sorted(quarantined_topologies),
-        "retired_low_yield_topologies": dict(sorted(retired_low_yield.items())),
-        "low_yield_fallbacks": low_yield_fallbacks,
-        "failed_attempts": sum(failure_types.values()),
-        "failure_types": dict(failure_types),
-        "failure_examples": failure_examples,
-        "skipped_blocks": dict(skipped_blocks),
-        "skipped_topologies": dict(skipped_topologies),
-        "quota_passes": pass_summaries,
-        "settings": {
-            **asdict(config),
-            "manifest": str(config.manifest),
-            "topology_dir": str(config.topology_dir),
-            "output": str(config.output),
-            "workers": workers,
-            "max_passes": max_passes,
-            "selection_rule": (
-                "retain every connected library block and route nodes by local port "
-                "geometry without requiring molecular symmetry; by default allow "
-                "independent orbit placement, including P1 outcomes, without "
-                "post-build space-group analysis; when strict symmetry is explicitly "
-                "requested, route "
-                "blocks by the crystallographic site stabilizer, exact-check each "
-                "unique block/site pair appearing in a bounded queue once, and "
-                "prune incompatible candidates before quota scheduling; traverse "
-                "each CN/site/port-shape-compatible Cartesian space in a seeded "
-                "affine order without replacement and retain a bounded, geometry-"
-                "fitted queue per topology; require a chemically and "
-                "bond-length-feasible one-to-one node-port assignment, including "
-                "joint orientations for heterotypic inserted edges; use "
-                "one-metal-node + one-organic-node + optional-one-edge assignment "
-                "with CN2 and D*h port geometry for linkers; filter linkers by the "
-                "configured conformer rule only when explicitly requested; when "
-                "strict symmetry is enabled, reject any node or edge whose complete "
-                "atomic conformer and mapped ports fail a crystallographic-site "
-                "stabilizer or orbit-covariance check, without independent-placement "
-                "fallback; otherwise retain that independent-placement P1 candidate; "
-                "chirality is diagnostic only; "
-                "enumerate topology queues in parallel, deduplicate per topology "
-                "before building, and consume each topology "
-                "queue without replacement to its requested-count/N quota; "
-                "redistribute shortfalls by water-filling productive topologies; "
-                "retire queues whose Wilson yield upper bound is below the "
-                "configured minimum after the pilot-attempt floor, retaining "
-                "them only as an exhaustion fallback"
-            ),
-        },
-    }
-    write_results(output, rows, summary)
-    shutil.rmtree(staging)
-    if len(rows) != config.count:
-        raise RuntimeError(
-            f"generated {len(rows)} of {config.count} requested unique MOFs; "
-            f"see {output / 'generation_summary.json'}"
-        )
-    return rows
+    return generate(config, workers=workers, max_passes=max_passes, resume=resume)

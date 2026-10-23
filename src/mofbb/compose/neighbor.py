@@ -5,6 +5,7 @@ import ase
 import ase.neighborlist
 import numpy as np
 
+
 class Neighbor:
     """Hold a single topology connectivity record."""
 
@@ -15,9 +16,7 @@ class Neighbor:
 
     def __repr__(self):
         """Return a one-line ``index``/``distance vector`` summary."""
-        return "index: {}, distance vector: {}".format(
-            self.index, self.distance_vector
-        )
+        return f"index: {self.index}, distance vector: {self.distance_vector}"
 
 
 class NeighborList:
@@ -25,20 +24,18 @@ class NeighborList:
 
     def __init__(self, atoms, method):
         """Build connectivity from ``atoms`` using the chosen ``method``."""
+        self._neighbor_list = [[] for _ in atoms]
         explicit_endpoints = atoms.info.get("edge_endpoints")
         if explicit_endpoints is not None:
-            self.explicit_build(atoms, explicit_endpoints)
-            return
-
-        # C for nodes and O for edges.
-        if method == "distance":
-            self.distance_based_build(atoms)
-        elif method == "nearest":
-            self.nearest_two_based_build(atoms)
+            self._build_explicit(atoms, explicit_endpoints)
         else:
-            raise ValueError(f"Unknown neighbor-list method: {method}.")
+            builders = {
+                "distance": self._build_by_distance,
+                "nearest": self._build_by_nearest_nodes,
+            }
+            builders[method](atoms)
 
-    def explicit_build(self, atoms, edge_endpoints):
+    def _build_explicit(self, atoms, edge_endpoints):
         """Build connectivity from expanded CGD edge endpoint coordinates."""
 
         node_indices = np.flatnonzero(atoms.symbols == "C")
@@ -50,9 +47,6 @@ class NeighborList:
 
         scaled_positions = atoms.get_scaled_positions(wrap=True)
         cell = np.asarray(atoms.cell, dtype=float)
-        self.max_index = len(atoms) - 1
-        self._neighbor_list = [[] for _ in atoms]
-
         for edge_index, raw_endpoints in zip(edge_indices, edge_endpoints):
             endpoints = np.asarray(raw_endpoints, dtype=float)
             center = np.mean(endpoints, axis=0)
@@ -79,7 +73,7 @@ class NeighborList:
                     Neighbor(int(edge_index), -vector)
                 )
 
-    def distance_based_build(self, atoms):
+    def _build_by_distance(self, atoms):
         """Build connectivity by bonding C-O pairs within a fixed cutoff."""
         eps = 1e-3
         cutoffs = {
@@ -88,15 +82,11 @@ class NeighborList:
             ("C", "O"): 0.5 + eps,
         }
 
-        I, J, D = ase.neighborlist.neighbor_list("ijD", atoms, cutoff=cutoffs)
+        first, second, vectors = ase.neighborlist.neighbor_list("ijD", atoms, cutoff=cutoffs)
+        for left, right, vector in zip(first, second, vectors):
+            self._neighbor_list[left].append(Neighbor(right, vector))
 
-        self.max_index = len(atoms) - 1
-        self._neighbor_list = [[] for _ in atoms]
-
-        for i, j, d in zip(I, J, D):
-            self._neighbor_list[i].append(Neighbor(j, d))
-
-    def nearest_two_based_build(self, atoms):
+    def _build_by_nearest_nodes(self, atoms):
         """Build connectivity by keeping each edge-center's two nearest nodes."""
         node_indices = np.flatnonzero(atoms.symbols == "C")
         edge_indices = np.flatnonzero(atoms.symbols == "O")
@@ -107,17 +97,15 @@ class NeighborList:
             (-1, 0, 1) if periodic else (0,) for periodic in atoms.pbc
         ]
         shifts = np.asarray(list(product(*periodic_images)), dtype=int)
-        cell = np.asarray(atoms.cell, dtype=float)
+        translations = shifts @ atoms.cell
 
-        self.max_index = len(atoms) - 1
-        self._neighbor_list = [[] for _ in atoms]
         for edge_index in edge_indices:
             candidates = []
             edge_position = atoms.positions[edge_index]
             for node_index in node_indices:
                 vectors = (
                     atoms.positions[node_index]
-                    + shifts @ cell
+                    + translations
                     - edge_position
                 )
                 for shift, vector in zip(shifts, vectors):
@@ -154,20 +142,15 @@ class NeighborList:
 
     def set_data(self, data):
         """Replace the connectivity with externally supplied records."""
-        new_list = []
-        for neighbor in data:
-            new_list.append([])
-            for n in neighbor:
-                new_list[-1].append(Neighbor(n[0], n[1]))
-
-        self._neighbor_list = new_list
+        self._neighbor_list = [
+            [Neighbor(index, vector) for index, vector in neighbors]
+            for neighbors in data
+        ]
 
     def __repr__(self):
         """Return a multi-line per-slot listing of neighbor counts and records."""
-        output = ""
-        for i, neighbor in enumerate(self):
-            line = "{}: {}\n".format(i, len(neighbor))
-            for n in neighbor:
-                line += "{}\n".format(n)
-            output += line
-        return output
+        return "".join(
+            f"{index}: {len(neighbors)}\n"
+            + "".join(f"{neighbor}\n" for neighbor in neighbors)
+            for index, neighbors in enumerate(self)
+        )

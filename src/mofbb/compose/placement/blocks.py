@@ -38,10 +38,17 @@ class BlockPlacement:
 
     def run(self):
         """Place all blocks in the final cell and return this stage."""
-        self._prepare_topology()
-        if self.fixed_cell_fitted and self.strict_symmetry:
-            self._validate_fixed_cell_symmetry()
-        self.rmsds = np.asarray(self._place_nodes())
+        if not self.fixed_cell_fitted and hasattr(self.geometry_optimizer, "optimize_placement"):
+            self.geometry_optimizer.optimize_placement(self)
+            if any(self.blocks[int(i)] is not None for i in self.topology.edge_indices):
+                self.edge_targets = self.edge_factory(
+                    self.source_topology, self.topology, self.permutations, self.symmetry
+                ).build()
+        else:
+            self._prepare_topology()
+            if self.fixed_cell_fitted and self.strict_symmetry:
+                self._validate_fixed_cell_symmetry()
+            self.rmsds = np.asarray(self._place_nodes())
         self._place_edges()
         return self
 
@@ -49,10 +56,7 @@ class BlockPlacement:
         if self.fixed_cell_fitted:
             self.topology = self.topology.copy()
         else:
-            optimize = getattr(self.geometry_optimizer, "optimize", None)
-            if optimize is None:
-                optimize = self.geometry_optimizer.scale
-            self.topology, self.geometry_optimization_result = optimize(
+            self.topology, self.geometry_optimization_result = self.geometry_optimizer.optimize(
                 topology=self.topology,
                 bbs=self.blocks,
                 perms=self.permutations,
@@ -170,7 +174,7 @@ class BlockPlacement:
                         orbit,
                         diagnostic,
                     )
-                rmsds.extend(self._place_node_orbit_independently(orbit, force=True))
+                rmsds.extend(self._place_node_orbit_independently(orbit))
                 continue
 
             for raw_member in orbit.members:
@@ -187,19 +191,17 @@ class BlockPlacement:
                 rmsds.append(rmsd)
         return rmsds
 
-    def _located_node(self, node_index, *, force=False):
+    def _located_node(self, node_index):
         block = self.blocks[node_index]
-        if self.fixed_cell_fitted and not force:
-            return block, 0.0
         return self.locator.locate_with_permutation(
             self.topology.local_structure(node_index), block, self.permutations[node_index]
         )
 
-    def _place_node_orbit_independently(self, orbit, *, force=False):
+    def _place_node_orbit_independently(self, orbit):
         rmsds = []
         for raw_member in orbit.members:
             member = int(raw_member)
-            block, rmsd = self._located_node(member, force=force)
+            block, rmsd = self._located_node(member)
             block.set_centroid(self.topology.atoms.positions[member])
             self.blocks[member] = block
             rmsds.append(rmsd)

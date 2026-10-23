@@ -66,6 +66,25 @@ Assembly checks connections, bond lengths, overlaps, and basic chemistry.
 **3D periodic connectivity** is required by default; use
 `--allow-low-dimensional` for layers, chains, or finite structures.
 
+After assigning connection ports and initial orientations, MOFBB jointly fits
+rigid node positions, node rotations, and the cell in one geometry optimization.
+The objective matches node-port separations to rigid linker spans, or makes node
+ports coincide when there are no edge blocks. Compatible rotations remain related
+by symmetry. The cell starts from an analytically estimated physical scale;
+linkers are placed after the solve. Internal block geometry and final acceptance
+thresholds are preserved. An optional fixed-cell stage fits block poses in the
+supplied topology cell.
+For the original center-distance/angle optimizer, use
+`Builder(geometry_optimizer=NodeLatticeOptimizer())` in the Python API.
+
+Cell optimization lives in `mofbb.compose.scaler`: `Scaler`,
+`NodeLatticeOptimizer`, their symmetry parameterizations, and
+`FixedCellFrameworkFitter` share this module. The two optimizers are also imported
+directly from `mofbb.compose`. `Builder()` uses `Scaler()` by default; configure
+it with `Builder(geometry_optimizer=Scaler(max_nfev=120))`.
+Diagnostics use `geometry_optimization_objective`,
+`fixed_cell_fitted`, and `symmetry_propagated` consistently.
+
 ## Validate a CIF
 
 ```bash
