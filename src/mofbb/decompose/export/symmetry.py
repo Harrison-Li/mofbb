@@ -10,7 +10,7 @@ import spglib
 from ase.geometry import cell_to_cellpar, cellpar_to_cell
 
 from mofbb.decompose.object import Fragment, TopologyEdge, TopologyVertex
-from mofbb.decompose.pbc import PeriodicBond
+from mofbb.common.pbc import PeriodicBond
 from mofbb.decompose.symmetry import (
     AtomicSymmetry,
     SpaceGroupOperations,

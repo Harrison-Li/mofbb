@@ -158,7 +158,7 @@ def load_backend_inputs(backend: str, case: BenchmarkCase, database_root: Path):
     }
 
     def build():
-        return Builder().build_by_type(topology, nodes, edges, **build_kwargs)
+        return Builder().build(topology, node_bbs=nodes, edge_bbs=edges, **build_kwargs)
 
     return topology, build
 
@@ -423,7 +423,7 @@ def main() -> None:
             "numeric_threads": 1,
             "repeats": args.repeats,
             "warmups": args.warmups,
-            "timed_region": "Builder().build_by_type with preloaded inputs",
+            "timed_region": "Builder().build with preloaded inputs",
             "mofbb_quality_gate_thresholds": {
                 "scale": 10.0,
                 "tolerance_angstrom": 10.0,

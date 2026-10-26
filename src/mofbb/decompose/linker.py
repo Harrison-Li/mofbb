@@ -12,7 +12,7 @@ import networkx as nx
 from mofbb.decompose.bonding import BondNetwork
 from mofbb.decompose.fragments import FragmentBuilder
 from mofbb.decompose.object import Fragment
-from mofbb.decompose.pbc import PeriodicBond
+from mofbb.common.pbc import PeriodicBond
 
 OrganicFragmentKind = Literal["organic_node", "edge"]
 

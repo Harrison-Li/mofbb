@@ -17,7 +17,8 @@ from mofbb.decompose.assignment import NodeAtomAssigner
 from mofbb.decompose.bonding import BondNetwork, subset_bonded_structure
 from mofbb.decompose.constants import is_metal
 from mofbb.decompose.fragments import connected_components
-from mofbb.decompose.pbc import CellShift, periodic_bonds
+from mofbb.common.pbc import CellShift
+from mofbb.decompose.pbc import periodic_bonds
 
 SolventMode: TypeAlias = Literal["none", "free", "all"]
 ActiveSolventMode: TypeAlias = Literal["free", "all"]

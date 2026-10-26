@@ -9,9 +9,10 @@ import numpy as np
 from ase.data import covalent_radii
 from ase.neighborlist import natural_cutoffs
 
-from mofbb.compose.chemistry import coordination_profile
+from mofbb.common.chemistry import coordination_profile
 from mofbb.compose.local_structure import LocalStructure
-from mofbb.compose.utils import read_bb_xyz
+from mofbb.common.utils import read_bb_xyz
+from mofbb.decompose.constants import is_metal
 
 _FRAME_EPSILON = 1e-12
 _PCA_SIGN_TOLERANCE = 1e-8
@@ -284,6 +285,15 @@ class BuildingBlock:
         return self.n_ports == 2
 
     @property
+    def kind(self):
+        """Role and node chemistry, using the existing MOFid metal convention."""
+        if self.is_edge:
+            return "edge"
+        if any(s != "X" and is_metal(s) for s in self.atoms.get_chemical_symbols()):
+            return "metal_node"
+        return "organic_node"
+
+    @property
     def bonds(self):
         """Atom-index pairs describing the fragment's bonds."""
         if self._bonds is None:
@@ -314,4 +324,33 @@ class BuildingBlock:
         self._bond_types = ["S"] * len(self._bonds)
 
     def __repr__(self):
-        return f"BuildingBlock: {self.name}, # of connection points: {self.n_ports}"
+        return f"{type(self).__name__}: {self.name}, # of connection points: {self.n_ports}"
+
+
+class Node(BuildingBlock):
+    """A topology node; ``kind`` detects metal-containing or organic chemistry.
+
+    Two-connected nodes are allowed and retain their explicit node role.
+    """
+
+    def __init__(self, bb_file):
+        super().__init__(bb_file)
+        if self.n_ports < 1:
+            raise ValueError(f"Node {self.name!r} requires at least one X port.")
+
+    @property
+    def is_edge(self):
+        return False
+
+
+class Edge(BuildingBlock):
+    """A linker placed on a topology edge, with exactly two X ports."""
+
+    def __init__(self, bb_file):
+        super().__init__(bb_file)
+        if self.n_ports != 2:
+            raise ValueError(f"Edge {self.name!r} requires exactly two X ports.")
+
+    @property
+    def is_edge(self):
+        return True

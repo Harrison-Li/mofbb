@@ -4,10 +4,10 @@ import argparse
 import json
 from pathlib import Path
 
-from ase.io import read
+from mofbb.common.utils import read_atoms
 
-from mofbb.compose.connectivity import validate_3d_connectivity
-from mofbb.compose.linkers import validate_single_linker
+from mofbb.common.connectivity import validate_3d_connectivity
+from mofbb.common.linkers import validate_single_linker
 
 
 def main(argv=None):
@@ -23,7 +23,7 @@ def main(argv=None):
     for path in args.cifs:
         result = {"path": str(path.resolve())}
         try:
-            atoms = read(path)
+            atoms = read_atoms(path)
             result.update(validate_3d_connectivity(atoms, bond_scale=args.bond_scale))
             if args.single_linker:
                 result.update(validate_single_linker(atoms, bond_scale=args.bond_scale))

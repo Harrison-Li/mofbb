@@ -10,11 +10,11 @@ from pathlib import Path
 import numpy as np
 
 from mofbb.decompose.export.cgd import CgdWriter, edge_types
-from mofbb.decompose.export.legacy import LegacyMap, fragment_instance_path
+from mofbb.decompose.export.reconstruction import ReconstructionMap, fragment_instance_path
 from mofbb.decompose.export.ports import PortMapper
 from mofbb.decompose.export.symmetry import SymmetryBuilder
 from mofbb.decompose.object import Fragment, TopologyEdge, TopologyVertex
-from mofbb.decompose.pbc import PeriodicBond
+from mofbb.common.pbc import PeriodicBond
 from mofbb.decompose.solvent import SolventMode, SolventRemovalResult
 from mofbb.decompose.symmetry import AtomicSymmetry, SpaceGroupOperations, TopologySymmetry
 from mofbb.decompose.topology import EdgeTopologyContractor
@@ -348,7 +348,7 @@ class NodeEdgeDecompositionResult:
         topology_path: str | None = None,
     ) -> dict[str, object]:
         _, _, topology_slots = self._contracted_topology()
-        data = LegacyMap(
+        data = ReconstructionMap(
             self,
             fragment_to_bb_id,
             topology_slots,
@@ -361,10 +361,10 @@ class NodeEdgeDecompositionResult:
         fragment_to_bb_id: dict[tuple[str, int], str],
         topology_slots: dict[tuple[str, int], tuple[str, int]],
     ) -> list[dict[str, object]]:
-        return LegacyMap(self, fragment_to_bb_id, topology_slots).slots()
+        return ReconstructionMap(self, fragment_to_bb_id, topology_slots).slots()
 
     def _reconstruction_edges(self) -> list[dict[str, object]]:
-        return LegacyMap(self, {}, {}).edges()
+        return ReconstructionMap(self, {}, {}).edges()
 
     def _summary(
         self,

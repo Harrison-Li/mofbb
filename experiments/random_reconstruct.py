@@ -313,7 +313,7 @@ def build_one(
     if actual_type_cns != topology_record.node_type_cns:
         raise ValueError("CGD and cached topology coordination metadata differ")
 
-    framework = Builder().build_by_type(
+    framework = Builder().build(
         topology=topology,
         node_bbs={key: BuildingBlock(path) for key, path in node_paths.items()},
         edge_bbs={key: BuildingBlock(path) for key, path in edge_paths.items()},

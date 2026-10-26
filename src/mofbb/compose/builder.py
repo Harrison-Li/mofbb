@@ -3,12 +3,13 @@
 import numpy as np
 from pymatgen.core import Element
 
-from mofbb.compose.chemistry import (
+from mofbb.compose.building_block import Edge, Node
+from mofbb.common.chemistry import (
     add_fused_coordination,
     nonmetal_neighbor_counts,
     validate_coordination,
 )
-from mofbb.compose.edge import Edge
+from mofbb.compose.edge import EdgeOrientation
 from mofbb.compose.framework import Framework
 from mofbb.compose.locator import Locator
 from mofbb.compose.pbc import PBC
@@ -43,13 +44,25 @@ class Builder:
 
         return bbs
 
-    def build_by_type(
+    @staticmethod
+    def get_block_type(block):
+        """Return the explicit role, or None for a generic BuildingBlock.
+
+        Port count alone cannot distinguish an edge from a two-connected node.
+        """
+        if isinstance(block, Edge):
+            return "edge"
+        if isinstance(block, Node):
+            return "node"
+        return None
+
+    def build(
         self,
         topology,
+        *,
         node_bbs,
         edge_bbs=None,
         perms=None,
-        *,
         n_angles=6,
         wrap=True,
         port_tol=PBC.port_tol,
@@ -59,9 +72,20 @@ class Builder:
         strict_symmetry=False,
         require_3d=True,
     ):
-        """Build from node- and edge-type maps; see :meth:`build` for options."""
+        """Assign ports, jointly fit rigid geometry, and assemble the framework.
+
+        Supply ``node_bbs`` keyed by topology node type and optional ``edge_bbs``
+        keyed by endpoint node types. Each block is copied into matching slots.
+
+        ``perms`` maps slots to port assignments: ``perm[target] = source``.
+        ``n_angles`` samples each Euler-angle axis, with a minimum of four;
+        blocks with at most five ports use exhaustive permutations instead.
+        ``port_tol`` is the maximum paired-port gap in angstroms.
+        ``bond_scale`` multiplies summed covalent radii for bond cutoffs;
+        ``sym_tol`` is the site-symmetry compatibility tolerance in angstroms.
+        """
         bbs = self.expand_bbs(topology, node_bbs, edge_bbs)
-        return self.build(
+        return self._build_from_slots(
             topology,
             bbs,
             perms,
@@ -75,7 +99,7 @@ class Builder:
             require_3d=require_3d,
         )
 
-    def build(
+    def _build_from_slots(
         self,
         topology,
         bbs,
@@ -90,15 +114,7 @@ class Builder:
         strict_symmetry=False,
         require_3d=True,
     ):
-        """Assign ports, jointly fit rigid geometry, and assemble the framework.
-
-        ``perms`` maps slots to port assignments: ``perm[target] = source``.
-        ``n_angles`` samples each Euler-angle axis, with a minimum of four;
-        blocks with at most five ports use exhaustive permutations instead.
-        ``port_tol`` is the maximum paired-port gap in angstroms.
-        ``bond_scale`` multiplies summed covalent radii for bond cutoffs;
-        ``sym_tol`` is the site-symmetry compatibility tolerance in angstroms.
-        """
+        """Assemble per-slot blocks; see :meth:`build` for fitting options."""
         if require_3d:
             topology.validate_3d()
         if len(bbs) != topology.n_slots:
@@ -108,6 +124,13 @@ class Builder:
                 if slot in topology.node_idx:
                     raise ValueError(f"Topology node {slot} requires a building block.")
                 continue
+            block_type = self.get_block_type(block)
+            slot_type = "node" if slot in topology.node_idx else "edge"
+            if block_type is not None and block_type != slot_type:
+                raise ValueError(
+                    f"A {block_type.title()} building block cannot occupy a topology "
+                    f"{slot_type}; use {slot_type.title()}."
+                )
             if block.n_ports != topology.cn[slot]:
                 raise ValueError(f"Building block at slot {slot} has the wrong number of X ports.")
             if require_3d:
@@ -130,7 +153,7 @@ class Builder:
             strict_symmetry=strict_symmetry,
         )
         placement = BBPlacement(
-            assignment, Edge, port_tol=port_tol, bond_scale=bond_scale,
+            assignment, EdgeOrientation, port_tol=port_tol, bond_scale=bond_scale,
         )
         self.scaler.optimize(placement)
         symmetry_diagnostics = placement.symmetry_diagnostics

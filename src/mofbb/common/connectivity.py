@@ -7,7 +7,7 @@ from ase.geometry import find_mic
 from ase.neighborlist import neighbor_list
 from pymatgen.core import Element
 
-from mofbb.decompose.pbc import PeriodicBond, analyze_component
+from mofbb.common.pbc import PeriodicBond, analyze_component
 
 CONNECTIVITY_POLICY_VERSION = 2
 

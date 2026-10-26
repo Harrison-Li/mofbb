@@ -10,12 +10,7 @@ import numpy as np
 
 from mofbb.decompose.bonding import BondNetwork
 from mofbb.decompose.object import Fragment, TopologyEdge, TopologyVertex
-from mofbb.decompose.pbc import (
-    ComponentPeriodicity,
-    PeriodicBond,
-    analyze_component,
-    connection_shift,
-)
+from mofbb.common.pbc import ComponentPeriodicity, PeriodicBond, analyze_component, connection_shift
 
 FragmentKey = tuple[str, int]
 

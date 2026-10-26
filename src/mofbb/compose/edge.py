@@ -23,7 +23,7 @@ class EdgeTarget:
     representative_gauge: str
 
 
-class Edge:
+class EdgeOrientation:
     """Build symmetry-related transverse directions for topology edges."""
 
     def __init__(

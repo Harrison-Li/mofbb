@@ -6,7 +6,7 @@ from collections import defaultdict, deque
 
 from mofbb.decompose.fragments import FragmentBuilder
 from mofbb.decompose.object import Fragment
-from mofbb.decompose.pbc import PeriodicBond, analyze_component
+from mofbb.common.pbc import PeriodicBond, analyze_component
 
 Key = tuple[str, int]
 Result = tuple[

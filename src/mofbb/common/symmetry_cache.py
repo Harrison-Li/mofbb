@@ -31,7 +31,7 @@ from pymatgen.symmetry.analyzer import PointGroupAnalyzer
 from threadpoolctl import threadpool_limits
 
 from mofbb.compose.building_block import BuildingBlock
-from mofbb.graph_symmetry import (
+from mofbb.common.graph_symmetry import (
     analyze_port_graph_symmetry,
     point_group_port_action,
 )

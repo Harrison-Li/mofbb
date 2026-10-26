@@ -4,7 +4,7 @@ from ase.geometry import find_mic
 from ase.neighborlist import neighbor_list
 from pymatgen.core import Element
 
-from mofbb.compose.connectivity import mic_shifts
+from mofbb.common.connectivity import mic_shifts
 
 
 class PBC:

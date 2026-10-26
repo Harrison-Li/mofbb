@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import ase
-import ase.io
+from mofbb.common.utils import read_atoms
 import networkx as nx
 import numpy as np
 
@@ -169,7 +169,7 @@ def read_bonded_structure(
 ) -> tuple[ase.Atoms, BondNetwork]:
     """Read a CIF and return atoms with the best available bond graph."""
 
-    atoms = ase.io.read(str(cif))
+    atoms = read_atoms(str(cif))
     bonds = build_bond_network_from_cif(cif, atoms)
     if bonds is None:
         bonds = build_bond_network(atoms, scale=scale)

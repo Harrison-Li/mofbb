@@ -11,7 +11,7 @@ from ase.geometry import cellpar_to_cell
 from scipy.optimize import linear_sum_assignment
 
 from mofbb.decompose.object import TopologyEdge, TopologyVertex
-from mofbb.decompose.pbc import PeriodicBond
+from mofbb.common.pbc import PeriodicBond
 
 PeriodicEdge = tuple[int, int, tuple[int, int, int]]
 

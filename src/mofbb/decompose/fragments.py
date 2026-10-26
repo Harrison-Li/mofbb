@@ -12,12 +12,8 @@ from mofbb.decompose.bonding import BondNetwork
 from mofbb.decompose.fingerprint import fragment_fingerprint
 from mofbb.decompose.geometry import center_positions
 from mofbb.decompose.object import Fragment, XSite
-from mofbb.decompose.pbc import (
-    ComponentPeriodicity,
-    PeriodicBond,
-    analyze_component,
-    periodic_bonds,
-)
+from mofbb.common.pbc import ComponentPeriodicity, PeriodicBond, analyze_component
+from mofbb.decompose.pbc import periodic_bonds
 
 FragmentKind = Literal["node", "linker", "metal_node", "organic_node", "edge"]
 

@@ -14,7 +14,7 @@ import warnings
 from mofbb.compose import Builder, BuildingBlock, Topology
 from mofbb.compose.log import logger
 from mofbb.decompose import NodeEdgeDecomposer
-from mofbb.matching import (
+from mofbb.common.matching import (
     BuildingBlockGraph,
     compare_building_blocks,
     match_building_block_multisets,
@@ -195,7 +195,7 @@ def run_case(
         )
 
         stage = "composition"
-        framework = Builder().build(
+        framework = Builder()._build_from_slots(
             inputs.topology,
             inputs.blocks,
             n_angles=accuracy,

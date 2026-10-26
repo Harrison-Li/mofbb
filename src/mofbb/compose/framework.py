@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 from ase.cell import Cell
 
-from mofbb.compose.connectivity import (
+from mofbb.common.connectivity import (
     bond_arrays,
     mic_shifts,
     validate_3d_connectivity,

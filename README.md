@@ -72,18 +72,25 @@ to type `0`), and each node block needs one `X` site per connection. Edge blocks
 are optional; omitted edges connect nodes directly.
 
 ```python
-from mofbb.compose import Builder, BuildingBlock, Topology
+from mofbb.compose import Builder, Edge, Node, Topology
 
 topology = Topology("topology.cgd")
-framework = Builder().build_by_type(
+builder = Builder()
+framework = builder.build(
     topology,
-    node_bbs={0: BuildingBlock("node_type_0.xyz")},
-    port_tol=0.3, # permutation loss tolerance
-    bond_scale=1.2, # maximum created bond < atom raddi
-    sym_tol=0.1, # compatible symmetry tolerance of building blocks which has operation with annouced topology
-    #n_angles=6, # interval for searching best permuation between [0, 360]
+    node_bbs={0: Node("node_type_0.xyz")},
+    # edge_bbs={(0, 0): Edge("edge_type_0_0.xyz")},  # optional linker
+    port_tol=0.3,  # maximum paired-port gap in angstroms
+    bond_scale=1.2,  # bond cutoff multiplier for summed covalent radii
+    sym_tol=0.1,  # site-symmetry compatibility tolerance in angstroms
 )
 ```
+
+`Node.kind` detects `metal_node` or `organic_node` from the real atoms using
+the existing MOFid metal classification. Both use `node_bbs`, including
+two-connected nodes. `Edge` requires exactly two `X` ports and belongs in
+`edge_bbs`, keyed by endpoint node types. Existing `BuildingBlock` inputs
+remain supported. Explicit `Node`/`Edge` inputs reject assignment to the wrong slot role.
 
 ## Validate a CIF
 

@@ -1,4 +1,4 @@
-"""Legacy exact-reconstruction map serialization."""
+"""Exact-reconstruction map serialization."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ from mofbb.decompose.object import Fragment, TopologyEdge
 
 
 def fragment_instance_path(fragment: Fragment) -> str:
-    """Return the legacy per-instance XYZ path for a fragment."""
+    """Return the per-instance XYZ path for a fragment."""
     return f"{fragment.kind}s/{fragment.kind}_{fragment.index:03d}.xyz"
 
 
-class LegacyMap:
+class ReconstructionMap:
     """Build the coordinate-bearing map used by exact reconstruction."""
 
     def __init__(self, result, bb_ids, top_slots):

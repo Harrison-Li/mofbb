@@ -24,7 +24,7 @@ import warnings
 
 from threadpoolctl import threadpool_limits
 
-from mofbb.symmetry_cache import write_symmetry_manifest
+from mofbb.common.symmetry_cache import write_symmetry_manifest
 import single_linker_mof_generator as core
 
 

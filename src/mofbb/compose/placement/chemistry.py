@@ -7,7 +7,7 @@ from functools import cache
 
 import numpy as np
 
-from mofbb.matching import BuildingBlockGraph, compare_building_blocks
+from mofbb.common.matching import BuildingBlockGraph, compare_building_blocks
 
 
 class BBGroups:

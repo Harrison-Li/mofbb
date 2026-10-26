@@ -13,7 +13,7 @@ from ase.geometry import cellpar_to_cell
 from mofbb.compose.building_block import BuildingBlock
 from mofbb.compose.framework import Framework
 from mofbb.compose.topology import Topology
-from mofbb.compose.utils import wrap_frac
+from mofbb.common.utils import wrap_frac
 
 
 def _read_topology_geometry(path: Path) -> tuple[np.ndarray, list[np.ndarray]]:

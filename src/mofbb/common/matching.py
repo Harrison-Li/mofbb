@@ -9,8 +9,6 @@ from typing import TYPE_CHECKING, Literal
 
 import networkx as nx
 
-from mofbb.decompose.constants import is_metal
-
 if TYPE_CHECKING:
     from mofbb.compose.building_block import BuildingBlock
     from mofbb.decompose.object import Fragment
@@ -89,15 +87,7 @@ class BuildingBlockGraph:
 
         symbols = tuple(block.atoms.get_chemical_symbols())
         if kind is None:
-            if symbols.count("X") == 2:
-                kind = "edge"
-            elif any(
-                symbol != "X" and is_metal(symbol)
-                for symbol in symbols
-            ):
-                kind = "metal_node"
-            else:
-                kind = "organic_node"
+            kind = block.kind
         bonds = tuple(
             (int(pair[0]), int(pair[1]), str(bond_type))
             for pair, bond_type in zip(

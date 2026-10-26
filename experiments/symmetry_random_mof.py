@@ -436,7 +436,7 @@ def build_and_validate(
     cif_path: Path,
 ) -> dict[str, object]:
     topology = Topology(topology_record.cgd_path)
-    framework = Builder().build_by_type(
+    framework = Builder().build(
         topology=topology,
         node_bbs={key: BuildingBlock(path) for key, path in node_paths.items()},
         edge_bbs={key: BuildingBlock(path) for key, path in edge_paths.items()},

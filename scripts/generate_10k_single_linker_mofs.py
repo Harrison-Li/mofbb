@@ -7,7 +7,7 @@ import argparse
 from pathlib import Path
 import warnings
 
-from mofbb.symmetry_cache import write_symmetry_manifest
+from mofbb.common.symmetry_cache import write_symmetry_manifest
 from single_linker_mof_generator import GenerationConfig, generate_topology_balanced
 
 

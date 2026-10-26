@@ -27,9 +27,9 @@ from pymatgen.core import Element
 from threadpoolctl import threadpool_limits
 from mofbb.compose import Builder, BuildingBlock, Topology
 from mofbb.compose.framework import Framework
-from mofbb.compose.connectivity import validate_3d_connectivity
-from mofbb.compose.linkers import validate_single_linker
-from mofbb.compose.chemistry import nonmetal_neighbor_counts, validate_coordination
+from mofbb.common.connectivity import validate_3d_connectivity
+from mofbb.common.linkers import validate_single_linker
+from mofbb.common.chemistry import nonmetal_neighbor_counts, validate_coordination
 from single_linker_mof_generator import configure_quiet_builder_logging
 
 VERSION = 1
@@ -46,7 +46,7 @@ def canonical_key(numbers, edges):
     graph.vs['number'] = list(map(int, numbers))
     canonical = graph.permute_vertices(graph.canonical_permutation(color=graph.vs['number']))
     key = (tuple(canonical.vs['number']), tuple(sorted(tuple(sorted(e)) for e in canonical.get_edgelist())))
-    # Same encoding as mofbb.compose.linkers._molecule_key consumers.
+    # Same encoding as mofbb.common.linkers._molecule_key consumers.
     return hashlib.sha256(json.dumps(key).encode()).hexdigest()
 
 def read_cif(path):
@@ -86,7 +86,7 @@ def prepare_template(plan, output):
     assert organic.n_ports == 3 and metal.n_ports == 4
     metal.validate_connectivity(); organic.validate_connectivity()
     topology = Topology(plan['topology_path'])
-    frame = Builder().build_by_type(topology, {plan['metal_node_type']: metal, plan['organic_node_type']: organic}, n_angles=4)
+    frame = Builder().build(topology, node_bbs={plan['metal_node_type']: metal, plan['organic_node_type']: organic}, n_angles=4)
     maps, offset = [], 0
     placed_topology = frame.info['topology']
     for slot, block in enumerate(frame.info['located_bbs']):

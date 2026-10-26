@@ -25,7 +25,7 @@ import time
 
 import ase.neighborlist
 from ase import Atoms
-from ase.io import read as read_ase
+from mofbb.common.utils import read_atoms
 import numpy as np
 from pymatgen.symmetry.groups import SpaceGroup
 from scipy.spatial.transform import Rotation
@@ -33,8 +33,8 @@ import spglib
 from sympy.combinatorics import Permutation, PermutationGroup
 
 from mofbb.compose import Builder, BuildingBlock, Locator, Topology
-from mofbb.compose.connectivity import CONNECTIVITY_POLICY_VERSION, validate_3d_connectivity
-from mofbb.compose.linkers import SINGLE_LINKER_POLICY_VERSION, validate_single_linker
+from mofbb.common.connectivity import CONNECTIVITY_POLICY_VERSION, validate_3d_connectivity
+from mofbb.common.linkers import SINGLE_LINKER_POLICY_VERSION, validate_single_linker
 from mofbb.compose.log import logger
 from mofbb.compose.locator import (
     PortAssignmentError,
@@ -1073,7 +1073,7 @@ def build_and_validate(
     if topology is None:
         topology = cached_topology(str(topology_record.cgd_path))
     builder = _GENERATION_WORKER_BUILDER or Builder()
-    framework = builder.build_by_type(
+    framework = builder.build(
         topology=topology,
         node_bbs={
             key: cached_building_block(str(path))
@@ -1144,7 +1144,7 @@ def validate_staged_cif(
                 return float(line.split(":", 1)[1].strip())
         return None
 
-    atoms = read_ase(cif_path)
+    atoms = read_atoms(cif_path)
     structure_quality = _validate_structure(config, atoms, staged=True)
     max_rmsd = comment_value("# Max RMSD:")
     if max_rmsd is None or max_rmsd > config.max_rmsd:

@@ -14,11 +14,8 @@ from mofbb.decompose.cleanup.terminal import TerminalAbsorber
 from mofbb.decompose.fragments import FragmentBuilder, connected_components
 from mofbb.decompose.linker import OrganicLinkerSplitter
 from mofbb.decompose.object import Fragment
-from mofbb.decompose.pbc import (
-    PeriodicBond,
-    periodic_bonds,
-    select_periodic_component_cuts,
-)
+from mofbb.common.pbc import PeriodicBond
+from mofbb.decompose.pbc import periodic_bonds, select_periodic_component_cuts
 from mofbb.decompose.ports import LogicalPortAssigner
 from mofbb.decompose.results import NodeEdgeDecompositionResult
 from mofbb.decompose.solvent import (

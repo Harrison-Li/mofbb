@@ -143,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.abstract_topology:
             abstract = TopoInput.from_dir(args.source)
-            framework = Builder().build(
+            framework = Builder()._build_from_slots(
                 abstract.topology,
                 abstract.copy_bbs(),
                 n_angles=args.n_angles,
@@ -167,10 +167,10 @@ def main(argv: list[str] | None = None) -> int:
         topology = Topology(args.source)
         node_bbs = _load_assignments(args.node_bb)
         edge_bbs = _load_assignments(args.edge_bb)
-        framework = Builder().build_by_type(
+        framework = Builder().build(
             topology,
-            node_bbs,
-            edge_bbs,
+            node_bbs=node_bbs,
+            edge_bbs=edge_bbs,
             n_angles=args.n_angles,
             port_tol=args.port_tol,
             bond_scale=args.bond_scale,

@@ -11,8 +11,8 @@ import networkx as nx
 import numpy as np
 from pymatgen.core import Element
 
-from mofbb.compose.connectivity import bond_arrays, mic_shifts
-from mofbb.decompose.pbc import PeriodicBond, analyze_component
+from mofbb.common.connectivity import bond_arrays, mic_shifts
+from mofbb.common.pbc import PeriodicBond, analyze_component
 
 
 SINGLE_LINKER_POLICY_VERSION = 1
