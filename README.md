@@ -25,8 +25,11 @@ Alternatively, install with pip in your existing environment:
 ```bash
 python -m pip install -e .
 ```
-
-## Extract building blocks
+## Basic functions
+1. Extract Secondary building blocks from given MOF structure.
+2. Build a novel MOF with given topology and secondary building blocks
+3. Find available SBUs with given topology.
+### Extract building blocks
 
 ```bash
 mofbb-decompose structure.cif \
@@ -53,8 +56,7 @@ default; add `--solvent-mode free` or `--solvent-mode all` to remove it.
 > 
 > We also provided the balanced hypothetical MOFs (bMOFs): Release in a few days.
 
-
-## Build a new MOF
+### Build a new MOF
 
 Choose a CGD topology and your building blocks. Replace these example filenames
 and type IDs with your own:
@@ -86,11 +88,75 @@ framework = builder.build(
 )
 ```
 
-`Node.kind` detects `metal_node` or `organic_node` from the real atoms using
-the existing MOFid metal classification. Both use `node_bbs`, including
-two-connected nodes. `Edge` requires exactly two `X` ports and belongs in
-`edge_bbs`, keyed by endpoint node types. Existing `BuildingBlock` inputs
-remain supported. Explicit `Node`/`Edge` inputs reject assignment to the wrong slot role.
+`Node.kind` detects `metal_node` or `organic_node` from the real atoms
+
+### Find available SBUs with an abstract topology
+
+```python
+from mofbb.compose import Topology
+
+topology = Topology("/nanolab/libo/mof_builder/lib/topology/pcu.cgd")
+bbs = topology.find_avail_bbs("/nanolab/libo/mof_builder/lib")
+# {"m_nodes": [...], "o_nodes": [...], "edges": [...]}
+# Each list contains absolute XYZ file paths.
+```
+
+## Quick start
+
+Download the [building-block library](https://huggingface.co/datasets/Harrison-Li/BMOFs)
+and set `library` to its local directory, containing `topology/`, `node/`,
+and `edge/`. This example uses `tbo`: node type `0` is three-connected
+(assigned an organic node), node type `1` is four-connected (assigned a metal
+node), and edge type `(0, 1)` optionally takes a linker.
+
+```python
+import random
+from pathlib import Path
+from mofbb.compose import Builder, Edge, Node, Topology
+
+library = Path("/path/to/library")
+
+# 1. Load an abstract topology.
+topology = Topology(library / "topology" / "tbo.cgd")
+
+# 2. Find geometrically compatible building blocks.
+bbs = topology.find_avail_bbs(library)
+print({kind: len(paths) for kind, paths in bbs.items()})
+# {"m_nodes": ..., "o_nodes": ..., "edges": ...}
+
+# 3. Enumerate metal/organic node pairs and randomly include an edge.
+output = Path("outputs/tbo")
+output.mkdir(parents=True, exist_ok=True)
+builder = Builder()
+
+idx = 0
+for metal_path in bbs["m_nodes"]:
+    metal_node = Node(metal_path)
+    if metal_node.n_ports != 4:
+        continue
+    for organic_path in bbs["o_nodes"]:
+        organic_node = Node(organic_path)
+        if organic_node.n_ports != 3:
+            continue
+        idx += 1
+        # m_node + o_node + optional edge
+        edge_bbs = {}
+        if random.randint(0, 1) == 1:
+            edge_path = random.choice(bbs["edges"])
+            edge_bbs = {(0, 1): Edge(edge_path)}
+        try:
+            framework = builder.build(
+                topology,
+                node_bbs={0: organic_node, 1: metal_node},
+                edge_bbs=edge_bbs,
+            )
+        except ValueError as error:
+            print(f"Skipped combination {idx}: {error}")
+            continue
+        framework.write_cif(output / f"tbo_{idx:06d}.cif")
+```
+
+
 
 ## Validate a CIF
 
@@ -112,10 +178,6 @@ python scripts/generate_unique_mofs.py \
 ```
 
 The library needs `building_blocks_manifest.csv` and a `topology/` directory.
-The launcher excludes duplicates using the local `2m_mofs_v2` database and its
-archives; use `--history /path/to/generation.sqlite3` for another history database.
-Checks use assignment signatures and exact CIF hashes. Use a fresh output
-folder when changing the library or validation policy.
 
 ## Help
 
@@ -124,5 +186,3 @@ mofbb-decompose --help
 mofbb-compose --help
 python -m mofbb.compose.validate --help
 ```
-
-See [`examples/`](examples/) for sample building blocks and topologies.

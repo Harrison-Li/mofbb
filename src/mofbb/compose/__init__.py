@@ -7,3 +7,5 @@ from mofbb.compose.locator import Locator
 from mofbb.compose.scaler import Scaler
 from mofbb.compose.reconstructor import TopoInput, Reconstructor
 from mofbb.compose.topology import Topology
+
+from mofbb.compose.compatibility import find_avail_bbs

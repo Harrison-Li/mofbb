@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from mofbb.compose.builder import Builder
@@ -115,6 +116,12 @@ def build_parser() -> argparse.ArgumentParser:
             "grouped BBs without reconstruction_map.json."
         ),
     )
+    parser.add_argument("--find-avail-bbs", "--compatible-blocks", dest="compatible_blocks", type=Path, metavar="LIBRARY",
+                        help="Report geometric candidates from a library; do not assemble.")
+    parser.add_argument("--compatible-json", action="store_true",
+                        help="Print the complete candidate report as JSON.")
+    parser.add_argument("--max-port-rmsd", type=float, default=0.1,
+                        help="Candidate unit-direction RMSD cutoff (dimensionless). Default: 0.1.")
     return parser
 
 
@@ -134,6 +141,20 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.compatible_json and args.compatible_blocks is None:
+        parser.error("--compatible-json requires --compatible-blocks")
+    if args.compatible_blocks is not None:
+        if args.node_bb or args.edge_bb:
+            parser.error("Candidate reporting cannot be combined with block assignments")
+        from mofbb.compose.compatibility import format_report
+
+        source = args.source / "topology.cgd" if args.source.is_dir() else args.source
+        report = Topology(source).find_avail_bbs(
+            args.compatible_blocks, max_rmsd=args.max_port_rmsd, n_angles=args.n_angles,
+        )
+        print(json.dumps(report, indent=2) if args.compatible_json else format_report(report))
+        return 0
 
     if args.source.is_dir():
         if args.node_bb or args.edge_bb:

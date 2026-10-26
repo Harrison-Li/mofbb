@@ -84,6 +84,12 @@ class Topology:
                 f"3D topology required; {self.name!r} contains {dimensions or 'no components'}."
             )
 
+    def find_avail_bbs(self, library, *, max_rmsd=0.1, n_angles=4):
+        """List geometric library candidates; see compatibility.find_avail_bbs."""
+        from mofbb.compose.compatibility import find_avail_bbs
+
+        return find_avail_bbs(self, library, max_rmsd=max_rmsd, n_angles=n_angles)
+
     def copy(self):
         """Return a deep, independent copy of this topology."""
         return copy.deepcopy(self)
