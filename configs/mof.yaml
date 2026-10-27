@@ -1,0 +1,18 @@
+data:
+  mof_path: examples/mof_test
+  charge: 0
+  multiplicity: 1
+
+output_dir: examples/mof_relaxed
+
+optimization:
+  method: mlip # dft
+  mlip: dpa
+  charge: 0
+  spin: 0
+  model: dpa4_weight/dpa4_60_epoch.pt
+  opt: true
+  freq: true
+  max_steps: 600
+  fmax: 0.05
+  optimizer: FIRE
