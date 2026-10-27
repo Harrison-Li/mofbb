@@ -9,19 +9,24 @@ from typing import TextIO
 
 import numpy as np
 
-from mofbb.decompose.geometry import format_float
-from mofbb.decompose.object import TopologyEdge, TopologyVertex
-from mofbb.decompose.symmetry import (
-    SpaceGroupOperations,
-    TopologySymmetry,
-    detect_topology_symmetry,
-)
 from mofbb.decompose.export.symmetry import (
     Cell,
     Key,
     choose_symmetry,
     fit_cell,
 )
+from mofbb.decompose.object import TopologyEdge, TopologyVertex
+from mofbb.decompose.symmetry import (
+    SpaceGroupOperations,
+    TopologySymmetry,
+    detect_topology_symmetry,
+)
+
+
+def format_float(value: float) -> str:
+    """Compact float formatting for CGD files."""
+
+    return f"{value:.10g}"
 
 
 def edge_types(

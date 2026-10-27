@@ -136,7 +136,7 @@ def recovered_graphs(result: object) -> list[BuildingBlockGraph]:
         graphs.append(
             BuildingBlockGraph(
                 name=graph.name,
-                kind=fragment.logical_kind or fragment.kind,
+                kind=fragment.topology_kind or fragment.kind,
                 symbols=graph.symbols,
                 bonds=graph.bonds,
             )

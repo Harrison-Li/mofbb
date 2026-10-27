@@ -87,7 +87,7 @@ class TerminalAbsorber:
         ports = {
             key: {
                 ((p.neighbor_kind, p.neighbor_index), p.translation)
-                for p in fragment.logical_ports
+                for p in fragment.connection_ports
             }
             for key, fragment in fragments.items()
         }
@@ -104,7 +104,7 @@ class TerminalAbsorber:
         # Index source bonds once; finite-union checks then visit only the
         # proposed group's bonds rather than rescanning the whole crystal.
         records_by_atom: dict[int, set[PeriodicBond]] = defaultdict(set)
-        for record in self.builder.source_records:
+        for record in self.builder.bond_images:
             records_by_atom[record.i].add(record)
             records_by_atom[record.j].add(record)
         remaining = set(self.bonds)

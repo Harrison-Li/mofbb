@@ -17,17 +17,16 @@ from mofbb.decompose.assignment import NodeAtomAssigner
 from mofbb.decompose.bonding import BondNetwork, subset_bonded_structure
 from mofbb.decompose.constants import is_metal
 from mofbb.decompose.fragments import connected_components
-from mofbb.common.pbc import CellShift
+from mofbb.decompose.object import Edge, Site
 from mofbb.decompose.pbc import periodic_bonds
 
 SolventMode: TypeAlias = Literal["none", "free", "all"]
 ActiveSolventMode: TypeAlias = Literal["free", "all"]
-SiteRole: TypeAlias = Literal["node", "linker"]
 
 # Two independently occupied oxygen sites closer than a real O--O bond cannot
 # coexist.  Treat such sites as a disordered coordinated-solvent fragment when
 # they are terminal alternatives on the same metal.
-_SPLIT_OXYGEN_SITE_MAX_DISTANCE = 1.05
+_SPLIT_O_MAX_DISTANCE = 1.05
 
 
 def _write_cif(path: Path, atoms: ase.Atoms, indices: tuple[int, ...]) -> None:
@@ -53,7 +52,7 @@ def _write_cif(path: Path, atoms: ase.Atoms, indices: tuple[int, ...]) -> None:
 
 
 @dataclass(frozen=True)
-class SolventRemovalResult:
+class SolventResult:
     """Classified solvent and atom selections for one structure."""
 
     original_atoms: ase.Atoms
@@ -74,8 +73,6 @@ class SolventRemovalResult:
         return self._flatten(self.bound_solvent_components)
 
     def kept_indices(self, mode: ActiveSolventMode) -> tuple[int, ...]:
-        if mode not in {"free", "all"}:
-            raise ValueError(f"Unsupported active solvent mode: {mode!r}.")
         removed = set(self.free_solvent_indices)
         if mode == "all":
             removed.update(self.bound_solvent_indices)
@@ -90,38 +87,14 @@ class SolventRemovalResult:
         return self.kept_indices("all")
 
     def subset(
-        self,
-        mode: ActiveSolventMode,
+        self, mode: ActiveSolventMode
     ) -> tuple[ase.Atoms, BondNetwork, tuple[int, ...]]:
         indices = self.kept_indices(mode)
         if not indices:
             raise ValueError(f"Solvent removal deleted the entire structure ({mode}).")
         return subset_bonded_structure(
-            self.original_atoms,
-            self.original_bonds,
-            indices,
+            self.original_atoms, self.original_bonds, indices
         )
-
-    def validate_write_request(
-        self,
-        mode: ActiveSolventMode,
-        selected_to_original: tuple[int, ...],
-    ) -> tuple[int, ...]:
-        mapping = tuple(selected_to_original)
-        expected = self.kept_indices(mode)
-        if mapping != expected:
-            raise ValueError(
-                "Solvent selected-to-original mapping is inconsistent with "
-                f"mode {mode!r}: expected {expected}, received {mapping}."
-            )
-        rank = self.original_atoms.cell.rank
-        periodic = tuple(bool(value) for value in self.original_atoms.pbc)
-        if not ((rank == 3 and all(periodic)) or (rank == 0 and not any(periodic))):
-            raise ValueError(
-                "CIF output requires either a rank-3 cell with full periodicity "
-                "or a rank-0 cell with no periodicity."
-            )
-        return mapping
 
     def write(
         self,
@@ -129,7 +102,6 @@ class SolventRemovalResult:
         mode: ActiveSolventMode,
         selected_to_original: tuple[int, ...],
     ) -> dict[str, object]:
-        mapping = self.validate_write_request(mode, selected_to_original)
         output_dir = Path(output_dir)
         selections = {
             "free_solvent.cif": self.free_solvent_indices,
@@ -140,7 +112,7 @@ class SolventRemovalResult:
         for filename, indices in selections.items():
             _write_cif(output_dir / filename, self.original_atoms, indices)
 
-        def solvent_summary(
+        def summary(
             components: tuple[tuple[int, ...], ...],
             filename: str,
         ) -> dict[str, object]:
@@ -153,47 +125,27 @@ class SolventRemovalResult:
 
         return {
             "mode": mode,
-            "free": solvent_summary(
-                self.free_solvent_components,
-                "free_solvent.cif",
-            ),
-            "bound": solvent_summary(
-                self.bound_solvent_components,
-                "bound_solvent.cif",
-            ),
+            "free": summary(self.free_solvent_components, "free_solvent.cif"),
+            "bound": summary(self.bound_solvent_components, "bound_solvent.cif"),
             "fsr": {"num_atoms": len(self.fsr_indices), "path": "mof_fsr.cif"},
             "asr": {"num_atoms": len(self.asr_indices), "path": "mof_asr.cif"},
-            "selected_to_original": list(mapping),
+            "selected_to_original": list(selected_to_original),
         }
 
 
-@dataclass
-class _TopologySite:
-    site_id: int
-    role: SiteRole
-    atom_indices: set[int]
-
-
-@dataclass(frozen=True, order=True)
-class _TopologyConnection:
-    left: int
-    right: int
-    translation: CellShift
-
-
 def _simplify_topology(
-    source_sites: dict[int, _TopologySite],
-    source_connections: set[_TopologyConnection],
+    source_sites: dict[int, Site],
+    source_connections: set[Edge],
 ) -> tuple[tuple[tuple[int, ...], ...], tuple[tuple[int, ...], ...]]:
     sites = {
-        key: _TopologySite(key, site.role, set(site.atom_indices))
+        key: Site(site.role, set(site.atom_indices))
         for key, site in source_sites.items()
     }
     connections = set(source_connections)
     free: list[tuple[int, ...]] = []
     bound: list[tuple[int, ...]] = []
 
-    def incident(site_id: int) -> list[_TopologyConnection]:
+    def incident(site_id: int) -> list[Edge]:
         return [
             edge
             for edge in connections
@@ -227,32 +179,26 @@ def _simplify_topology(
         else:
             break
 
-    order = lambda component: component[0]
-    return tuple(sorted(free, key=order)), tuple(sorted(bound, key=order))
+    return tuple(sorted(free)), tuple(sorted(bound))
 
 
-class MofidSolventRemover:
-    """Classify free and bound solvent from periodic MOF connectivity."""
+class SolventRemover:
+    """Classify free and bound solvent."""
 
     def __init__(self, atoms: ase.Atoms, bonds: BondNetwork) -> None:
-        if len(atoms) != len(bonds.adjacency):
-            raise ValueError("Bond network size does not match the atom count.")
         self.atoms = atoms
         self.bonds = bonds
         self.records = {record.pair: record for record in periodic_bonds(atoms, bonds)}
 
-    def classify(self) -> SolventRemovalResult:
+    def classify(self) -> SolventResult:
         nodes = set(
-            NodeAtomAssigner(
-                self.atoms.get_chemical_symbols(),
-                self.bonds,
-            ).assign()
+            NodeAtomAssigner(self.atoms.get_chemical_symbols(), self.bonds).assign()
         )
         # The node assigner deliberately starts from every direct metal
         # neighbor.  Pull recognizable coordinated solvent back out before
         # simplifying the framework topology so that it is classified as
         # bound solvent rather than part of the metal node.
-        coordinated_solvent = self._coordinated_solvent_atoms()
+        coordinated_solvent = self._coordinated_atoms()
         nodes.difference_update(coordinated_solvent)
         roles = (
             ("node", nodes),
@@ -265,7 +211,7 @@ class MofidSolventRemover:
         ]
         components.sort(key=lambda item: min(item[1]))
         sites = {
-            site_id: _TopologySite(site_id, role, component)
+            site_id: Site(role, component)
             for site_id, (role, component) in enumerate(components)
         }
         site_by_atom = {
@@ -273,11 +219,9 @@ class MofidSolventRemover:
             for site_id, site in sites.items()
             for atom in site.atom_indices
         }
-        offsets, connections = self._component_offsets(sites)
-        connections.update(self._crossing_connections(site_by_atom, offsets))
-        coordinated_site_ids = {
-            site_by_atom[atom] for atom in coordinated_solvent
-        }
+        offsets, connections = self._site_offsets(sites)
+        connections.update(self._site_edges(site_by_atom, offsets))
+        coordinated_site_ids = {site_by_atom[atom] for atom in coordinated_solvent}
         coordinated_bound = tuple(
             tuple(sorted(sites[site_id].atom_indices))
             for site_id in sorted(coordinated_site_ids)
@@ -291,10 +235,10 @@ class MofidSolventRemover:
             and connection.right not in coordinated_site_ids
         }
         free, bound = _simplify_topology(sites, connections)
-        bound = tuple(sorted((*bound, *coordinated_bound), key=lambda part: part[0]))
-        return SolventRemovalResult(self.atoms.copy(), self.bonds, free, bound)
+        bound = tuple(sorted((*bound, *coordinated_bound)))
+        return SolventResult(self.atoms.copy(), self.bonds, free, bound)
 
-    def _coordinated_solvent_atoms(self) -> set[int]:
+    def _coordinated_atoms(self) -> set[int]:
         symbols = self.atoms.get_chemical_symbols()
         solvent_atoms: set[int] = set()
 
@@ -324,19 +268,13 @@ class MofidSolventRemover:
         for left, right in self.bonds.pairs:
             if symbols[left] != "O" or symbols[right] != "O":
                 continue
-            if np.linalg.norm(self.bonds.vector(left, right)) > (
-                _SPLIT_OXYGEN_SITE_MAX_DISTANCE
-            ):
+            if np.linalg.norm(self.bonds.vector(left, right)) > (_SPLIT_O_MAX_DISTANCE):
                 continue
 
             left_neighbors = self.bonds.adjacency[left]
             right_neighbors = self.bonds.adjacency[right]
-            left_metals = {
-                atom for atom in left_neighbors if is_metal(symbols[atom])
-            }
-            right_metals = {
-                atom for atom in right_neighbors if is_metal(symbols[atom])
-            }
+            left_metals = {atom for atom in left_neighbors if is_metal(symbols[atom])}
+            right_metals = {atom for atom in right_neighbors if is_metal(symbols[atom])}
             if len(left_metals) != 1 or left_metals != right_metals:
                 continue
 
@@ -364,12 +302,12 @@ class MofidSolventRemover:
     def _shift(self, i: int, j: int) -> np.ndarray:
         return np.asarray(self.records[tuple(sorted((i, j)))].oriented_shift(i, j))
 
-    def _component_offsets(
+    def _site_offsets(
         self,
-        sites: dict[int, _TopologySite],
-    ) -> tuple[dict[int, np.ndarray], set[_TopologyConnection]]:
+        sites: dict[int, Site],
+    ) -> tuple[dict[int, np.ndarray], set[Edge]]:
         offsets: dict[int, np.ndarray] = {}
-        connections: set[_TopologyConnection] = set()
+        connections: set[Edge] = set()
         for site_id, site in sites.items():
             root = min(site.atom_indices)
             offsets[root] = np.zeros(3, dtype=int)
@@ -384,16 +322,14 @@ class MofidSolventRemover:
                     elif np.any(cycle := expected - offsets[neighbor]):
                         shift = tuple(int(value) for value in cycle)
                         reverse = tuple(-value for value in shift)
-                        connections.add(
-                            _TopologyConnection(site_id, site_id, min(shift, reverse))
-                        )
+                        connections.add(Edge(site_id, site_id, min(shift, reverse)))
         return offsets, connections
 
-    def _crossing_connections(
+    def _site_edges(
         self,
         site_by_atom: dict[int, int],
         offsets: dict[int, np.ndarray],
-    ) -> set[_TopologyConnection]:
+    ) -> set[Edge]:
         connections = set()
         for i, j in self.bonds.pairs:
             left, right = site_by_atom[i], site_by_atom[j]
@@ -403,7 +339,7 @@ class MofidSolventRemover:
             if left > right:
                 left, right, shift = right, left, -shift
             connections.add(
-                _TopologyConnection(
+                Edge(
                     left,
                     right,
                     tuple(int(value) for value in shift),

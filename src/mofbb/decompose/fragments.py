@@ -1,21 +1,23 @@
-"""Decomposition fragment construction and PORMAKE-style cut-bond capping."""
-
 from __future__ import annotations
-
-from typing import Literal
 
 import ase
 import networkx as nx
 import numpy as np
 
+from mofbb.common.pbc import ComponentPeriodicity, PeriodicBond, analyze_component
+from mofbb.common.utils import center_positions
 from mofbb.decompose.bonding import BondNetwork
 from mofbb.decompose.fingerprint import fragment_fingerprint
-from mofbb.decompose.geometry import center_positions
 from mofbb.decompose.object import Fragment, XSite
-from mofbb.common.pbc import ComponentPeriodicity, PeriodicBond, analyze_component
 from mofbb.decompose.pbc import periodic_bonds
 
-FragmentKind = Literal["node", "linker", "metal_node", "organic_node", "edge"]
+def get_atom_map(fragments: list[Fragment]) -> dict[int, tuple[str, int]]:
+    """Map each source atom to its fragment kind and index."""
+    return {
+        atom_index: (fragment.kind, fragment.index)
+        for fragment in fragments
+        for atom_index in fragment.source_indices
+    }
 
 
 class FragmentBuilder:
@@ -27,19 +29,19 @@ class FragmentBuilder:
         bonds: BondNetwork,
         symbols: list[str],
         x_symbol: str = "X",
-        source_records: tuple[PeriodicBond, ...] | None = None,
+        bond_images: tuple[PeriodicBond, ...] | None = None,
     ) -> None:
         self.atoms = atoms
         self.bonds = bonds
         self.symbols = symbols
         self.x_symbol = x_symbol
-        self.source_records = (
-            periodic_bonds(atoms, bonds) if source_records is None else source_records
+        self.bond_images = (
+            periodic_bonds(atoms, bonds) if bond_images is None else bond_images
         )
 
     def build_role_fragments(
         self,
-        kind: FragmentKind,
+        kind: str,
         role_indices: set[int] | frozenset[int],
         connecting_bonds: tuple[PeriodicBond, ...],
     ) -> list[Fragment]:
@@ -48,7 +50,7 @@ class FragmentBuilder:
         excluded = set(connecting_bonds)
         graph.add_edges_from(
             record.pair
-            for record in self.source_records
+            for record in self.bond_images
             if record not in excluded
             and record.i in role_indices
             and record.j in role_indices
@@ -59,7 +61,7 @@ class FragmentBuilder:
                 kind,
                 index,
                 set(component),
-                self.source_records,
+                self.bond_images,
                 connecting_bonds,
             )
             for index, component in enumerate(
@@ -70,7 +72,7 @@ class FragmentBuilder:
 
     def materialize_fragment(
         self,
-        kind: FragmentKind,
+        kind: str,
         index: int,
         component: set[int],
         connecting_bonds: tuple[PeriodicBond, ...],
@@ -79,16 +81,16 @@ class FragmentBuilder:
             kind,
             index,
             component,
-            self.source_records,
+            self.bond_images,
             connecting_bonds,
         )
 
     def _materialize_fragment(
         self,
-        kind: FragmentKind,
+        kind: str,
         index: int,
         component: set[int],
-        source_records: tuple[PeriodicBond, ...],
+        bond_images: tuple[PeriodicBond, ...],
         connection_records: tuple[PeriodicBond, ...],
     ) -> Fragment:
         source_indices = tuple(sorted(component))
@@ -101,7 +103,7 @@ class FragmentBuilder:
         )
         frame = self._materialization_frame(
             component,
-            source_records,
+            bond_images,
             internal_cuts,
         )
         cell = np.asarray(self.atoms.cell.array, dtype=float)
@@ -113,7 +115,7 @@ class FragmentBuilder:
         local_bonds = self._internal_bonds(
             component,
             local_index,
-            source_records,
+            bond_images,
             internal_cuts,
         )
         x_sites = self._append_x_caps(
@@ -147,10 +149,10 @@ class FragmentBuilder:
     @staticmethod
     def _materialization_frame(
         component: set[int],
-        source_records: tuple[PeriodicBond, ...],
+        bond_images: tuple[PeriodicBond, ...],
         internal_cuts: frozenset[PeriodicBond],
     ) -> ComponentPeriodicity:
-        frame = analyze_component(component, source_records, excluded=internal_cuts)
+        frame = analyze_component(component, bond_images, excluded=internal_cuts)
         if frame.rank != 0:
             raise ValueError("Cannot materialize a periodic fragment; cut it first.")
         return frame
@@ -159,12 +161,12 @@ class FragmentBuilder:
         self,
         component: set[int],
         local_index: dict[int, int],
-        source_records: tuple[PeriodicBond, ...],
+        bond_images: tuple[PeriodicBond, ...],
         internal_cuts: frozenset[PeriodicBond],
     ) -> list[tuple[int, int, str]]:
         local_bonds: list[tuple[int, int, str]] = []
 
-        for record in source_records:
+        for record in bond_images:
             i, j = record.pair
             if i not in component or j not in component:
                 continue

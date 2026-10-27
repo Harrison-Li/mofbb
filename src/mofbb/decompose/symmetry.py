@@ -75,10 +75,10 @@ class PeriodicBondOrbitClosure:
 
     def __init__(
         self,
-        source_records: tuple[PeriodicBond, ...],
+        bond_images: tuple[PeriodicBond, ...],
         symmetry: AtomicSymmetry,
     ) -> None:
-        self.source_records = source_records
+        self.bond_images = bond_images
         self.symmetry = symmetry
         self.operations = tuple(
             zip(
@@ -104,11 +104,11 @@ class PeriodicBondOrbitClosure:
         )
 
     def _preserves_source_connectivity(self) -> bool:
-        source = set(self.source_records)
+        source = set(self.bond_images)
         return all(
             map_periodic_bond(record, rotation, atom_map, atom_images) in source
             for rotation, atom_map, atom_images in self.operations
-            for record in self.source_records
+            for record in self.bond_images
         )
 
 

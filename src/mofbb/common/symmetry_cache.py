@@ -325,7 +325,9 @@ def library_candidates(library: Path) -> list[LibraryCandidate]:
             coordination = int(row["physical_cn"])
             logical_coordination = int(row["logical_cn"])
             num_atoms = int(row["num_atoms"])
-            if row["logical_kind"] != kind or coordination != logical_coordination:
+            # Older library manifests predate the topology_kind field name.
+            topology_kind = row.get("topology_kind", row.get("logical_kind"))
+            if topology_kind != kind or coordination != logical_coordination:
                 continue
             if json.loads(row["logical_port_sizes"]) != [1] * coordination:
                 continue

@@ -15,20 +15,20 @@ from mofbb.decompose.export.ports import PortMapper
 from mofbb.decompose.export.symmetry import SymmetryBuilder
 from mofbb.decompose.object import Fragment, TopologyEdge, TopologyVertex
 from mofbb.common.pbc import PeriodicBond
-from mofbb.decompose.solvent import SolventMode, SolventRemovalResult
+from mofbb.decompose.solvent import SolventMode, SolventResult
 from mofbb.decompose.symmetry import AtomicSymmetry, SpaceGroupOperations, TopologySymmetry
-from mofbb.decompose.topology import EdgeTopologyContractor
+from mofbb.decompose.topology import EdgeContractor
 
 
 def logical_port_partition(fragment: Fragment) -> tuple[tuple[int, ...], ...]:
-    return tuple(port.x_indices for port in fragment.logical_ports)
+    return tuple(port.x_indices for port in fragment.connection_ports)
 
 
 def fragment_group_key(fragment: Fragment) -> tuple[object, ...]:
     port_sizes = tuple(sorted(map(len, logical_port_partition(fragment))))
     return (
         fragment.fingerprint,
-        fragment.logical_kind or fragment.kind,
+        fragment.topology_kind or fragment.kind,
         port_sizes,
     )
 
@@ -38,9 +38,9 @@ def fragment_group_metadata(fragment: Fragment) -> dict[str, object]:
     return {
         "physical_cn": fragment.num_x,
         "logical_cn": len(port_sizes) if port_sizes else fragment.num_x,
-        "logical_kind": fragment.logical_kind or fragment.kind,
+        "topology_kind": fragment.topology_kind or fragment.kind,
         "logical_port_sizes": list(port_sizes),
-        "logical_ports": [
+        "connection_ports": [
             {"logical_port_id": index, "size": size}
             for index, size in enumerate(port_sizes)
         ],
@@ -100,7 +100,7 @@ class NodeEdgeDecompositionResult:
     edge_fragments: list[Fragment] = field(default_factory=list)
     bound_linker_fragments: list[Fragment] = field(default_factory=list)
     solvent_mode: SolventMode = "none"
-    solvent: SolventRemovalResult | None = None
+    solvent: SolventResult | None = None
     selected_to_original: tuple[int, ...] | None = None
     connection_records: tuple[PeriodicBond, ...] = ()
     assembly_spacegroup: str | None = None
@@ -154,12 +154,6 @@ class NodeEdgeDecompositionResult:
             raise ValueError(
                 f"Inconsistent solvent metadata for mode {self.solvent_mode!r}."
             )
-        if active:
-            self.solvent.validate_write_request(
-                self.solvent_mode,
-                self.selected_to_original,
-            )
-
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         for fragment in self.fragments:
@@ -232,7 +226,7 @@ class NodeEdgeDecompositionResult:
         return records, fragment_to_bb_id
 
     def _contracted_topology(self):
-        return EdgeTopologyContractor(
+        return EdgeContractor(
             self.topology_vertices,
             self.topology_edges,
             self.edge_fragments,

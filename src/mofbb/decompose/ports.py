@@ -7,11 +7,12 @@ from dataclasses import dataclass
 from itertools import combinations
 from math import gcd
 
-from mofbb.decompose.object import Fragment, LogicalPort, TopologyEdge, XSite
 from mofbb.common.pbc import PeriodicBond
+from mofbb.decompose.fragments import get_atom_map
+from mofbb.decompose.object import Fragment, ConnectionPort, TopologyEdge, XSite
 
 
-class LogicalPortAssigner:
+class ConnectionPortAssigner:
     """Group physical X sites into stable logical fragment ports."""
 
     def __init__(
@@ -21,11 +22,7 @@ class LogicalPortAssigner:
         topology_edges: list[TopologyEdge],
     ) -> None:
         self.fragments = fragments
-        self.atom_to_fragment = {
-            atom_index: (fragment.kind, fragment.index)
-            for fragment in fragments
-            for atom_index in fragment.source_indices
-        }
+        self.atom_to_fragment = get_atom_map(fragments)
         self.record_by_pair = {record.pair: record for record in connection_records}
 
         self.edge_by_pair = {
@@ -49,19 +46,19 @@ class LogicalPortAssigner:
 
     def assign(self) -> None:
         for fragment in self.fragments:
-            fragment.logical_ports = self.ports_for_fragment(fragment)
-            fragment.logical_kind = fragment.kind
+            fragment.connection_ports = self.ports_for_fragment(fragment)
+            fragment.topology_kind = fragment.kind
             if fragment.kind not in {"organic_node", "edge"}:
                 continue
-            if len(fragment.logical_ports) == 2:
-                fragment.logical_kind = "edge"
-            elif len(fragment.logical_ports) > 2:
-                fragment.logical_kind = "organic_node"
+            if len(fragment.connection_ports) == 2:
+                fragment.topology_kind = "edge"
+            elif len(fragment.connection_ports) > 2:
+                fragment.topology_kind = "organic_node"
 
     def ports_for_fragment(
         self,
         fragment: Fragment,
-    ) -> tuple[LogicalPort, ...]:
+    ) -> tuple[ConnectionPort, ...]:
         grouped_x_indices: dict[tuple[str, int, tuple[int, int, int]], list[int]] = (
             defaultdict(list)
         )
@@ -75,7 +72,7 @@ class LogicalPortAssigner:
             grouped_x_indices[group_key].append(site.x_index)
 
         return tuple(
-            LogicalPort(
+            ConnectionPort(
                 logical_port_id=port_id,
                 x_indices=tuple(sorted(grouped_x_indices[group_key])),
                 neighbor_kind=group_key[0],
@@ -240,7 +237,7 @@ class _MultiRankSelfEdgeLattice:
     def contains(self, translation: tuple[int, int, int]) -> bool:
         if not any(translation):
             return True
-        rank, divisor = LogicalPortAssigner.lattice_rank_and_divisor(
+        rank, divisor = ConnectionPortAssigner.lattice_rank_and_divisor(
             (*self.generators, translation)
         )
         return rank == self.rank and divisor == self.determinant_divisor

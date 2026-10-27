@@ -8,155 +8,77 @@ from dataclasses import dataclass
 import ase
 import numpy as np
 
+from mofbb.common.pbc import (
+    ComponentPeriodicity,
+    PeriodicBond,
+    connection_shift,
+)
 from mofbb.decompose.bonding import BondNetwork
+from mofbb.decompose.crystal import Crystal
+from mofbb.decompose.fragments import get_atom_map
 from mofbb.decompose.object import Fragment, TopologyEdge, TopologyVertex
-from mofbb.common.pbc import ComponentPeriodicity, PeriodicBond, analyze_component, connection_shift
-
-FragmentKey = tuple[str, int]
 
 
-class NodeEdgeTopologyBuilder:
+class TopologyBuilder:
     """Build CGD vertices and edges from exact periodic fragment frames."""
 
     def __init__(
         self,
         atoms: ase.Atoms,
         bonds: BondNetwork,
-        source_records: tuple[PeriodicBond, ...],
+        bond_images: tuple[PeriodicBond, ...],
     ) -> None:
-        self.atoms = atoms
-        self.bonds = bonds
-        self.source_records = source_records
+        self.crystal = Crystal(atoms, bonds, bond_images)
 
     def build(
         self,
         fragments: list[Fragment],
         connections: tuple[PeriodicBond, ...],
     ) -> tuple[list[TopologyVertex], list[TopologyEdge]]:
-        atom_to_vertex = self._atom_to_vertex(fragments)
+        atom_to_vertex = get_atom_map(fragments)
         frames = {
-            (fragment.kind, fragment.index): self._fragment_frame(
-                fragment,
-                self.source_records,
-                connections,
+            (fragment.kind, fragment.index): self.crystal.get_fragment_frame(
+                fragment, connections
             )
             for fragment in fragments
         }
-        real_centroids = self._raw_real_centroids(fragments, frames)
+        real_centroids = {
+            (fragment.kind, fragment.index): self.crystal.get_bb_centroid(
+                fragment, frames[(fragment.kind, fragment.index)]
+            )
+            for fragment in fragments
+        }
         for fragment in fragments:
             key = (fragment.kind, fragment.index)
             fragment.real_atom_centroid_frac = tuple(
                 float(value) for value in np.mod(real_centroids[key], 1.0)
             )
-        raw_centroids = self._raw_centroids(
-            fragments,
-            frames,
-            real_centroids,
-        )
-        coordination: dict[FragmentKey, int] = defaultdict(int)
+        raw_centroids = {
+            (fragment.kind, fragment.index): self.crystal.get_x_centroid(
+                fragment,
+                frames[(fragment.kind, fragment.index)],
+            )
+            for fragment in fragments
+        }
         edges = self._build_edges(
             connections,
             atom_to_vertex,
             frames,
             raw_centroids,
-            coordination,
         )
+        coordination = Counter()
+        for edge in edges:
+            coordination[(edge.begin_kind, edge.begin_index)] += 1
+            coordination[(edge.end_kind, edge.end_index)] += 1
         vertices = self._build_vertices(fragments, raw_centroids, coordination)
         return vertices, edges
-
-    @staticmethod
-    def _atom_to_vertex(fragments: list[Fragment]) -> dict[int, FragmentKey]:
-        return {
-            atom_index: (fragment.kind, fragment.index)
-            for fragment in fragments
-            for atom_index in fragment.source_indices
-        }
-
-    def _fragment_frame(
-        self,
-        fragment: Fragment,
-        source_records: tuple[PeriodicBond, ...],
-        connection_records: tuple[PeriodicBond, ...],
-    ) -> ComponentPeriodicity:
-        source_indices = set(fragment.source_indices)
-        internal_cuts = frozenset(
-            record
-            for record in connection_records
-            if record.i in source_indices and record.j in source_indices
-        )
-        if fragment.source_image_offsets:
-            return ComponentPeriodicity(fragment.source_image_offsets, (), 0)
-        return analyze_component(
-            source_indices,
-            source_records,
-            excluded=internal_cuts,
-        )
-
-    def _raw_real_centroids(
-        self,
-        fragments: list[Fragment],
-        frames: dict[FragmentKey, ComponentPeriodicity],
-    ) -> dict[FragmentKey, np.ndarray]:
-        scaled = np.asarray(self.atoms.get_scaled_positions(wrap=False), dtype=float)
-        return {
-            (fragment.kind, fragment.index): np.mean(
-                [
-                    scaled[atom_index]
-                    + np.asarray(
-                        frames[(fragment.kind, fragment.index)].offset(atom_index),
-                        dtype=int,
-                    )
-                    for atom_index in fragment.source_indices
-                ],
-                axis=0,
-            )
-            for fragment in fragments
-        }
-
-    def _raw_centroids(
-        self,
-        fragments: list[Fragment],
-        frames: dict[FragmentKey, ComponentPeriodicity],
-        real_centroids: dict[FragmentKey, np.ndarray],
-    ) -> dict[FragmentKey, np.ndarray]:
-        scaled = np.asarray(self.atoms.get_scaled_positions(wrap=False), dtype=float)
-        inverse_cell = np.linalg.inv(np.asarray(self.atoms.cell.array, dtype=float))
-        centroids = {}
-        for fragment in fragments:
-            key = (fragment.kind, fragment.index)
-            frame = frames[key]
-            if not fragment.x_sites:
-                # No dummy centroid exists for a zero-cut accessory fragment;
-                # retain the previous real-atom centroid as its fallback anchor.
-                centroids[key] = real_centroids[key]
-                continue
-
-            # The former topology anchor is retained separately in
-            # ``real_atom_centroid_frac`` for reconstruction and provenance.
-            x_positions = []
-            for site in fragment.x_sites:
-                anchor = scaled[site.internal_source_index] + np.asarray(
-                    frame.offset(site.internal_source_index), dtype=int
-                )
-                half_bond = (
-                    0.5
-                    * self.bonds.vector(
-                        site.internal_source_index,
-                        site.external_source_index,
-                    )
-                    @ inverse_cell
-                )
-                x_positions.append(anchor + half_bond)
-            centroids[key] = np.mean(x_positions, axis=0)
-        return centroids
 
     def _build_edges(
         self,
         connection_records: tuple[PeriodicBond, ...],
-        atom_to_vertex: dict[int, FragmentKey],
-        frames: dict[FragmentKey, ComponentPeriodicity],
-        raw_centroids: dict[FragmentKey, np.ndarray],
-        coordination: dict[FragmentKey, int],
+        atom_to_vertex: dict[int, tuple[str, int]],
+        frames: dict[tuple[str, int], ComponentPeriodicity],
+        raw_centroids: dict[tuple[str, int], np.ndarray],
     ) -> list[TopologyEdge]:
         edges = []
         for record in connection_records:
@@ -195,15 +117,13 @@ class NodeEdgeTopologyBuilder:
                     slot_translation=slot_translation,
                 )
             )
-            coordination[begin_key] += 1
-            coordination[end_key] += 1
         return edges
 
     @staticmethod
     def _build_vertices(
         fragments: list[Fragment],
-        raw_centroids: dict[FragmentKey, np.ndarray],
-        coordination: dict[FragmentKey, int],
+        raw_centroids: dict[tuple[str, int], np.ndarray],
+        coordination: dict[tuple[str, int], int],
     ) -> list[TopologyVertex]:
         vertices = []
         for fragment in fragments:
@@ -221,14 +141,20 @@ class NodeEdgeTopologyBuilder:
 
 
 @dataclass
-class EdgeTopologyContractor:
+class EdgeContractor:
     """Contract two-port fragments into composer edge slots."""
 
     vertices: list[TopologyVertex]
     edges: list[TopologyEdge]
     edge_fragments: list[Fragment]
 
-    def contract(self):
+    def contract(
+        self,
+    ) -> tuple[
+        list[TopologyVertex],
+        list[TopologyEdge],
+        dict[tuple[str, int], tuple[str, int]],
+    ]:
         edge_keys = {
             (fragment.kind, fragment.index) for fragment in self.edge_fragments
         }
@@ -247,54 +173,42 @@ class EdgeTopologyContractor:
             begin_image = np.rint(
                 np.asarray(edge.begin_frac) - positions[begin]
             ).astype(int)
-            end_image = np.rint(
-                np.asarray(edge.end_frac) - positions[end]
-            ).astype(int)
+            end_image = np.rint(np.asarray(edge.end_frac) - positions[end]).astype(int)
             shift = end_image - begin_image
             if begin_is_edge:
                 incidents[begin].append((end, shift))
             else:
                 incidents[end].append((begin, -shift))
 
-        contracted_keys = set()
+        contractions = {}
         for key in edge_keys:
-            endpoints = incidents[key]
-            if len(endpoints) != 2:
-                raise ValueError(
-                    f"Edge fragment {key!r} has {len(endpoints)} topology incidences."
-                )
-            (begin, begin_from_edge), (end, end_from_edge) = endpoints
-            shift = end_from_edge - begin_from_edge
+            (begin, begin_shift), (end, end_shift) = incidents[key]
+            shift = end_shift - begin_shift
+            # Keep zero-shift loops as explicit fragments.
             if begin != end or np.any(shift):
-                contracted_keys.add(key)
+                contractions[key] = (begin, end, shift)
 
         vertices = [
             vertex
             for vertex in self.vertices
-            if (vertex.kind, vertex.index) not in contracted_keys
+            if (vertex.kind, vertex.index) not in contractions
         ]
         order = {
             (vertex.kind, vertex.index): index for index, vertex in enumerate(vertices)
         }
         topology_slots = {key: ("node", index) for key, index in order.items()}
-        contracted_edges: list[TopologyEdge] = []
-
-        for edge in self.edges:
-            begin = (edge.begin_kind, edge.begin_index)
-            end = (edge.end_kind, edge.end_index)
-            begin_is_edge = begin in contracted_keys
-            end_is_edge = end in contracted_keys
-            if not (begin_is_edge or end_is_edge):
-                contracted_edges.append(edge)
-            continue
+        contracted_edges = [
+            edge
+            for edge in self.edges
+            if (edge.begin_kind, edge.begin_index) not in contractions
+            and (edge.end_kind, edge.end_index) not in contractions
+        ]
 
         for fragment in self.edge_fragments:
             key = (fragment.kind, fragment.index)
-            if key not in contracted_keys:
+            if key not in contractions:
                 continue
-            endpoints = incidents[key]
-            (begin, begin_from_edge), (end, end_from_edge) = endpoints
-            shift = end_from_edge - begin_from_edge
+            begin, end, shift = contractions[key]
             if order[begin] > order[end] or (
                 begin == end and tuple(shift) > tuple(-shift)
             ):

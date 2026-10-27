@@ -44,14 +44,14 @@ class OrganicLinkerSplitter:
         atoms: ase.Atoms,
         bonds: BondNetwork,
         symbols: list[str],
-        source_records: tuple[PeriodicBond, ...],
+        bond_images: tuple[PeriodicBond, ...],
         x_symbol: str = "X",
     ) -> None:
         self.atoms = atoms
         self.bonds = bonds
         self.symbols = symbols
         self.x_symbol = x_symbol
-        self.source_records = source_records
+        self.bond_images = bond_images
 
     def split(
         self,
@@ -79,14 +79,14 @@ class OrganicLinkerSplitter:
 
         all_cut_pairs = {*metal_connecting_bonds, *organic_cut_bonds}
         all_cut_records = tuple(
-            record for record in self.source_records if record.pair in all_cut_pairs
+            record for record in self.bond_images if record.pair in all_cut_pairs
         )
         fragment_builder = FragmentBuilder(
             self.atoms,
             self.bonds,
             self.symbols,
             x_symbol=self.x_symbol,
-            source_records=self.source_records,
+            bond_images=self.bond_images,
         )
 
         fragments: dict[OrganicFragmentKind, list[Fragment]] = {

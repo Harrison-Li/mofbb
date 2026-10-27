@@ -50,9 +50,9 @@ class ReconstructionMap:
                     "slot_id": slot,
                     "kind": fragment.kind,
                     "cn": fragment.num_x,
-                    "logical_kind": fragment.logical_kind or fragment.kind,
-                    "logical_ports": [
-                        port.as_dict() for port in fragment.logical_ports
+                    "topology_kind": fragment.topology_kind or fragment.kind,
+                    "connection_ports": [
+                        port.as_dict() for port in fragment.connection_ports
                     ],
                     "bb_id": self.bb_ids[key],
                     "exact_instance_path": fragment_instance_path(fragment),

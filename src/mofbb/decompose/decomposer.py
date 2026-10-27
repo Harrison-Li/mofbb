@@ -16,15 +16,15 @@ from mofbb.decompose.linker import OrganicLinkerSplitter
 from mofbb.decompose.object import Fragment
 from mofbb.common.pbc import PeriodicBond
 from mofbb.decompose.pbc import periodic_bonds, select_periodic_component_cuts
-from mofbb.decompose.ports import LogicalPortAssigner
+from mofbb.decompose.ports import ConnectionPortAssigner
 from mofbb.decompose.results import NodeEdgeDecompositionResult
 from mofbb.decompose.solvent import (
-    MofidSolventRemover,
+    SolventRemover,
     SolventMode,
-    SolventRemovalResult,
+    SolventResult,
 )
 from mofbb.decompose.symmetry import AtomicSymmetry, PeriodicBondOrbitClosure
-from mofbb.decompose.topology import NodeEdgeTopologyBuilder
+from mofbb.decompose.topology import TopologyBuilder
 
 
 @dataclass
@@ -42,7 +42,7 @@ class FragmentGroups:
 
 def _symmetry_closed_records(
     selected: list[PeriodicBond],
-    source_records: tuple[PeriodicBond, ...],
+    bond_images: tuple[PeriodicBond, ...],
     rotations: np.ndarray,
     atom_maps: np.ndarray,
     atom_images: np.ndarray,
@@ -56,7 +56,7 @@ def _symmetry_closed_records(
         atom_maps,
         atom_images,
     )
-    return PeriodicBondOrbitClosure(source_records, symmetry).close(selected)
+    return PeriodicBondOrbitClosure(bond_images, symmetry).close(selected)
 
 
 class NodeEdgeDecomposer:
@@ -75,7 +75,7 @@ class NodeEdgeDecomposer:
         self.cif = Path(cif)
         self.x_symbol = x_symbol
         self.solvent_mode = solvent_mode
-        self.solvent: SolventRemovalResult | None = None
+        self.solvent: SolventResult | None = None
         self.selected_to_original: tuple[int, ...] | None = None
         self.atoms, self.bonds = read_bonded_structure(
             self.cif,
@@ -83,7 +83,7 @@ class NodeEdgeDecomposer:
             cleanup=cleanup if solvent_mode == "none" else False,
         )
         if solvent_mode != "none":
-            self.solvent = MofidSolventRemover(self.atoms, self.bonds).classify()
+            self.solvent = SolventRemover(self.atoms, self.bonds).classify()
             self.atoms, self.bonds, self.selected_to_original = self.solvent.subset(
                 solvent_mode
             )
@@ -178,7 +178,7 @@ class NodeEdgeDecomposer:
             self.bonds,
             self.symbols,
             x_symbol=self.x_symbol,
-            source_records=source,
+            bond_images=source,
         )
         metals = builder.build_role_fragments("node", metal, initial)
         linkers = builder.build_role_fragments("linker", organic, initial)
@@ -191,7 +191,7 @@ class NodeEdgeDecomposer:
             self.bonds,
             self.symbols,
             x_symbol=self.x_symbol,
-            source_records=source,
+            bond_images=source,
         ).split(
             linkers,
             tuple(
@@ -236,7 +236,7 @@ class NodeEdgeDecomposer:
         self,
         metal_indices: set[int],
         organic_indices: set[int],
-        source_records: tuple[PeriodicBond, ...],
+        bond_images: tuple[PeriodicBond, ...],
     ) -> tuple[list[PeriodicBond], list[PeriodicBond]]:
         periodic_cuts: list[PeriodicBond] = []
         organic_periodic_cuts: list[PeriodicBond] = []
@@ -250,7 +250,7 @@ class NodeEdgeDecomposer:
                 self.bonds,
                 self.symbols,
                 components,
-                source_records,
+                bond_images,
                 fast=fast,
             )
             for _, selection in selections:
@@ -264,14 +264,14 @@ class NodeEdgeDecomposer:
         self,
         fragments: list[Fragment],
         connection_records: tuple[PeriodicBond, ...],
-        source_records: tuple[PeriodicBond, ...],
+        bond_images: tuple[PeriodicBond, ...],
     ):
-        vertices, edges = NodeEdgeTopologyBuilder(
+        vertices, edges = TopologyBuilder(
             self.atoms,
             self.bonds,
-            source_records=source_records,
+            bond_images=bond_images,
         ).build(fragments, connection_records)
-        LogicalPortAssigner(
+        ConnectionPortAssigner(
             fragments,
             connection_records,
             edges,
