@@ -4,7 +4,7 @@ from functools import cached_property
 
 import numpy as np
 
-from mofbb.compose.cgd import CgdReader
+from mofbb.io.cgd.reader import CgdReader
 from mofbb.common.connectivity import periodic_components
 from mofbb.compose.local_structure import LocalStructure
 from mofbb.compose.neighbor import NeighborList

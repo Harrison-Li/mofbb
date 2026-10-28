@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from mofbb.common.utils import read_atoms
+from mofbb.io.structure import read_atoms
 
 from mofbb.common.connectivity import validate_3d_connectivity
 from mofbb.common.linkers import validate_single_linker

@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-import re
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, TypeAlias
 
 import ase
-import ase.io
 import numpy as np
-from ase.geometry import cell_to_cellpar
+from mofbb.io.cif import write_cif
 
 from mofbb.decompose.assignment import NodeAtomAssigner
 from mofbb.decompose.bonding import BondNetwork, subset_bonded_structure
@@ -27,28 +25,6 @@ ActiveSolventMode: TypeAlias = Literal["free", "all"]
 # coexist.  Treat such sites as a disordered coordinated-solvent fragment when
 # they are terminal alternatives on the same metal.
 _SPLIT_O_MAX_DISTANCE = 1.05
-
-
-def _write_cif(path: Path, atoms: ase.Atoms, indices: tuple[int, ...]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if indices:
-        ase.io.write(path, atoms[list(indices)], format="cif", wrap=False)
-        return
-
-    name = re.sub(r"[^A-Za-z0-9_]", "_", path.stem)
-    lines = [f"data_{name}"]
-    if atoms.cell.rank == 3:
-        a, b, c, alpha, beta, gamma = cell_to_cellpar(atoms.cell)
-        lines += [
-            f"_cell_length_a {a:.15g}",
-            f"_cell_length_b {b:.15g}",
-            f"_cell_length_c {c:.15g}",
-            f"_cell_angle_alpha {alpha:.15g}",
-            f"_cell_angle_beta {beta:.15g}",
-            f"_cell_angle_gamma {gamma:.15g}",
-            "_space_group_name_H-M_alt 'P 1'",
-        ]
-    path.write_text("\n".join([*lines, "_mofbb_atom_count 0", ""]), encoding="utf-8")
 
 
 @dataclass(frozen=True)
@@ -110,7 +86,7 @@ class SolventResult:
             "mof_asr.cif": self.asr_indices,
         }
         for filename, indices in selections.items():
-            _write_cif(output_dir / filename, self.original_atoms, indices)
+            write_cif(output_dir / filename, self.original_atoms[list(indices)])
 
         def summary(
             components: tuple[tuple[int, ...], ...],

@@ -3,7 +3,7 @@
 import argparse
 from pathlib import Path
 
-from mofbb.common.utils import read_atoms
+from mofbb.io.structure import read_atoms
 import yaml
 
 from mofbb.optimize.mlip_utils import optimize_geometry

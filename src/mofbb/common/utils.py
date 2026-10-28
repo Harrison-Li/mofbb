@@ -1,8 +1,6 @@
 import os
 from collections.abc import Iterable
-from pathlib import Path
 
-import ase
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -68,39 +66,6 @@ def wrap_frac(values, tolerance=1.0e-12):
     return np.where(on_boundary, 0.0, wrapped)
 
 
-def read_bb_xyz(bb_file):
-    """Parse a building-block ``.xyz`` file into an :class:`ase.Atoms`."""
-    path = Path(bb_file)
-    lines = path.read_text(encoding="utf-8").splitlines()
-    n_atoms = int(lines[0])
-    atoms = [line.split() for line in lines[2 : n_atoms + 2]]
-    symbols = [record[0] for record in atoms]
-    bond_records = [
-        record
-        for line in lines[n_atoms + 2 :]
-        if len(record := line.split()) >= 3
-    ]
-    has_bonds = len(lines) > n_atoms + 2
-    return ase.Atoms(
-        symbols=symbols,
-        positions=[[float(value) for value in record[1:4]] for record in atoms],
-        charges=[float(record[4]) if len(record) == 5 else 0 for record in atoms],
-        info={
-            "port_idx": [index for index, symbol in enumerate(symbols) if symbol == "X"],
-            "name": path.stem,
-            "bonds": (
-                np.asarray([[int(record[0]), int(record[1])] for record in bond_records])
-                if has_bonds
-                else None
-            ),
-            "bond_types": (
-                [record[2] for record in bond_records] if has_bonds else None
-            ),
-        },
-    )
-
-
-
 def smiles_to_xyz(smiles, out_xyz, random_seed=42):
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
@@ -149,15 +114,3 @@ def smiles_to_xyz(smiles, out_xyz, random_seed=42):
 
     print(f"Wrote {out_xyz} ({natoms} atoms)")
     return out_xyz
-
-
-def read_atoms(input_path: str):
-    """Read input mol.xyz and ASE Atoms object."""
-    if os.path.exists(input_path):
-        atoms = ase.io.read(input_path)
-        # ase.io.read returns a list for multi-frame files, single Atoms otherwise
-        if isinstance(atoms, list):
-            atoms = atoms[0]
-        return atoms
-    else:
-        raise FileNotFoundError(f"Input file {input_path} does not exist.")

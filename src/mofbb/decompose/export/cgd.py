@@ -1,17 +1,17 @@
-"""Serialize decorated abstract topologies in CGD format."""
+"""Prepare decorated topologies and delegate CGD serialization."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import TextIO
 
-import numpy as np
+from mofbb.io.cgd.writer import CgdWriter as TopologyCgdWriter
 
 from mofbb.decompose.export.symmetry import (
     Cell,
     Key,
+    SymChoice,
     choose_symmetry,
     fit_cell,
 )
@@ -21,12 +21,6 @@ from mofbb.decompose.symmetry import (
     TopologySymmetry,
     detect_topology_symmetry,
 )
-
-
-def format_float(value: float) -> str:
-    """Compact float formatting for CGD files."""
-
-    return f"{value:.10g}"
 
 
 def edge_types(
@@ -65,15 +59,24 @@ class CgdWriter:
         """Write the explicit topology with its graph-derived symmetry."""
 
         positions, endpoints = self.sym.project(self.nodes, self.edges)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("w", encoding="utf-8") as out:
-            self._write_header(out)
-            self._write_symmetry(out)
-            self._write_bbs(out)
-            self._write_ports(out)
-            self._write_nodes(out, positions)
-            self._write_edges(out, endpoints)
-            out.write("END\n")
+        TopologyCgdWriter(
+            name=self.name,
+            cell=self.output_cell,
+            spacegroup=self.sym.symbol,
+            net_spacegroup=self.net_sym.symbol,
+            source_group=self.choice.source,
+            source_compatible=self.choice.compatible,
+            rotations=self.sym.rotations,
+            translations=self.sym.translations,
+            node_maps=self.sym.node_maps,
+            edge_maps=self.sym.edge_maps,
+            node_types=self.node_types,
+            node_tags=self.node_tags,
+            coordinations=[node.coordination for node in self.nodes],
+            edge_tags=self.edge_tags,
+            colors=self.colors,
+            ports=self.ports,
+        ).write(self.path, positions, endpoints)
         return self.summary()
 
     @cached_property
@@ -114,7 +117,7 @@ class CgdWriter:
         )
 
     @cached_property
-    def choice(self):
+    def choice(self) -> SymChoice:
         return choose_symmetry(
             self.net_sym,
             self.src_sym,
@@ -132,91 +135,6 @@ class CgdWriter:
             self.cell,
             self.sym.rotations,
         )
-
-    def _write_header(self, out: TextIO) -> None:
-        out.write("CRYSTAL\n")
-        out.write(f"  NAME {self.name}\n")
-        out.write(f"  GROUP {self.sym.symbol}\n")
-        out.write(f"  # NET_GROUP {self.net_sym.symbol}\n")
-        if self.choice.source is not None:
-            out.write(f"  # SOURCE_GROUP {self.choice.source}\n")
-            compatible = int(self.choice.compatible)
-            out.write(f"  # SOURCE_GROUP_COMPATIBLE {compatible}\n")
-        cell = " ".join(f"{value:.16g}" for value in self.output_cell)
-        out.write(f"  CELL {cell}\n")
-        out.write("  # EXPANDED\n")
-
-    def _write_symmetry(self, out: TextIO) -> None:
-        for rotation, translation in zip(
-            self.sym.rotations,
-            self.sym.translations,
-            strict=True,
-        ):
-            values = [
-                *(str(int(value)) for value in rotation.ravel()),
-                *(format_float(value) for value in translation),
-            ]
-            out.write(f"  # SYMOP {' '.join(values)}\n")
-
-        for op_id, (node_map, edge_map) in enumerate(
-            zip(
-                self.sym.node_maps,
-                self.sym.edge_maps,
-                strict=True,
-            ),
-            start=1,
-        ):
-            mapping = np.concatenate((node_map, len(node_map) + edge_map)) + 1
-            targets = " ".join(str(int(value)) for value in mapping)
-            out.write(f"  # SLOT_MAP {op_id} {targets}\n")
-
-    def _write_bbs(self, out: TextIO) -> None:
-        for bb_id, node_type in sorted(
-            self.node_types.items(),
-            key=lambda item: item[1],
-        ):
-            out.write(f"  # NODE_BB {node_type} {bb_id}\n")
-
-        for bb_id, edge_type in sorted(
-            self.edge_tags.items(),
-            key=lambda item: item[1],
-        ):
-            value = bb_id if bb_id is not None else "NONE"
-            out.write(f"  # EDGE_BB {edge_type} {value}\n")
-
-    def _write_ports(self, out: TextIO) -> None:
-        for slot, mapping in sorted((self.ports or {}).items()):
-            ports = " ".join(str(value + 1) for value in mapping)
-            out.write(f"  # PORT_MAP {slot + 1} {ports}\n")
-
-    def _write_nodes(self, out: TextIO, positions: np.ndarray) -> None:
-        for node_type, node, position in zip(
-            self.node_tags,
-            self.nodes,
-            positions,
-            strict=True,
-        ):
-            coordinates = " ".join(map(format_float, position))
-            out.write(
-                f"  NODE {node_type} {node.coordination} {coordinates}\n"
-            )
-
-    def _write_edges(
-        self,
-        out: TextIO,
-        endpoints: list[tuple[np.ndarray, np.ndarray]],
-    ) -> None:
-        for index, (edge_type, (begin, end)) in enumerate(
-            zip(self.colors, endpoints, strict=True),
-            start=1,
-        ):
-            out.write(f"  # EDGE_TYPE {index} {edge_type}\n")
-            begin_text = " ".join(map(format_float, begin))
-            end_text = " ".join(map(format_float, end))
-            out.write(f"  EDGE  {begin_text}   {end_text}\n")
-        for begin, end in endpoints:
-            center = " ".join(map(format_float, (begin + end) / 2))
-            out.write(f"  # EDGE_CENTER  {center}\n")
 
     def summary(self) -> dict[str, object]:
         return {

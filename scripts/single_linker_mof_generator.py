@@ -25,7 +25,7 @@ import time
 
 import ase.neighborlist
 from ase import Atoms
-from mofbb.common.utils import read_atoms
+from mofbb.io.structure import read_atoms
 import numpy as np
 from pymatgen.symmetry.groups import SpaceGroup
 from scipy.spatial.transform import Rotation

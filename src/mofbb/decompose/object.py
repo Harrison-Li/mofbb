@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Literal
 
 import ase
+
+from mofbb.io.xyz import write_bb_xyz
 import numpy as np
 
 from mofbb.common.pbc import CellShift
@@ -132,25 +134,8 @@ class Fragment:
         return self.atoms.positions[indices].mean(axis=0)
 
     def write_xyz(self, path: Path) -> Path:
-        """Write a PORMAKE-readable extended XYZ file and return the path.
-
-        The first comment line contains whitespace-separated local indices of
-        dummy ``X`` atoms. Bond records are appended after the coordinate block.
-        """
-
-        path.parent.mkdir(parents=True, exist_ok=True)
-        symbols = self.atoms.get_chemical_symbols()
-        x_indices = [str(i) for i, symbol in enumerate(symbols) if symbol == "X"]
-        with path.open("w", encoding="utf-8") as handle:
-            handle.write(f"{len(self.atoms)}\n")
-            handle.write(" ".join(x_indices) + "\n")
-            for symbol, coord in zip(symbols, self.atoms.positions):
-                handle.write(
-                    f"{symbol:<2s} {coord[0]: .10f} {coord[1]: .10f} {coord[2]: .10f}\n"
-                )
-            for i, j, bond_type in self.bonds:
-                handle.write(f"{i:4d} {j:4d} {bond_type}\n")
-        return path
+        """Write a PORMAKE-readable extended XYZ file and return its path."""
+        return write_bb_xyz(path, self.atoms, self.bonds)
 
 
 @dataclass(frozen=True)

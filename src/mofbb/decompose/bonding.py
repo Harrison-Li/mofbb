@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
-import re
-import shlex
 import warnings
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import ase
-from mofbb.common.utils import read_atoms
+from mofbb.io.structure import read_atoms
+from mofbb.io.cif import (
+    cif_loops,
+    atom_label_to_index,
+    geom_bond_loop,
+    atom_index_from_label,
+    site_symmetry_offset,
+)
 import networkx as nx
 import numpy as np
 
@@ -88,8 +93,8 @@ def build_bond_network_from_cif(
 ) -> BondNetwork | None:
     """Build a bond graph from a CIF ``_geom_bond`` loop when present."""
 
-    loops = list(_cif_loops(Path(cif)))
-    label_to_index = _atom_label_to_index(loops)
+    loops = list(cif_loops(Path(cif)))
+    label_to_index = atom_label_to_index(loops)
     if not label_to_index:
         return None
     if len(label_to_index) != len(atoms):
@@ -99,7 +104,7 @@ def build_bond_network_from_cif(
         # unsafe to use.  Let the caller fall back to distance-based bonding.
         return None
 
-    bond_loop = _geom_bond_loop(loops)
+    bond_loop = geom_bond_loop(loops)
     if bond_loop is None:
         return None
 
@@ -127,13 +132,13 @@ def build_bond_network_from_cif(
     for row in rows:
         if len(row) <= max(label_1_index, label_2_index):
             continue
-        i = _atom_index_from_label(row[label_1_index], label_to_index)
-        j = _atom_index_from_label(row[label_2_index], label_to_index)
+        i = atom_index_from_label(row[label_1_index], label_to_index)
+        j = atom_index_from_label(row[label_2_index], label_to_index)
         if i is None or j is None or i == j:
             continue
 
         image = (
-            _site_symmetry_offset(row[symmetry_index])
+            site_symmetry_offset(row[symmetry_index])
             if symmetry_index is not None and len(row) > symmetry_index
             else np.zeros(3, dtype=int)
         )
@@ -169,7 +174,7 @@ def read_bonded_structure(
 ) -> tuple[ase.Atoms, BondNetwork]:
     """Read a CIF and return atoms with the best available bond graph."""
 
-    atoms = read_atoms(str(cif))
+    atoms = read_atoms(cif)
     bonds = build_bond_network_from_cif(cif, atoms)
     if bonds is None:
         bonds = build_bond_network(atoms, scale=scale)
@@ -244,81 +249,6 @@ def largest_connected_component_with_bonds(
     kept = sorted(components[0])
     kept_atoms, kept_bonds, _ = subset_bonded_structure(atoms, bonds, kept)
     return kept_atoms, kept_bonds
-
-
-def _cif_loops(path: Path) -> Iterator[tuple[list[str], list[list[str]]]]:
-    lines = path.read_text(encoding="utf-8").splitlines()
-    i = 0
-    while i < len(lines):
-        if lines[i].strip() != "loop_":
-            i += 1
-            continue
-
-        i += 1
-        headers: list[str] = []
-        while i < len(lines) and lines[i].strip().startswith("_"):
-            headers.append(lines[i].strip())
-            i += 1
-
-        rows: list[list[str]] = []
-        while i < len(lines):
-            stripped = lines[i].strip()
-            if (
-                not stripped
-                or stripped == "loop_"
-                or stripped.startswith(("_", "data_"))
-            ):
-                break
-            if not stripped.startswith("#"):
-                rows.append(shlex.split(stripped))
-            i += 1
-
-        yield headers, rows
-
-
-def _atom_label_to_index(
-    loops: list[tuple[list[str], list[list[str]]]],
-) -> dict[str, int]:
-    for headers, rows in loops:
-        if "_atom_site_label" not in headers:
-            continue
-        label_index = headers.index("_atom_site_label")
-        return {
-            row[label_index]: atom_index
-            for atom_index, row in enumerate(rows)
-            if len(row) > label_index
-        }
-    return {}
-
-
-def _geom_bond_loop(
-    loops: list[tuple[list[str], list[list[str]]]],
-) -> tuple[list[str], list[list[str]]] | None:
-    for headers, rows in loops:
-        if (
-            "_geom_bond_atom_site_label_1" in headers
-            and "_geom_bond_atom_site_label_2" in headers
-        ):
-            return headers, rows
-    return None
-
-
-def _atom_index_from_label(label: str, label_to_index: dict[str, int]) -> int | None:
-    if label in label_to_index:
-        return label_to_index[label]
-    match = re.search(r"(\d+)$", label)
-    if match is None:
-        return None
-    return int(match.group(1))
-
-
-def _site_symmetry_offset(symmetry: str) -> np.ndarray:
-    if symmetry in {".", "?", ""}:
-        return np.zeros(3, dtype=int)
-    match = re.fullmatch(r"\d_([0-9])([0-9])([0-9])", symmetry)
-    if match is None:
-        return np.zeros(3, dtype=int)
-    return np.array([int(value) - 5 for value in match.groups()], dtype=int)
 
 
 def _warn_about_dropped_components(

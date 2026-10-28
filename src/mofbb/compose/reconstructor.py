@@ -13,26 +13,8 @@ from ase.geometry import cellpar_to_cell
 from mofbb.compose.building_block import BuildingBlock
 from mofbb.compose.framework import Framework
 from mofbb.compose.topology import Topology
+from mofbb.io.cgd.reader import read_topology_geometry
 from mofbb.common.utils import wrap_frac
-
-
-def _read_topology_geometry(path: Path) -> tuple[np.ndarray, list[np.ndarray]]:
-    cell_parameters = None
-    vertices = []
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        tokens = raw_line.split()
-        if not tokens:
-            continue
-        if tokens[0] == "CELL":
-            cell_parameters = [float(value) for value in tokens[1:]]
-        elif tokens[0] == "NODE":
-            vertices.append(np.asarray(tokens[3:], dtype=float))
-
-    if cell_parameters is None:
-        raise ValueError(f"Topology {path} does not contain a CELL record.")
-    if not vertices:
-        raise ValueError(f"Topology {path} does not contain any NODE records.")
-    return cellpar_to_cell(cell_parameters), vertices
 
 
 class Reconstructor:
@@ -59,7 +41,7 @@ class Reconstructor:
                 "exact_frac_position or all use topology NODE positions."
             )
         elif topology_path:
-            cell, vertices = _read_topology_geometry(
+            cell, vertices = read_topology_geometry(
                 self.decomp_dir / topology_path
             )
         else:

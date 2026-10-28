@@ -11,7 +11,7 @@ from ase.neighborlist import natural_cutoffs
 
 from mofbb.common.chemistry import coordination_profile
 from mofbb.compose.local_structure import LocalStructure
-from mofbb.common.utils import read_bb_xyz
+from mofbb.io.xyz import read_bb_xyz
 from mofbb.decompose.constants import is_metal
 
 _FRAME_EPSILON = 1e-12
