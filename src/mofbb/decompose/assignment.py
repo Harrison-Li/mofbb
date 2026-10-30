@@ -11,7 +11,17 @@ from mofbb.decompose.constants import is_metal
 
 
 class NodeAtomAssigner:
-    """Classify source atoms using MOFid-inspired rules."""
+    '''
+    Choose which source atoms belong to metal nodes.
+
+    Args:
+        symbols (list[str]):
+            Element symbols in source atom order.
+        bonds (BondNetwork):
+            Bond graph for the same atoms.
+        absorb_one_port_regions (bool):
+            Include regions attached to a node through only one connection when True.
+    '''
 
     def __init__(
         self,
@@ -27,6 +37,14 @@ class NodeAtomAssigner:
         self.coordination_seed_atoms: frozenset[int] = frozenset()
 
     def assign(self) -> frozenset[int]:
+        '''
+        Grow metal nodes from metal atoms and classify their oxygen and nitrogen
+        neighbors.
+
+        Returns:
+            A frozenset of source atom indices assigned to metal nodes. Also updates
+            the stored coordination seeds and node-core lookup.
+        '''
         nodes = self._seed_node_atoms()
         visited_bridges: set[int] = set()
         seed_atoms = tuple(sorted(nodes))

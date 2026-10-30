@@ -37,6 +37,12 @@ class FragmentGroups:
     bound: list[Fragment]
 
     def all(self) -> list[Fragment]:
+        '''
+        Collect the fragments from each role.
+
+        Returns:
+            A new list ordered as metal nodes, organic nodes, edges, and bound ligands.
+        '''
         return [*self.metal, *self.organic, *self.edges, *self.bound]
 
 
@@ -60,7 +66,22 @@ def _symmetry_closed_records(
 
 
 class NodeEdgeDecomposer:
-    """Decompose a MOF into metal nodes, organic nodes, and edge fragments."""
+    '''
+    Read a MOF and separate it into capped building blocks and their topology.
+
+    Args:
+        cif (str or Path):
+            Path to the input CIF file.
+        x_symbol (str):
+            Element symbol used for dummy atoms at cut bonds.
+        bond_scale (float):
+            Multiplier for covalent radii when bonds must be inferred.
+        cleanup (bool):
+            Keep only the largest bonded component when solvent_mode is "none".
+        solvent_mode (str):
+            Use "none" to keep solvent, "free" to remove free solvent, or "all" to
+            remove both free and bound solvent.
+    '''
 
     def __init__(
         self,
@@ -90,7 +111,13 @@ class NodeEdgeDecomposer:
         self.symbols = self.atoms.get_chemical_symbols()
 
     def decompose(self) -> NodeEdgeDecompositionResult:
-        """Run the node/edge decomposition workflow."""
+        '''
+        Split the structure, cap cut bonds, and assign connection ports.
+
+        Returns:
+            A NodeEdgeDecompositionResult containing fragments, topology, and source
+            symmetry.
+        '''
         metal_ids, organic_ids, boundary_pairs = self._roles()
         source_bonds = periodic_bonds(self.atoms, self.bonds)
         symmetry = AtomicSymmetry.detect(self.atoms)

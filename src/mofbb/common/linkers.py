@@ -1,4 +1,6 @@
-"""Identify whole organic linkers independently of assembly building blocks."""
+'''
+Identify whole organic ligands independently of assembly building blocks.
+'''
 
 from collections import defaultdict
 import hashlib
@@ -37,21 +39,28 @@ def _molecule_key(atoms, graph):
 
 
 def analyze_linker_types(atoms, bonds=None, bond_shifts=None, *, bond_scale=1.2):
-    """Count complete carbon-containing molecules bridging metal atom images.
+    '''
+    Count complete organic ligand types after cutting metal-nonmetal bonds.
 
-    Cut metal/nonmetal bonds in the assembled periodic graph, not the node/edge
-    boundaries used by the builder. A linker must be a finite nonmetal component
-    contacting at least two distinct (metal atom, cell image) pairs. Thus parts
-    retained inside metal building blocks participate in the check. Free guests,
-    ligands contacting only one metal image, and carbon-free components do not
-    count. Coordination to multiple metals within an SBU is counted conservatively.
+    A ligand is a finite carbon-containing component touching at least two
+    distinct metal atom images. Identity uses elements and connectivity,
+    including hydrogen, but ignores bond order and conformation.
 
-    Identity uses the full element-labeled molecular graph, including hydrogen;
-    it ignores conformation, binding mode, bond order, and stereochemistry. Bonds
-    are inferred from current coordinates by default, using the same covalent
-    cutoff as the generator's connectivity screen, without trusting CIF tables.
-    Explicit bonds, if supplied, must describe the current structure.
-    """
+    Args:
+        atoms (ase.Atoms):
+            Structure with Cartesian positions in angstroms and its unit cell.
+        bonds (array-like or None):
+            Optional (m, 2) array of zero-based atom pairs; infer bonds when omitted.
+        bond_shifts (array-like or None):
+            Optional (m, 3) integer cell shifts from the first atom to the second; infer
+            minimum-image shifts when omitted.
+        bond_scale (float):
+            Multiplier for the sum of the two atoms' covalent radii. Defaults to 1.2.
+
+    Returns:
+        A dictionary with ligand counts, formulas, graph hashes, and the number
+        of ignored nonbridging organic components.
+    '''
     if not np.isfinite(bond_scale) or bond_scale <= 0:
         raise ValueError("Linker bond scale must be positive and finite.")
     if (
@@ -137,7 +146,25 @@ def analyze_linker_types(atoms, bonds=None, bond_shifts=None, *, bond_scale=1.2)
 
 
 def validate_single_linker(atoms, bonds=None, bond_shifts=None, *, bond_scale=1.2):
-    """Require exactly one molecular linker type in the complete framework."""
+    '''
+    Require exactly one complete organic ligand type in the framework.
+
+    Args:
+        atoms (ase.Atoms):
+            Structure with Cartesian positions in angstroms and its unit cell.
+        bonds (array-like or None):
+            Optional (m, 2) array of zero-based atom pairs; infer bonds when omitted.
+        bond_shifts (array-like or None):
+            Optional (m, 3) integer cell shifts from the first atom to the second; infer
+            minimum-image shifts when omitted.
+        bond_scale (float):
+            Multiplier for the sum of the two atoms' covalent radii. Defaults to 1.2.
+
+    Returns:
+        A dictionary with ligand counts, formulas, graph hashes, and the number
+        of ignored nonbridging organic components. Raises ValueError unless
+        exactly one ligand type is found.
+    '''
     quality = analyze_linker_types(atoms, bonds, bond_shifts, bond_scale=bond_scale)
     if quality["num_linker_types"] != 1:
         detail = ", ".join(

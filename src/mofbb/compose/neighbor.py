@@ -1,4 +1,6 @@
-"""Connectivity between topology nodes and edge centers."""
+'''
+Connectivity between topology nodes and edge centers.
+'''
 from itertools import product
 
 import ase
@@ -7,23 +9,48 @@ import numpy as np
 
 
 class Neighbor:
-    """Hold a single topology connectivity record."""
+    '''
+    Store a neighboring topology slot and its periodic displacement.
+
+    Args:
+        index (int):
+            Neighbor slot index.
+        distance_vector (numpy.ndarray):
+            Three-component Cartesian displacement from the current slot to the neighbor
+            image.
+    '''
 
     def __init__(self, index, distance_vector):
-        """Store the neighbor's slot index and displacement vector."""
+        '''
+        Store the neighbor's slot index and displacement vector.
+        '''
         self.index = index
         self.distance_vector = distance_vector
 
     def __repr__(self):
-        """Return a one-line ``index``/``distance vector`` summary."""
+        '''
+        Return a one-line ``index``/``distance vector`` summary.
+        '''
         return f"index: {self.index}, distance vector: {self.distance_vector}"
 
 
 class NeighborList:
-    """Build node-to-edge-center connectivity for a topology."""
+    '''
+    Build connectivity between node slots (C) and edge-center slots (O).
+
+    Args:
+        atoms (ase.Atoms):
+            Topology sites and cell. Explicit edge_endpoints in atoms.info take
+            precedence.
+        method (str):
+            Use "distance" for the fixed C-O cutoff or "nearest" for the two nearest
+            node images.
+    '''
 
     def __init__(self, atoms, method):
-        """Build connectivity from ``atoms`` using the chosen ``method``."""
+        '''
+        Build connectivity from ``atoms`` using the chosen ``method``.
+        '''
         self._neighbor_list = [[] for _ in atoms]
         explicit_endpoints = atoms.info.get("edge_endpoints")
         if explicit_endpoints is not None:
@@ -36,7 +63,9 @@ class NeighborList:
             builders[method](atoms)
 
     def _build_explicit(self, atoms, edge_endpoints):
-        """Build connectivity from expanded CGD edge endpoint coordinates."""
+        '''
+        Build connectivity from expanded CGD edge endpoint coordinates.
+        '''
 
         node_idx = np.flatnonzero(atoms.symbols == "C")
         edge_idx = np.flatnonzero(atoms.symbols == "O")
@@ -74,7 +103,9 @@ class NeighborList:
                 )
 
     def _build_by_distance(self, atoms):
-        """Build connectivity by bonding C-O pairs within a fixed cutoff."""
+        '''
+        Build connectivity by bonding C-O pairs within a fixed cutoff.
+        '''
         eps = 1e-3
         cutoffs = {
             ("C", "C"): 0.0,
@@ -87,7 +118,9 @@ class NeighborList:
             self._neighbor_list[left].append(Neighbor(right, vector))
 
     def _build_by_nearest_nodes(self, atoms):
-        """Build connectivity by keeping each edge-center's two nearest nodes."""
+        '''
+        Build connectivity by keeping each edge-center's two nearest nodes.
+        '''
         node_idx = np.flatnonzero(atoms.symbols == "C")
         edge_idx = np.flatnonzero(atoms.symbols == "O")
         if len(node_idx) == 0:
@@ -133,22 +166,35 @@ class NeighborList:
                 )
 
     def __getitem__(self, i):
-        """Return the list of ``Neighbor`` records for slot ``i``."""
+        '''
+        Return the list of ``Neighbor`` records for slot ``i``.
+        '''
         return self._neighbor_list[i]
 
     def __iter__(self):
-        """Iterate over slots, yielding each slot's ``Neighbor`` list."""
+        '''
+        Iterate over slots, yielding each slot's ``Neighbor`` list.
+        '''
         return iter(self._neighbor_list)
 
     def set_data(self, data):
-        """Replace the connectivity with externally supplied records."""
+        '''
+        Replace the stored connectivity with supplied neighbor records.
+
+        Args:
+            data (sequence):
+                One list per slot, containing (neighbor index, Cartesian displacement)
+                pairs.
+        '''
         self._neighbor_list = [
             [Neighbor(index, vector) for index, vector in neighbors]
             for neighbors in data
         ]
 
     def __repr__(self):
-        """Return a multi-line per-slot listing of neighbor counts and records."""
+        '''
+        Return a multi-line per-slot listing of neighbor counts and records.
+        '''
         return "".join(
             f"{index}: {len(neighbors)}\n"
             + "".join(f"{neighbor}\n" for neighbor in neighbors)

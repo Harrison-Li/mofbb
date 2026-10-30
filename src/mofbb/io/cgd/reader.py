@@ -1,4 +1,6 @@
-"""CGD topology reader."""
+'''
+CGD topology reader.
+'''
 
 from __future__ import annotations
 
@@ -13,7 +15,13 @@ import pymatgen.core as mg
 
 
 class CgdReader:
-    """Read conventional CGD files and MOFBB's decorated CGD variant."""
+    '''
+    Read a CGD topology, including MOFBB building-block and port metadata.
+
+    Args:
+        path (str or Path):
+            CGD file to read when read() is called.
+    '''
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -27,6 +35,14 @@ class CgdReader:
         self.source_group_compatible = None
 
     def read(self) -> ase.Atoms:
+        '''
+        Load topology sites and expand space-group symmetry when needed.
+
+        Returns:
+            An ase.Atoms object with C placeholders for nodes and O placeholders
+            for edge centers. Tags identify site types; info holds coordination
+            numbers and available MOFBB metadata.
+        '''
         lines = self.path.read_text(encoding="utf-8").splitlines()[1:-1]
         self._parse_comments(lines)
         self._parse_body([line for line in lines if not line.lstrip().startswith("#")])
@@ -251,6 +267,17 @@ class CgdReader:
 
 
 def read_topology_geometry(path: Path) -> tuple[np.ndarray, list[np.ndarray]]:
+    '''
+    Read the unit cell and listed node positions without symmetry expansion.
+
+    Args:
+        path (Path):
+            CGD file containing CELL and NODE records.
+
+    Returns:
+        A (3, 3) cell matrix in angstroms and a list of (3,) fractional node
+        coordinates. Missing cell or node records raise ValueError.
+    '''
     cell_parameters = None
     vertices = []
     for raw_line in path.read_text(encoding="utf-8").splitlines():

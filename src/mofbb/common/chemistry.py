@@ -1,9 +1,10 @@
-"""Conservative coordination screening without charge or bond-order inference.
+'''
+Conservative coordination screening without charge or bond-order inference.
 
 These limits describe ordinary nonmetal coordination, not universal valence
 rules. Passing does not establish neutrality; valid ionic, donor-adduct, and
 multicenter environments can be excluded by this generation policy.
-"""
+'''
 
 from dataclasses import dataclass
 from functools import lru_cache
@@ -22,7 +23,21 @@ _NONMETAL = np.array(
 
 
 def nonmetal_neighbor_counts(numbers, bonds):
-    """Count real nonmetal neighbors; each periodic image bond counts separately."""
+    '''
+    Count each atom's real nonmetal neighbors.
+
+    Each bond record counts separately, including bonds to periodic images.
+    Dummy X atoms and metals do not contribute to their partners' counts.
+
+    Args:
+        numbers (numpy.ndarray):
+            (n,) atomic numbers; zero denotes an X port.
+        bonds (array-like):
+            (m, 2) zero-based atom pairs.
+
+    Returns:
+        An (n,) integer array of neighbor counts.
+    '''
     bonds = np.asarray(bonds, dtype=np.int64).reshape(-1, 2)
     left, right = bonds.T
     return np.bincount(
@@ -34,7 +49,22 @@ def nonmetal_neighbor_counts(numbers, bonds):
 
 
 def validate_coordination(numbers, counts, *, context, indices=None):
-    """Reject screened atoms above their ordinary nonmetal-neighbor limit."""
+    '''
+    Reject atoms that exceed the configured nonmetal-neighbor limits.
+
+    Args:
+        numbers (numpy.ndarray):
+            (n,) atomic numbers.
+        counts (numpy.ndarray):
+            (n,) nonmetal-neighbor counts.
+        context (str):
+            Description included in the error message.
+        indices (array-like or None):
+            Atom indices to check; check every atom when omitted.
+
+    Returns:
+        None. Raises ValueError for the first atom that exceeds its limit.
+    '''
     if indices is None:
         indices = np.arange(len(numbers))
     else:
@@ -53,14 +83,36 @@ def validate_coordination(numbers, counts, *, context, indices=None):
 
 @dataclass(frozen=True)
 class CoordinationProfile:
-    """Reusable graph analysis; geometry and bond labels are deliberately absent."""
+    '''
+    Store a building block's nonmetal-neighbor counts and screening result.
+
+    Args:
+        nonmetal_counts (numpy.ndarray):
+            Read-only (n,) array of nonmetal-neighbor counts.
+        error (str or None):
+            Coordination-screen error message, or None when the screen passes.
+    '''
 
     nonmetal_counts: np.ndarray
     error: str | None
 
 
 def coordination_profile(numbers, bonds):
-    """Cache by graph content, so edits invalidate the result and copies reuse it."""
+    '''
+    Check building-block bonds and cache their coordination counts.
+
+    Malformed bonds or X ports raise ValueError. Coordination-limit failures
+    are stored in the result so callers can decide how to handle them.
+
+    Args:
+        numbers (array-like):
+            (n,) atomic numbers; zero denotes an X port.
+        bonds (array-like):
+            (m, 2) zero-based atom pairs for a finite building block.
+
+    Returns:
+        A cached CoordinationProfile with read-only counts and any screen error.
+    '''
     return _coordination_profile(
         np.asarray(numbers, dtype=np.int64).tobytes(),
         np.asarray(bonds, dtype=np.int64).reshape(-1, 2).tobytes(),
@@ -98,6 +150,21 @@ def _coordination_profile(number_bytes, bond_bytes):
 
 
 def add_fused_coordination(numbers, counts, atom_i, atom_j):
-    """Replace two X sites by their actual partners, including periodic self-edges."""
+    '''
+    Update neighbor counts after replacing X ports with a real bond.
+
+    Args:
+        numbers (numpy.ndarray):
+            (n,) atomic numbers.
+        counts (numpy.ndarray):
+            (n,) counts to update in place.
+        atom_i (int):
+            First real atom of the new bond.
+        atom_j (int):
+            Second real atom; may equal atom_i for a periodic self-edge.
+
+    Returns:
+        None. Each endpoint gains one count if its partner is a nonmetal.
+    '''
     counts[atom_i] += _NONMETAL[numbers[atom_j]]
     counts[atom_j] += _NONMETAL[numbers[atom_i]]

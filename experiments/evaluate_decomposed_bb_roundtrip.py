@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+
 import argparse
 from collections import Counter
 from dataclasses import dataclass
@@ -11,6 +12,7 @@ import logging
 from pathlib import Path
 import warnings
 
+from mofbb.io.cif import write_cif
 from mofbb.compose import Builder, BuildingBlock, Topology
 from mofbb.compose.log import logger
 from mofbb.decompose import NodeEdgeDecomposer
@@ -200,7 +202,7 @@ def run_case(
             inputs.blocks,
             n_angles=accuracy,
         )
-        framework.write_cif(rebuilt_path)
+        write_cif(rebuilt_path, framework)
         if not rebuilt_path.is_file():
             raise RuntimeError("Framework CIF was not written.")
         record["composed_atoms"] = len(framework.atoms)

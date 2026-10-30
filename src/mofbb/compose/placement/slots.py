@@ -1,4 +1,6 @@
-"""Assign building-block ports and initial poses to topology slots."""
+'''
+Assign building-block ports and initial poses to topology slots.
+'''
 
 from __future__ import annotations
 
@@ -10,7 +12,28 @@ from mofbb.compose.placement.symmetry import SymPlacement
 
 
 class SlotAssignment:
-    """Choose compatible slot permutations and symmetry-aware initial poses."""
+    '''
+    Match building-block ports to topology slots and choose initial poses.
+
+    Args:
+        topology (Topology):
+            Topology to fill with building blocks.
+        blocks (sequence):
+            Block for each slot, with None for unoccupied edges.
+        locator (Locator):
+            Helper for fitting block orientations and port mappings.
+        pbc (PBC):
+            Helper for checking connection chemistry and periodic ports.
+        fixed_perms (dict or None):
+            Optional source port indices in target order, keyed by slot.
+        n_angles (int):
+            Requested sampling count per Euler axis; node fits use at least four.
+        sym_tol (float):
+            Allowed atom and port displacement under site symmetry, in angstroms.
+        strict_symmetry (bool):
+            Raise an error when the assigned blocks cannot preserve the declared
+            symmetry.
+    '''
 
     def __init__(
         self,
@@ -63,7 +86,13 @@ class SlotAssignment:
         )
 
     def run(self):
-        """Populate initial blocks and permutations for every occupied slot."""
+        '''
+        Assign ports and initial block poses for occupied topology slots.
+
+        Returns:
+            This SlotAssignment instance, with placed blocks, permutations, and symmetry
+            diagnostics updated.
+        '''
         if (
             self.strict_symmetry
             and self.topology.atoms.info.get("source_group_compatible") is False
@@ -80,12 +109,24 @@ class SlotAssignment:
         return self
 
     def node_port_compatibility(self, node, edge_perms):
-        """Return a target/source feasibility mask for one node slot."""
+        '''
+        Check which source ports can be assigned to a node connection.
+
+        Args:
+            node (int):
+                Node slot index.
+            edge_perms (dict):
+                Chosen endpoint permutations for occupied edge slots.
+
+        Returns:
+            A Boolean target-by-source mask and the first forbidden element pair found,
+            or None if there is none.
+        '''
         return self.rules.node_mask(node, edge_perms)
 
     def _locate_node(self, node, forced=None, orbit=None):
         block = self.blocks[node]
-        target = self.topology.local_structure(node)
+        target = self.topology.connection_directions(node)
         allowed, bad_pair = self.node_port_compatibility(
             node,
             self.edge_perms,
@@ -138,7 +179,9 @@ class SlotAssignment:
         perm,
         rmsd,
     ):
-        """Resolve arbitrary port-symmetry ties in favor of site symmetry."""
+        '''
+        Resolve arbitrary port-symmetry ties in favor of site symmetry.
+        '''
 
         def compatible(candidate, candidate_permutation):
             candidate.set_centroid(

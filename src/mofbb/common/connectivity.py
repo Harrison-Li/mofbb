@@ -1,4 +1,6 @@
-"""Check 3D connectivity using bonds to explicit periodic atom images."""
+'''
+Check 3D connectivity using bonds to explicit periodic atom images.
+'''
 
 import networkx as nx
 import numpy as np
@@ -13,7 +15,21 @@ CONNECTIVITY_POLICY_VERSION = 2
 
 
 def bond_arrays(num_atoms, bonds, bond_shifts):
-    """Normalize atom pairs and integer image shifts, rejecting invalid bonds."""
+    '''
+    Normalize bond arrays and check atom indices and lattice shifts.
+
+    Args:
+        num_atoms (int):
+            Number of atoms referenced by the bonds.
+        bonds (array-like):
+            (m, 2) zero-based atom pairs.
+        bond_shifts (array-like):
+            (m, 3) finite integer translations from the first endpoint to the second.
+
+    Returns:
+        A pair of integer arrays with shapes (m, 2) and (m, 3). Invalid indices,
+        noninteger shifts, or zero-image self-bonds raise ValueError.
+    '''
     bonds = np.asarray(bonds, dtype=int).reshape(-1, 2)
     shifts = np.asarray(bond_shifts).reshape(-1, 3)
     if len(bonds) != len(shifts) or not np.isfinite(shifts).all():
@@ -28,7 +44,18 @@ def bond_arrays(num_atoms, bonds, bond_shifts):
 
 
 def mic_shifts(atoms, bonds):
-    """Infer images for distinct atom pairs, including paired X caps."""
+    '''
+    Find minimum-image cell shifts for bonds between distinct atoms.
+
+    Args:
+        atoms (ase.Atoms):
+            Structure with Cartesian positions in angstroms and its unit cell.
+        bonds (array-like):
+            (m, 2) zero-based atom pairs. Self-bonds need explicit shifts instead.
+
+    Returns:
+        An (m, 3) integer array of image shifts, or zeros for a nonperiodic structure.
+    '''
     bonds = np.asarray(bonds, dtype=int).reshape(-1, 2)
     if np.any(bonds[:, 0] == bonds[:, 1]):
         raise ValueError("Periodic self-bonds require explicit lattice shifts.")
@@ -42,7 +69,21 @@ def mic_shifts(atoms, bonds):
 
 
 def periodic_components(num_atoms, bonds, bond_shifts):
-    """Return each component's size and exact periodic translation rank."""
+    '''
+    Find connected components and count their independent periodic directions.
+
+    Args:
+        num_atoms (int):
+            Total number of atoms, including isolated atoms.
+        bonds (array-like):
+            (m, 2) zero-based atom pairs.
+        bond_shifts (array-like):
+            (m, 3) integer lattice shifts for the corresponding bonds.
+
+    Returns:
+        A list of dictionaries with num_atoms and rank for each component.
+        Rank 0, 1, 2, or 3 denotes a finite fragment, chain, layer, or 3D network.
+    '''
     bonds, shifts = bond_arrays(num_atoms, bonds, bond_shifts)
     records = tuple(
         PeriodicBond(int(i), int(j), tuple(map(int, shift)))
@@ -63,13 +104,31 @@ def validate_3d_connectivity(
     atoms, bonds=None, bond_shifts=None, *, bond_scale=1.2,
     minimum_distance_cutoff=None,
 ):
-    """Require rank 3 for every component after excluding overlong bonds.
+    '''
+    Require every bonded component to extend in three periodic directions.
 
-    If bonds are omitted, infer them from coordinates without metal contacts.
-    Explicit bonds retain supported metal-metal connections in building blocks.
-    For coordinate inference, minimum_distance_cutoff also reports the closest
-    contact below that distance, using the same neighbor search (None if absent).
-    """
+    Overlong bonds are excluded. Coordinate-based inference excludes metal-metal
+    bonds; explicitly supplied metal-metal bonds are retained if short enough.
+
+    Args:
+        atoms (ase.Atoms):
+            Structure with Cartesian positions in angstroms and its unit cell.
+        bonds (array-like or None):
+            Optional (m, 2) array of zero-based atom pairs; infer bonds when omitted.
+        bond_shifts (array-like or None):
+            Optional (m, 3) integer cell shifts from the first atom to the second; infer
+            minimum-image shifts when omitted.
+        bond_scale (float):
+            Multiplier for the sum of the two atoms' covalent radii. Defaults to 1.2.
+        minimum_distance_cutoff (float or None):
+            Optional distance in angstroms for reporting the closest contact below
+            this cutoff. Only available when bonds are inferred.
+
+    Returns:
+        A dictionary of connectivity policy, bond scale, component sizes and
+        ranks, plus the requested minimum-distance result. Invalid geometry or
+        any component with rank below three raises ValueError.
+    '''
     if not np.isfinite(bond_scale) or bond_scale <= 0:
         raise ValueError("Connectivity bond scale must be positive and finite.")
     if (

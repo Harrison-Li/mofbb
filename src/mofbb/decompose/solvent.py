@@ -9,8 +9,8 @@ from typing import Literal, TypeAlias
 
 import ase
 import numpy as np
-from mofbb.io.cif import write_cif
 
+from mofbb.io.cif import write_cif
 from mofbb.decompose.assignment import NodeAtomAssigner
 from mofbb.decompose.bonding import BondNetwork, subset_bonded_structure
 from mofbb.decompose.constants import is_metal
@@ -49,6 +49,16 @@ class SolventResult:
         return self._flatten(self.bound_solvent_components)
 
     def kept_indices(self, mode: ActiveSolventMode) -> tuple[int, ...]:
+        '''
+        Select the source atoms left after solvent removal.
+
+        Args:
+            mode (str):
+                "free" removes free solvent; "all" also removes bound solvent.
+
+        Returns:
+            Retained source atom indices in ascending order.
+        '''
         removed = set(self.free_solvent_indices)
         if mode == "all":
             removed.update(self.bound_solvent_indices)
@@ -65,6 +75,17 @@ class SolventResult:
     def subset(
         self, mode: ActiveSolventMode
     ) -> tuple[ase.Atoms, BondNetwork, tuple[int, ...]]:
+        '''
+        Remove the requested solvent atoms and renumber the remaining bonds.
+
+        Args:
+            mode (str):
+                "free" removes free solvent; "all" also removes bound solvent.
+
+        Returns:
+            The retained atoms, their BondNetwork, and a new-to-original index mapping.
+            Raises ValueError if no atoms remain.
+        '''
         indices = self.kept_indices(mode)
         if not indices:
             raise ValueError(f"Solvent removal deleted the entire structure ({mode}).")
@@ -78,6 +99,21 @@ class SolventResult:
         mode: ActiveSolventMode,
         selected_to_original: tuple[int, ...],
     ) -> dict[str, object]:
+        '''
+        Write CIF selections for free solvent, bound solvent, and both cleaned
+        structures.
+
+        Args:
+            output_dir (str or Path):
+                Directory for the four CIF files.
+            mode (str):
+                Removal mode to record in the returned metadata.
+            selected_to_original (tuple[int, ...]):
+                Mapping from the selected structure to the original atom indices.
+
+        Returns:
+            A summary of the selections, file names, and index mapping.
+        '''
         output_dir = Path(output_dir)
         selections = {
             "free_solvent.cif": self.free_solvent_indices,
@@ -159,7 +195,15 @@ def _simplify_topology(
 
 
 class SolventRemover:
-    """Classify free and bound solvent."""
+    '''
+    Find free molecules and terminal bound solvent in a bonded structure.
+
+    Args:
+        atoms (ase.Atoms):
+            Source atoms with their periodic cell.
+        bonds (BondNetwork):
+            Bond graph in source atom order.
+    '''
 
     def __init__(self, atoms: ase.Atoms, bonds: BondNetwork) -> None:
         self.atoms = atoms
@@ -167,6 +211,14 @@ class SolventRemover:
         self.records = {record.pair: record for record in periodic_bonds(atoms, bonds)}
 
     def classify(self) -> SolventResult:
+        '''
+        Identify coordinated solvent, then simplify the node-ligand connectivity graph.
+
+        Returns:
+            A SolventResult containing free and bound solvent groups in source atom
+            indices.
+            The input atoms and bonds are left unchanged.
+        '''
         nodes = set(
             NodeAtomAssigner(self.atoms.get_chemical_symbols(), self.bonds).assign()
         )

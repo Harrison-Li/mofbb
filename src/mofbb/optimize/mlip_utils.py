@@ -1,3 +1,6 @@
+'''
+Relax MOF coordinates and unit cells with an ASE-compatible calculator.
+'''
 import numpy as np
 import ase.io
 from ase import Atoms, units
@@ -12,8 +15,32 @@ def optimize_geometry(
     config: dict,
     outputfile: str = "mof_opt.cif",
 ) -> dict:
-    """Optimize the atomic positions and unit cell of a MOF.
-    """
+    '''
+    Relax a MOF in place and write the resulting structure to CIF.
+
+    The returned fmax includes cell-filter forces when relaxing the cell.
+    atomic_fmax reports only the largest atomic force norm.
+
+    Args:
+        atoms (ase.Atoms):
+            Structure to relax. Coordinates, calculator, metadata, and possibly the cell
+            are changed in place.
+        charge (int):
+            Charge stored in atoms.info for the calculator.
+        multiplicity (int):
+            Spin multiplicity stored under atoms.info["spin"].
+        config (dict or None):
+            Calculator and relaxation settings. Supply calculator directly, or mlip and
+            model. Defaults include relax_cell=True, optimizer="LBFGS", fmax=0.05, and
+            max_steps=1000. Pressure is in GPa under pressure_GPa or pressure.
+        outputfile (str):
+            Output CIF path. The final structure is written even if relaxation does not
+            converge.
+
+    Returns:
+        A dictionary with energy (eV), forces (n_atoms, 3; eV/angstrom), stress (6,;
+        eV/angstrom cubed), force maxima, convergence status, and step count.
+    '''
     if config is None:
         config = {}
 

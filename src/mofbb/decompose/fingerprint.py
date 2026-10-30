@@ -13,7 +13,19 @@ import networkx as nx
 def fragment_fingerprint(
     symbols: list[str], bonds: Iterable[tuple[int, int, str]]
 ) -> str:
-    """Return a stable connectivity-aware fragment hash."""
+    '''
+    Hash a fragment's element labels and bond connectivity.
+
+    Args:
+        symbols (list[str]):
+            Element symbols in local atom order.
+        bonds (Iterable[tuple[int, int, str]]):
+            Local atom pairs and bond types; bond types are not used in this hash.
+
+    Returns:
+        A 16-character hexadecimal hash. Coordinates and atom ordering do not enter
+        the hash, and matching hashes alone do not prove graph equivalence.
+    '''
 
     graph = nx.Graph()
     for i, symbol in enumerate(symbols):

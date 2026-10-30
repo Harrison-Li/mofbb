@@ -1,4 +1,6 @@
-"""Final symmetry-aware placement of building blocks in a composed cell."""
+'''
+Final symmetry-aware placement of building blocks in a composed cell.
+'''
 
 from __future__ import annotations
 
@@ -8,7 +10,20 @@ from mofbb.compose.placement.errors import SymmetryCompatibilityError
 
 
 class BBPlacement:
-    """Store joint-fit state and place linkers in the optimized lattice."""
+    '''
+    Hold fitted block positions and place edges in the final cell.
+
+    Args:
+        assignment (SlotAssignment):
+            Initial blocks, port mappings, and symmetry checks.
+        edge_factory (callable):
+            Factory that builds transverse orientation targets for occupied edges.
+        port_tol (float):
+            Largest allowed port mismatch in angstroms when copying an edge by
+            symmetry.
+        bond_scale (float):
+            Covalent-radius multiplier used to check proposed connections.
+    '''
 
     def __init__(self, assignment, edge_factory, *, port_tol, bond_scale):
         self.assignment = assignment
@@ -35,7 +50,12 @@ class BBPlacement:
         self.edge_frame_diagnostics = []
 
     def run(self):
-        """Place all blocks in the final cell and return this stage."""
+        '''
+        Place occupied edges and record orientation diagnostics.
+
+        Returns:
+            This BBPlacement instance, with blocks and edge targets updated in place.
+        '''
         self.edge_shifts = self.topology.edge_shifts
         self.edge_frame_diagnostics = []
         if any(self.blocks[int(i)] is not None for i in self.topology.edge_idx):
@@ -83,7 +103,9 @@ class BBPlacement:
 
     @staticmethod
     def _edge_frame_diagnostic(edge_index, target, source_frame, **overrides):
-        """Convert NumPy scalars only when preparing serializable diagnostics."""
+        '''
+        Convert NumPy scalars only when preparing serializable diagnostics.
+        '''
         diagnostic = {
             "edge_index": edge_index,
             "symmetry_edge_type": target.symmetry_edge_type,

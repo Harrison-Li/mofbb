@@ -224,7 +224,7 @@ def load_block_pools(
             )
             port_directions = tuple(
                 tuple(float(value) for value in direction)
-                for direction in block.local_structure().positions
+                for direction in block.connection_directions()
             )
             port_radii = np.linalg.norm(
                 block.port_pos
@@ -318,7 +318,7 @@ def topology_record_from_object(
             if int(topology.node_types[index]) == node_type
         )
         directions = np.asarray(
-            topology.local_structure(representative).positions,
+            topology.connection_directions(representative),
             dtype=float,
         )
         port_directions = tuple(

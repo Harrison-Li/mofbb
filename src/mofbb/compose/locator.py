@@ -1,7 +1,8 @@
-"""Align building blocks onto topology slots by rotation and matching.
+'''
+Align building blocks onto topology slots by rotation and matching.
 
 https://github.com/Sangwon91/PORMAKE/blob/main/src/pormake/locator.py
-"""
+'''
 
 import itertools
 import warnings
@@ -10,27 +11,37 @@ import numpy as np
 import scipy
 
 
-_EDGE_FRAME_EPSILON = 1e-12
-_MAX_CANONICAL_PORTS = 15
-
 
 class PortAssignmentError(ValueError):
-    """Raised when no feasible connection-point permutation exists."""
+    '''
+    Raised when no feasible connection-point permutation exists.
+    '''
 
 
 def _target_edge_frame(edge_axis, transverse_direction):
-    """Build a right-handed target frame from an edge and transverse axis."""
+    '''
+    Build a right-handed frame for an edge.
+
+    Args:
+        edge_axis (array-like):
+            Three-component vector along the edge.
+        transverse_direction (array-like):
+            Direction used to fix rotation around the edge axis.
+
+    Returns:
+        A (3, 3) array with unit x, y, and z axes as rows. The z axis follows the edge.
+    '''
 
     z = np.asarray(edge_axis, dtype=float).copy()
     z_length = np.linalg.norm(z)
-    if z_length < _EDGE_FRAME_EPSILON:
+    if z_length < 1e-12: # Edge must has transversial axis
         raise ValueError("Target edge endpoints must be distinct.")
     z /= z_length
 
     x = np.asarray(transverse_direction, dtype=float).copy()
     x -= np.dot(x, z) * z
     x_length = np.linalg.norm(x)
-    if x_length < _EDGE_FRAME_EPSILON:
+    if x_length < 1e-12:
         raise ValueError(
             "Target transverse direction must not be parallel to the edge."
         )
@@ -45,7 +56,21 @@ def _target_edge_frame(edge_axis, transverse_direction):
 
 
 def find_best_permutation(p, q, allowed=None):
-    """Find the assignment of ``q`` points onto ``p`` points."""
+    '''
+    Match source points to target points with the smallest total distance.
+
+    Args:
+        p (numpy.ndarray):
+            An (n, 3) array of target points.
+        q (numpy.ndarray):
+            An (n, 3) array of source points.
+        allowed (numpy.ndarray or None):
+            An (n, n) mask where True allows a target-to-source port match.
+
+    Returns:
+        An (n,) array of source indices in target order. Raises PortAssignmentError if
+        no allowed assignment exists.
+    '''
     dist = np.linalg.norm(p[:, None] - q[None, :], axis=-1)
     compatible = None
     if allowed is not None:
@@ -60,7 +85,19 @@ def find_best_permutation(p, q, allowed=None):
 
 
 def find_best_orientation(p, q):
-    """Find the rotation that best overlays ``q`` onto ``p``."""
+    '''
+    Find the rotation that best aligns two sets of vectors.
+
+    Args:
+        p (numpy.ndarray):
+            An (n, 3) array of target vectors.
+        q (numpy.ndarray):
+            An (n, 3) array of source vectors in matching order.
+
+    Returns:
+        A (3, 3) rotation matrix for q @ rotation and the root mean squared vector
+        distance. No centering or translation is applied.
+    '''
     # This function gives root "sum" squared distance...
     with warnings.catch_warnings():
         if len(p) == 2:
@@ -74,28 +111,55 @@ def find_best_orientation(p, q):
 
 
 class Locator:
-    """Orient a building block to a target slot's local structure."""
+    '''
+    Orient a building block to a target slot's connection directions.
+    '''
 
     @staticmethod
     def has_compatible_permutation(allowed):
-        """Return whether a port mask admits a complete assignment."""
+        '''
+        Check whether each target can be matched to a different source port.
+
+        Args:
+            allowed (numpy.ndarray):
+                A square Boolean mask of allowed target-to-source matches.
+
+        Returns:
+            True if a complete allowed assignment exists; otherwise False.
+        '''
         allowed = np.asarray(allowed, dtype=bool)
         rows, columns = scipy.optimize.linear_sum_assignment(~allowed)
         return bool(np.all(allowed[rows, columns]))
 
     def candidate_permutations(
         self,
-        target,
+        target: np.ndarray,
         bb,
         n_angles=4,
         allowed=None,
     ):
-        """Yield distinct port mappings, sampling ``n_angles`` per Euler axis.
+        '''
+        Yield allowed port mappings for trial orientations.
 
-        For at most five ports, enumerate all permutations instead of sampling.
-        """
-        p_coord = target.atoms.positions
-        source_atoms = bb.local_structure().atoms
+        All permutations are tried for up to five ports. Larger blocks use sampled
+        rotations, and repeated mappings are skipped.
+
+        Args:
+            target (numpy.ndarray):
+                An (n, 3) array of target connection directions.
+            bb (BuildingBlock):
+                Building block to orient. The input block is left unchanged.
+            n_angles (int):
+                Number of sampled angles per Euler axis when there are more than five
+                ports.
+            allowed (numpy.ndarray or None):
+                An (n, n) mask where True allows a target-to-source port match.
+
+        Returns:
+            An iterator of (n,) source-index arrays in target order.
+        '''
+        p_coord = target
+        source_directions = bb.connection_directions()
         n_points = p_coord.shape[0]
         allowed = None if allowed is None else np.asarray(allowed, dtype=bool)
         if allowed is not None and not self.has_compatible_permutation(allowed):
@@ -110,8 +174,8 @@ class Locator:
                     yield perm
             return
 
-        points = source_atoms.positions
-        if n_points <= _MAX_CANONICAL_PORTS:
+        points = source_directions
+        if n_points <= 15: # Maxium dummy connection points
             weights = np.arange(1, n_points + 1, dtype=float)
             centered = points - np.average(points, axis=0, weights=weights)
             _, axes = np.linalg.eigh((centered * weights[:, None]).T @ centered)
@@ -146,14 +210,31 @@ class Locator:
 
     def locate(
         self,
-        target,
+        target: np.ndarray,
         bb,
         n_angles=4,
         allowed=None,
     ):
-        """Orient ``bb`` onto ``target`` and find the best permutation."""
-        p_coord = target.atoms.positions
-        source_atoms = bb.local_structure().atoms
+        '''
+        Rotate a building block to best match the target connection directions.
+
+        Args:
+            target (numpy.ndarray):
+                An (n, 3) array of target connection directions.
+            bb (BuildingBlock):
+                Building block to orient. The input block is left unchanged.
+            n_angles (int):
+                Number of sampled angles per Euler axis when there are more than five
+                ports.
+            allowed (numpy.ndarray or None):
+                An (n, n) mask where True allows a target-to-source port match.
+
+        Returns:
+            The rotated copy, its port permutation, and the direction RMSD. Returns
+            (None, None, infinity) if no allowed mapping exists.
+        '''
+        p_coord = target
+        source_directions = bb.connection_directions()
 
         best = (np.inf, None, None)
         for perm in self.candidate_permutations(
@@ -163,7 +244,7 @@ class Locator:
             allowed=allowed,
         ):
             rotation, rmsd = find_best_orientation(
-                p_coord, source_atoms.positions[perm]
+                p_coord, source_directions[perm]
             )
             if rmsd < best[0]:
                 best = rmsd, rotation, perm
@@ -179,11 +260,24 @@ class Locator:
         )
         return located, perm, rmsd
 
-    def locate_with_permutation(self, target, bb, perm):
-        """Orient ``bb`` onto ``target`` using a known permutation."""
+    def locate_with_permutation(self, target: np.ndarray, bb, perm):
+        '''
+        Rotate a building block using a fixed port mapping.
+
+        Args:
+            target (numpy.ndarray):
+                An (n, 3) array of target connection directions.
+            bb (BuildingBlock):
+                Building block to orient. The input block is left unchanged.
+            perm (numpy.ndarray):
+                Source port indices in target connection order.
+
+        Returns:
+            The rotated copy and direction RMSD. The block centroid stays in place.
+        '''
         rotation, rmsd = find_best_orientation(
-            target.atoms.positions,
-            bb.local_structure().atoms.positions[perm],
+            target,
+            bb.connection_directions()[perm],
         )
         located = bb.copy()
         located.atoms.set_positions(
@@ -198,7 +292,23 @@ class Locator:
         perm,
         target_transverse,
     ):
-        """Place an edge linker using its complete PCA frame."""
+        '''
+        Orient and center a two-port edge using its axis and transverse direction.
+
+        Args:
+            target_points (numpy.ndarray):
+                Two Cartesian endpoint positions, with shape (2, 3), in angstroms.
+            bb (BuildingBlock):
+                Building block to orient. The input block is left unchanged.
+            perm (numpy.ndarray):
+                Source port indices in target connection order.
+            target_transverse (numpy.ndarray):
+                A three-component direction that fixes rotation about the edge axis.
+
+        Returns:
+            The placed copy, direction RMSD, and original edge frame. The edge is
+            rotated and translated, without stretching.
+        '''
 
         target_points = np.asarray(target_points, dtype=float)
         target_transverse = np.asarray(target_transverse, dtype=float)
@@ -206,7 +316,7 @@ class Locator:
         source_frame = bb.edge_frame()
 
         # perm[target] = source. Inverting it gives target positions
-        # ordered by the linker's fixed intrinsic X0-to-X1 direction.
+        # ordered by the edge's fixed intrinsic X0-to-X1 direction.
         target_by_source = target_points[np.argsort(perm)]
         target_frame = _target_edge_frame(
             target_by_source[1] - target_by_source[0],

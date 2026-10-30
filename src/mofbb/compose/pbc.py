@@ -1,3 +1,6 @@
+'''
+Check periodic port gaps, proposed bond lengths, and atomic overlaps.
+'''
 import numpy as np
 from ase.data import atomic_numbers, covalent_radii
 from ase.geometry import find_mic
@@ -8,7 +11,9 @@ from mofbb.common.connectivity import mic_shifts
 
 
 class PBC:
-    """Utilities for validating connections under periodic boundary conditions."""
+    '''
+    Utilities for validating connections under periodic boundary conditions.
+    '''
 
     bond_scale = 1.2
     port_tol = 0.3
@@ -20,7 +25,21 @@ class PBC:
         pairs: list[tuple[int, int]],
         shifts=None,
     ) -> np.ndarray:
-        """Return distances using supplied images, or minimum images if omitted."""
+        '''
+        Measure pair distances in selected periodic images.
+
+        Args:
+            atoms (ase.Atoms):
+                Atomic positions in angstroms, cell, and periodic boundary flags.
+            pairs (list[tuple[int, int]]):
+                Local atom-index pairs to measure.
+            shifts (array-like or None):
+                An (n, 3) array of integer cell shifts added to the second site. If
+                omitted, minimum images are used.
+
+        Returns:
+            An (n,) array of distances in angstroms, or an empty array for no pairs.
+        '''
         pair_indices = np.asarray(pairs, dtype=int)
         if pair_indices.size == 0:
             return np.empty(0, dtype=float)
@@ -40,7 +59,20 @@ class PBC:
         atoms,
         scale: float | None = None,
     ) -> list[tuple[int, int, float, float]]:
-        """Return atom pairs closer than their smaller covalent radius."""
+        '''
+        Find atom pairs that are too close, including periodic images.
+
+        Args:
+            atoms (ase.Atoms):
+                Atomic positions in angstroms, cell, and periodic boundary flags.
+            scale (float or None):
+                Multiplier for the smaller covalent radius. Zero disables the check;
+                None uses the class default.
+
+        Returns:
+            A sorted list of (atom_i, atom_j, distance, limit) tuples in angstroms. Only
+            the shortest contact for each atom pair is kept.
+        '''
         if scale is None:
             scale = cls.overlap_scale
         if not len(atoms) or scale == 0:
@@ -73,7 +105,18 @@ class PBC:
 
     @staticmethod
     def is_carbon_metal_pair(symbol_i: str, symbol_j: str) -> bool:
-        """Return whether a proposed bond joins carbon to boron or a metal."""
+        '''
+        Check whether a pair joins carbon to boron or a metal.
+
+        Args:
+            symbol_i (str):
+                Element symbol of the first atom.
+            symbol_j (str):
+                Element symbol of the second atom.
+
+        Returns:
+            True for a carbon-boron or carbon-metal pair, in either order.
+        '''
         if symbol_i == "C":
             other = symbol_j
         elif symbol_j == "C":
@@ -85,7 +128,18 @@ class PBC:
 
     @classmethod
     def is_forbidden_fused_pair(cls, symbol_i: str, symbol_j: str) -> bool:
-        """Reject new carbon-metal or metal-metal bonds between blocks."""
+        '''
+        Check whether joining two blocks would create a forbidden element pair.
+
+        Args:
+            symbol_i (str):
+                Element symbol of the first atom.
+            symbol_j (str):
+                Element symbol of the second atom.
+
+        Returns:
+            True for carbon-boron, carbon-metal, or metal-metal pairs.
+        '''
         return cls.is_carbon_metal_pair(symbol_i, symbol_j) or (
             Element(symbol_i).is_metal and Element(symbol_j).is_metal
         )
@@ -99,7 +153,23 @@ class PBC:
         *,
         shifts=None,
     ) -> list[tuple[int, int, float]]:
-        """Return X-X pairs beyond ``port_tol`` in the selected images."""
+        '''
+        Find matched dummy sites whose separation exceeds the allowed gap.
+
+        Args:
+            atoms (ase.Atoms):
+                Atomic positions in angstroms, cell, and periodic boundary flags.
+            x_pairs (list[tuple[int, int]]):
+                Pairs of dummy X-site atom indices to join.
+            port_tol (float or None):
+                Maximum X-site separation in angstroms. None uses the class default.
+            shifts (array-like or None):
+                An (n, 3) array of integer cell shifts added to the second site. If
+                omitted, minimum images are used.
+
+        Returns:
+            A list of (x_i, x_j, distance) tuples for gaps larger than the tolerance.
+        '''
         if port_tol is None:
             port_tol = cls.port_tol
 
@@ -117,7 +187,21 @@ class PBC:
         symbol_j: str,
         bond_scale: float | None = None,
     ) -> float:
-        """Return the maximum allowed bond distance after merging dummy sites."""
+        '''
+        Calculate the distance limit for a bond formed by joining two blocks.
+
+        Args:
+            symbol_i (str):
+                Element symbol of the first atom.
+            symbol_j (str):
+                Element symbol of the second atom.
+            bond_scale (float or None):
+                Multiplier for the sum of covalent radii. Uses the class default when
+                omitted.
+
+        Returns:
+            The scaled sum of the two covalent radii, in angstroms.
+        '''
         if bond_scale is None:
             bond_scale = cls.bond_scale
 
@@ -136,7 +220,27 @@ class PBC:
         *,
         shifts=None,
     ) -> list[tuple[int, int, float, float]]:
-        """Return real-atom bonds that are too long after X-site fusion."""
+        '''
+        Find real-atom connections that would be too long after joining X sites.
+
+        Args:
+            atoms (ase.Atoms):
+                Atomic positions in angstroms, cell, and periodic boundary flags.
+            x_pairs (list[tuple[int, int]]):
+                Pairs of dummy X-site atom indices to join.
+            x_neighbors (dict):
+                Map each X-site atom index to one or more attached real-atom indices.
+            bond_scale (float or None):
+                Multiplier for the sum of covalent radii. Uses the class default when
+                omitted.
+            shifts (array-like or None):
+                An (n, 3) array of integer cell shifts added to the second site. If
+                omitted, minimum images are used.
+
+        Returns:
+            A list of (atom_i, atom_j, distance, limit) tuples in angstroms. Multi-atom
+            ports are checked pair by pair.
+        '''
         if bond_scale is None:
             bond_scale = cls.bond_scale
 
@@ -174,7 +278,23 @@ class PBC:
         perms,
         edge_index: int,
     ) -> tuple[int, ...]:
-        """Return node X-port atom indices matched to a topology edge."""
+        '''
+        Find the node ports attached to the two ends of a topology edge.
+
+        Args:
+            topology (Topology):
+                Topology with periodic node-edge connectivity.
+            bbs (sequence):
+                Building blocks indexed by topology slot.
+            perms (sequence):
+                Source port indices in neighbor order for each slot.
+            edge_index (int):
+                Topology edge slot to inspect.
+
+        Returns:
+            A tuple of local X-site atom indices, one for each endpoint node in
+            edge-neighbor order.
+        '''
         edge_neighbors = topology.neighbor_list[edge_index]
         matched = []
 
@@ -204,7 +324,19 @@ class PBC:
         bb,  # building block
         x_index: int,
     ) -> tuple[str, int | tuple[int, ...], float]:
-        """Return connection element, atom index or pair, and max X-atom distance."""
+        '''
+        Look up the real atoms and cap length associated with an X site.
+
+        Args:
+            bb (BuildingBlock):
+                Block containing the dummy site.
+            x_index (int):
+                Local atom index of the dummy X site.
+
+        Returns:
+            The connection element, a real-atom index or tuple of indices, and the port
+            cap length in angstroms.
+        '''
         port_index = np.flatnonzero(bb.port_idx == x_index)[0]
         group = bb.conn_groups[port_index]
         conn_idx = group[0] if len(group) == 1 else group

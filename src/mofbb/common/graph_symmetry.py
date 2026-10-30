@@ -1,4 +1,5 @@
-"""Exact chemical-graph symmetry acting on building-block connection ports.
+'''
+Exact chemical-graph symmetry acting on building-block connection ports.
 
 Coordinate point groups describe a particular conformer.  This module instead
 labels a molecular graph by element and bond type, computes its exact graph
@@ -11,7 +12,7 @@ BLISS implementation in :mod:`igraph` preserve both vertex and edge labels,
 while still returning a compact generating set rather than enumerating every
 automorphism.  :mod:`sympy` then provides exact permutation-group membership,
 order, and orbit calculations for the induced port action.
-"""
+'''
 
 from __future__ import annotations
 
@@ -45,11 +46,16 @@ def _normalize_permutation(
 
 
 def permutation_support(permutation: Sequence[int]) -> tuple[int, ...]:
-    """Return the port indices moved by ``permutation``.
+    '''
+    Find which ports change position under a permutation.
 
-    The input is checked to be a valid zero-based permutation before its
-    support is returned.
-    """
+    Args:
+        permutation (sequence[int]):
+            Destination index for each port; must contain every index exactly once.
+
+    Returns:
+        A tuple of zero-based port positions that move.
+    '''
 
     normalized = _normalize_permutation(permutation, len(permutation))
     return tuple(index for index, image in enumerate(normalized) if image != index)
@@ -74,7 +80,19 @@ def _permutation_group(
 
 @dataclass(frozen=True)
 class BuildingBlockGraph:
-    """Element- and bond-type-labelled graph with ordered connection ports."""
+    '''
+    Store a molecular graph and the ordered atoms used as connection ports.
+
+    Args:
+        symbols (tuple[str, ...]):
+            Element symbols in atom-index order.
+        bonds (tuple):
+            Zero-based atom-index pairs; duplicate and self-bonds are rejected.
+        bond_types (tuple[str, ...]):
+            Bond labels in the same order as bonds.
+        port_indices (tuple[int, ...]):
+            Unique atom indices whose order defines the port permutation positions.
+    '''
 
     symbols: tuple[str, ...]
     bonds: tuple[tuple[int, int], ...]
@@ -137,7 +155,22 @@ class BuildingBlockGraph:
         bond_types: Iterable[str] | None = None,
         port_indices: Iterable[int] | None = None,
     ) -> BuildingBlockGraph:
-        """Build a normalized graph from arrays or other simple iterables."""
+        '''
+        Normalize atom, bond, and port arrays into a validated graph.
+
+        Args:
+            symbols (sequence[str]):
+                Element symbols in atom-index order.
+            bonds (iterable of sequence[int]):
+                Zero-based atom-index pairs.
+            bond_types (iterable[str] or None):
+                Bond labels; use S for every bond when omitted.
+            port_indices (iterable[int] or None):
+                Ordered port atom indices; use X atoms in atom order when omitted.
+
+        Returns:
+            A BuildingBlockGraph with sorted bond records and the requested port order.
+        '''
 
         normalized_symbols = tuple(str(symbol) for symbol in symbols)
         normalized_bonds = tuple(tuple(int(index) for index in bond) for bond in bonds)
@@ -164,7 +197,16 @@ class BuildingBlockGraph:
 
     @classmethod
     def from_building_block(cls, block: Any) -> BuildingBlockGraph:
-        """Extract graph data from a :class:`mofbb.compose.BuildingBlock`."""
+        '''
+        Read the graph and port order from a composition building block.
+
+        Args:
+            block (BuildingBlock):
+                Object with atoms, bonds, bond_types, and port_idx attributes.
+
+        Returns:
+            A validated BuildingBlockGraph.
+        '''
 
         return cls.from_data(
             symbols=block.atoms.get_chemical_symbols(),
@@ -203,24 +245,63 @@ class PortGraphSymmetry:
         return self.degree == 2 and self.equivalent(0, 1)
 
     def contains(self, permutation: Sequence[int]) -> bool:
-        """Return whether ``permutation`` belongs to the induced port group."""
+        '''
+        Check whether the requested port permutation is supported.
+
+        Args:
+            permutation (sequence[int]):
+                Destination position for each ordered port, using zero-based indices.
+
+        Returns:
+            True if the permutation is present in the graph symmetry group.
+        '''
 
         normalized = _normalize_permutation(permutation, self.degree)
         candidate = Permutation(list(normalized), size=self.degree)
         return bool(self._group.contains(candidate, strict=True))
 
     def supports(self, permutation: Sequence[int]) -> bool:
-        """Alias for :meth:`contains`, phrased for topology requirements."""
+        '''
+        Check whether the requested port permutation is supported.
+
+        Args:
+            permutation (sequence[int]):
+                Destination position for each ordered port, using zero-based indices.
+
+        Returns:
+            True if the permutation is present in the graph symmetry group.
+        '''
 
         return self.contains(permutation)
 
     def supports_all(self, permutations: Iterable[Sequence[int]]) -> bool:
-        """Return whether every required port permutation is supported."""
+        '''
+        Check whether every requested port permutation is supported.
+
+        Args:
+            permutations (iterable of sequence[int]):
+                Port permutations to check, with zero-based destination positions.
+
+        Returns:
+            True if every permutation is supported, including an empty input.
+        '''
 
         return all(self.contains(permutation) for permutation in permutations)
 
     def equivalent(self, left: int, right: int) -> bool:
-        """Return whether two port positions lie in the same group orbit."""
+        '''
+        Check whether graph symmetry can exchange two port positions.
+
+        Args:
+            left (int):
+                First zero-based port position, not an atom index.
+            right (int):
+                Second zero-based port position, not an atom index.
+
+        Returns:
+            True if both positions belong to the same orbit. Invalid indices raise
+            IndexError.
+        '''
 
         left = int(left)
         right = int(right)
@@ -229,7 +310,16 @@ class PortGraphSymmetry:
         return any(left in orbit and right in orbit for orbit in self.orbits)
 
     def moves(self, port: int) -> bool:
-        """Return whether any graph automorphism moves a port position."""
+        '''
+        Check whether any graph symmetry moves a given port.
+
+        Args:
+            port (int):
+                Zero-based port position, not an atom index.
+
+        Returns:
+            True if the port belongs to an orbit with more than one member.
+        '''
 
         port = int(port)
         if not 0 <= port < self.degree:
@@ -239,7 +329,21 @@ class PortGraphSymmetry:
 
 @dataclass(frozen=True)
 class CoordinatePortAction:
-    """Unique port permutations induced by coordinate symmetry operations."""
+    '''
+    Store the distinct port permutations found from coordinate symmetry.
+
+    Args:
+        permutations (tuple):
+            Unique zero-based port permutations, in sorted order.
+        max_residual (float):
+            Largest assigned mapping distance across all operations.
+        operation_count (int):
+            Number of coordinate operations tested, including duplicates.
+        port_count (int):
+            Number of ports in each permutation.
+        tolerance (float):
+            Allowed mapping distance, in the same units as max_residual.
+    '''
 
     permutations: tuple[PortPermutation, ...]
     max_residual: float
@@ -254,18 +358,45 @@ class CoordinatePortAction:
         return self.port_count
 
     def contains(self, permutation: Sequence[int]) -> bool:
-        """Return whether a coordinate operation induces ``permutation``."""
+        '''
+        Check whether the requested port permutation is supported.
+
+        Args:
+            permutation (sequence[int]):
+                Destination position for each ordered port, using zero-based indices.
+
+        Returns:
+            True if the permutation is present in the coordinate-derived action.
+        '''
 
         normalized = _normalize_permutation(permutation, self.degree)
         return normalized in self.permutations
 
     def supports(self, permutation: Sequence[int]) -> bool:
-        """Alias for :meth:`contains`."""
+        '''
+        Check whether the requested port permutation is supported.
+
+        Args:
+            permutation (sequence[int]):
+                Destination position for each ordered port, using zero-based indices.
+
+        Returns:
+            True if the permutation is present in the coordinate-derived action.
+        '''
 
         return self.contains(permutation)
 
     def supports_all(self, permutations: Iterable[Sequence[int]]) -> bool:
-        """Return whether all requested permutations occur geometrically."""
+        '''
+        Check whether every requested port permutation is supported.
+
+        Args:
+            permutations (iterable of sequence[int]):
+                Port permutations to check, with zero-based destination positions.
+
+        Returns:
+            True if every permutation is supported, including an empty input.
+        '''
 
         return all(self.contains(permutation) for permutation in permutations)
 
@@ -305,17 +436,26 @@ def analyze_port_graph_symmetry(
     bond_types: Iterable[str] | None = None,
     port_indices: Iterable[int] | None = None,
 ) -> PortGraphSymmetry:
-    """Compute the exact labelled-graph automorphism action on ``X`` ports.
+    '''
+    Find all port rearrangements allowed by the labeled molecular graph.
 
-    Parameters
-    ----------
-    source
-        A :class:`BuildingBlockGraph`, a ``BuildingBlock``, or a sequence of
-        element symbols.  Raw symbols must be accompanied by ``bonds``.
-    bonds, bond_types, port_indices
-        Raw graph arrays.  Missing bond labels default to ``"S"`` and missing
-        port indices are inferred from atoms whose symbol is ``"X"``.
-    """
+    Atom elements, port roles, and bond labels must be preserved. Coordinates
+    and stereochemistry do not enter this calculation.
+
+    Args:
+        source (BuildingBlockGraph, BuildingBlock, or sequence[str]):
+            Graph, building block, or raw element symbols. Raw symbols require bonds.
+        bonds (iterable of sequence[int]):
+            Zero-based atom-index pairs.
+        bond_types (iterable[str] or None):
+            Bond labels; use S for every bond when omitted.
+        port_indices (iterable[int] or None):
+            Ordered port atom indices; use X atoms in atom order when omitted.
+
+    Returns:
+        A PortGraphSymmetry describing the induced port group through generators,
+        its order, and port orbits, along with full-graph connectivity and order.
+    '''
 
     block_graph = _coerce_building_block_graph(
         source,
@@ -403,13 +543,24 @@ def port_permutations_from_operations(
     operations: Iterable[Any],
     tolerance: float,
 ) -> CoordinatePortAction:
-    """Match centered coordinates after symmetry operations to port indices.
+    '''
+    Match transformed port coordinates back to their original positions.
 
-    Each operation is assigned to the original coordinate set with an exact
-    one-to-one Hungarian matching.  An operation whose largest assigned
-    distance exceeds ``tolerance`` is rejected instead of silently emitting an
-    invalid permutation.
-    """
+    Each operation uses a one-to-one assignment. A mapping whose largest
+    assigned distance exceeds tolerance raises ValueError.
+
+    Args:
+        centered_port_coordinates (array-like):
+            (n_ports, 3) finite Cartesian coordinates centered on the symmetry origin.
+        operations (iterable):
+            Pymatgen symmetry operations or (3, 3) rotation matrices.
+        tolerance (float):
+            Largest allowed mapping distance, in the coordinate units.
+
+    Returns:
+        A CoordinatePortAction with unique permutations and the largest mapping
+        residual.
+    '''
 
     coordinates = np.asarray(centered_port_coordinates, dtype=float)
     if coordinates.ndim != 2 or coordinates.shape[1:] != (3,):
@@ -475,12 +626,21 @@ def point_group_port_action(
     centered_port_coordinates: Sequence[Sequence[float]] | None = None,
     tolerance: float | None = None,
 ) -> CoordinatePortAction:
-    """Return unique port permutations induced by a PointGroupAnalyzer.
+    '''
+    Convert a point-group analyzer's operations into port permutations.
 
-    When coordinates are omitted, the analyzer's own centered molecule is
-    used.  This is the safest pairing because the returned symmetry operations
-    are defined in that coordinate frame.
-    """
+    Args:
+        analyzer (PointGroupAnalyzer):
+            Analyzer supplying symmetry operations in its centered coordinate frame.
+        centered_port_coordinates (array-like or None):
+            (n_ports, 3) coordinates in that same frame; default to the analyzer's
+            centered molecule coordinates.
+        tolerance (float or None):
+            Maximum mapping distance in angstroms; default to analyzer.tol or 0.3.
+
+    Returns:
+        A CoordinatePortAction with the unique induced permutations.
+    '''
 
     coordinates = (
         np.asarray(analyzer.centered_mol.cart_coords, dtype=float)

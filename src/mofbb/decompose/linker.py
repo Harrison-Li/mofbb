@@ -1,4 +1,4 @@
-"""Organic linker splitting for node-edge decomposition."""
+"""Organic ligand splitting for node-edge decomposition."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ OrganicFragmentKind = Literal["organic_node", "edge"]
 
 @dataclass
 class OrganicLinkerSplit:
-    """Fragments and internal cut bonds from splitting organic linkers."""
+    """Fragments and internal cut bonds from splitting organic ligands."""
 
     organic_node_fragments: list[Fragment] = field(default_factory=list)
     edge_fragments: list[Fragment] = field(default_factory=list)
@@ -27,6 +27,16 @@ class OrganicLinkerSplit:
 
 
 def classify_organic_fragment_kind(fragment: Fragment) -> OrganicFragmentKind:
+    '''
+    Classify an organic fragment by its physical connection sites.
+
+    Args:
+        fragment (Fragment):
+            Organic fragment with recorded dummy sites.
+
+    Returns:
+        "edge" for exactly two sites, otherwise "organic_node".
+    '''
     return "edge" if len(fragment.x_sites) == 2 else "organic_node"
 
 
@@ -37,7 +47,7 @@ class _RoleComponent:
 
 
 class OrganicLinkerSplitter:
-    """Split original organic linkers into PORMAKE-style organic nodes and edges."""
+    """Split original organic ligands into PORMAKE-style organic nodes and edges."""
 
     def __init__(
         self,
@@ -58,6 +68,19 @@ class OrganicLinkerSplitter:
         organic_fragments: list[Fragment],
         metal_connecting_bonds: tuple[tuple[int, int], ...],
     ) -> OrganicLinkerSplit:
+        '''
+        Split organic ligands into capped organic nodes and edge fragments.
+
+        Args:
+            organic_fragments (list[Fragment]):
+                Organic fragments from the initial metal-organic separation.
+            metal_connecting_bonds (tuple[tuple[int, int], ...]):
+                Existing cut pairs in source atom indices, including any periodic cuts.
+
+        Returns:
+            A split result containing organic nodes, edges, and newly cut organic
+            bonds.
+        '''
         role_components: list[_RoleComponent] = []
         organic_cut_bonds: set[tuple[int, int]] = set()
         external_cut_set = {

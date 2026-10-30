@@ -1,4 +1,6 @@
-"""Symmetry-propagated orientation targets for two-connected linkers."""
+'''
+Symmetry-propagated orientation targets for two-connected edges.
+'''
 
 from __future__ import annotations
 
@@ -13,7 +15,23 @@ EPSILON = 1e-12
 
 @dataclass(frozen=True)
 class EdgeTarget:
-    """Orientation target and symmetry metadata for one topology edge."""
+    '''
+    Store an edge orientation and the symmetry operation used to obtain it.
+
+    Args:
+        transverse (numpy.ndarray):
+            Unit Cartesian direction perpendicular to the edge axis.
+        symmetry_edge_type (int):
+            Topology type of the representative edge.
+        representative_edge (int):
+            Edge slot used as the orientation reference.
+        operation_index (int):
+            Symmetry operation used for this edge, or -1 for the representative.
+        endpoint_reversed (bool):
+            Whether the operation reverses the ordered endpoints.
+        representative_gauge (str):
+            How the representative transverse direction was chosen.
+    '''
 
     transverse: np.ndarray
     symmetry_edge_type: int
@@ -24,7 +42,21 @@ class EdgeTarget:
 
 
 class EdgeOrientation:
-    """Build symmetry-related transverse directions for topology edges."""
+    '''
+    Choose an edge orientation and carry it to symmetry-related edges.
+
+    Args:
+        original_topology (Topology):
+            Topology before cell optimization, used to match symmetry operations.
+        scaled_topology (Topology):
+            Topology with the final cell and node positions.
+        perms (sequence):
+            Port mappings by slot; None marks an unoccupied edge.
+        symmetry (SymPlacement):
+            Cached orbit maps and symmetry operations.
+        tolerance (float):
+            Matching tolerance for centers and endpoints in fractional coordinates.
+    '''
 
     def __init__(
         self,
@@ -61,7 +93,13 @@ class EdgeOrientation:
         self._prepare_edges()
 
     def build(self):
-        """Return one transverse orientation target per occupied edge."""
+        '''
+        Choose transverse directions for all occupied edge slots.
+
+        Returns:
+            A dictionary from edge slot index to EdgeTarget. Directions are expressed in
+            the scaled Cartesian cell.
+        '''
 
         targets = {}
 
@@ -110,7 +148,9 @@ class EdgeOrientation:
         return targets
 
     def _prepare_edges(self):
-        """Cache ordered endpoints and group occupied edges by symmetry type."""
+        '''
+        Cache ordered endpoints and group occupied edges by symmetry type.
+        '''
 
         for edge_index in self.original.edge_idx:
             perm = self.perms[edge_index]
@@ -146,7 +186,9 @@ class EdgeOrientation:
             self.edges_by_type[orbit.representative].append(edge_index)
 
     def _choose_transverse(self, edge_index):
-        """Choose a stable transverse direction for a representative edge."""
+        '''
+        Choose a stable transverse direction for a representative edge.
+        '''
 
         start, end = self.scaled_endpoints[edge_index]
         edge_axis = end - start
@@ -189,7 +231,9 @@ class EdgeOrientation:
         )
 
     def _operation_for_edge(self, representative, edge_index):
-        """Choose a cached operation and its ordered-endpoint direction."""
+        '''
+        Choose a cached operation and its ordered-endpoint direction.
+        '''
 
         representative_center = self.original_centers[representative]
         representative_points = self.original_endpoints[representative]
@@ -251,7 +295,9 @@ class EdgeOrientation:
 
     @staticmethod
     def _perpendicular(vector, axis):
-        """Project a vector perpendicular to an axis and normalize it."""
+        '''
+        Project a vector perpendicular to an axis and normalize it.
+        '''
 
         axis = np.asarray(axis, dtype=float)
         axis_length = np.linalg.norm(axis)

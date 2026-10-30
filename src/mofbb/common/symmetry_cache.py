@@ -1,14 +1,15 @@
-"""Persistent symmetry classification for MOF building blocks.
+'''
+Persistent symmetry classification for MOF building blocks.
 
 The cache deliberately separates three concepts: chemical graph symmetry,
 the symmetry of one set of Cartesian coordinates, and crystallographic-site
 compatibility.  Every connected, structurally valid block is retained in the
 catalog.  Its graph action on the ``X`` connection points, coordinate-derived
-point groups, and intrinsic linker-end equivalence are annotations consumed by
+point groups, and intrinsic edge-end equivalence are annotations consumed by
 the topology-aware generator; none is a global admission requirement.  This is
 important because a completely asymmetric block is valid on a general Wyckoff
 position even when it cannot occupy a special position.
-"""
+'''
 
 from __future__ import annotations
 
@@ -88,7 +89,25 @@ SYMMETRY_MANIFEST_FIELDS = (
 
 
 class LibraryCandidate(NamedTuple):
-    """One manifest row that passes the generators' size/shape filters."""
+    '''
+    Describe one library entry selected for symmetry classification.
+
+    Args:
+        name (str):
+            Building-block name from the library manifest.
+        kind (str):
+            Building-block category, such as metal_node or edge.
+        path (str):
+            Path to the building-block XYZ file.
+        coordination (int):
+            Number of physical connection ports.
+        num_atoms (int):
+            Atom count recorded in the manifest.
+        expected_sha256 (str):
+            File hash recorded in the manifest, checked before classification.
+        structure_id (str):
+            Source structure reference code, or the block name if unavailable.
+    '''
 
     name: str
     kind: str
@@ -101,7 +120,21 @@ class LibraryCandidate(NamedTuple):
 
 @dataclass(frozen=True)
 class CacheResult:
-    """Result of ensuring or rebuilding a persistent symmetry cache."""
+    '''
+    Record whether a symmetry cache was reused or rebuilt and where it lives.
+
+    Args:
+        status (str):
+            hit for a reused cache or miss for a rebuilt cache.
+        cache (Path):
+            Directory containing the cache files.
+        manifest (Path):
+            CSV file containing accepted building-block classifications.
+        metadata_path (Path):
+            JSON file used to validate the manifest.
+        metadata (dict[str, object]):
+            Library fingerprint, classifier settings, counts, and manifest hash.
+    '''
 
     status: str
     cache: Path
@@ -123,7 +156,16 @@ class CacheResult:
 
 
 def file_sha256(path: Path) -> str:
-    """Return the hexadecimal SHA-256 digest of *path*."""
+    '''
+    Hash a file without loading it all into memory.
+
+    Args:
+        path (Path):
+            File to read in binary mode.
+
+    Returns:
+        The hexadecimal SHA-256 digest.
+    '''
 
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -192,12 +234,20 @@ def _diagnostic_coordinates(positions):
 def classify_block(
     item: LibraryCandidate | tuple[str, str, str, int, int, str, str],
 ) -> dict[str, object]:
-    """Classify a candidate by graph symmetry and attach geometry diagnostics.
+    '''
+    Classify a building block's graph symmetry and coordinate point groups.
 
-    File-integrity failures propagate to the caller.  Structurally malformed
-    blocks are recorded as rejected cache rows so that one bad library entry
-    cannot abort classification of the complete library.
-    """
+    File-integrity errors propagate to the caller. Malformed building blocks
+    are recorded as rejected rows so other library entries can still be processed.
+
+    Args:
+        item (LibraryCandidate or tuple):
+            Candidate record with path, expected hash, kind, and size metadata.
+
+    Returns:
+        A dictionary containing classification status, symmetry data, diagnostics,
+        and any classification error.
+    '''
 
     candidate = _coerce_candidate(item)
     path = Path(candidate.path)
@@ -314,7 +364,17 @@ def classify_block(
 
 
 def library_candidates(library: Path) -> list[LibraryCandidate]:
-    """Return candidates using the same filters as both generation scripts."""
+    '''
+    Select library entries that pass the generator's size and port filters.
+
+    Args:
+        library (Path):
+            Library directory containing building_blocks_manifest.csv and XYZ files.
+
+    Returns:
+        A list of LibraryCandidate records. Entries with missing XYZ files are
+        skipped with a printed message.
+    '''
 
     library = Path(library).resolve()
     manifest = library / "building_blocks_manifest.csv"
@@ -365,7 +425,19 @@ def cache_identity(
         LibraryCandidate | tuple[str, str, str, int, int, str, str]
     ],
 ) -> dict[str, object]:
-    """Describe every input and setting that affects classification."""
+    '''
+    Fingerprint the library files and settings used for classification.
+
+    Args:
+        library (Path):
+            Library directory containing building_blocks_manifest.csv and XYZ files.
+        candidates (iterable of LibraryCandidate or tuple):
+            Selected entries whose file hashes are checked against the manifest.
+
+    Returns:
+        A dictionary of the library fingerprint, candidate count, schema version,
+        and classification settings. A mismatched file hash raises ValueError.
+    '''
 
     library = Path(library).resolve()
     candidates = [_coerce_candidate(item) for item in candidates]
@@ -554,7 +626,19 @@ def load_valid_cache(
     cache: Path,
     identity: dict[str, object],
 ) -> dict[str, object] | None:
-    """Load metadata when both cache files match the requested identity."""
+    '''
+    Check cached metadata and manifest against the current library identity.
+
+    Args:
+        cache (Path):
+            Directory holding the symmetry CSV manifest and metadata.json.
+        identity (dict[str, object]):
+            Input fingerprint and classifier settings returned by cache_identity.
+
+    Returns:
+        The metadata dictionary if all checks pass, or None for a missing or
+        mismatched cache. Malformed JSON and file read errors propagate.
+    '''
 
     cache = Path(cache)
     manifest = cache / CACHE_MANIFEST_NAME
@@ -594,7 +678,24 @@ def write_cache(
     classified: list[dict[str, object]],
     accepted: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
-    """Atomically write the accepted manifest and its validating metadata."""
+    '''
+    Write the accepted rows and validating metadata to the cache.
+
+    Each file is replaced atomically after its temporary file is fully written.
+
+    Args:
+        cache (Path):
+            Directory holding the symmetry CSV manifest and metadata.json.
+        identity (dict[str, object]):
+            Input fingerprint and classifier settings returned by cache_identity.
+        classified (list[dict]):
+            Classification rows for every candidate, including rejected entries.
+        accepted (list[dict] or None):
+            Accepted rows to write; derive them from classified when omitted.
+
+    Returns:
+        The metadata dictionary, including counts and the written manifest hash.
+    '''
 
     cache = Path(cache)
     cache.mkdir(parents=True, exist_ok=True)
@@ -674,7 +775,20 @@ def rebuild_cache(
     cache: Path,
     workers: int = 1,
 ) -> CacheResult:
-    """Reclassify the full filtered library and atomically replace the cache."""
+    '''
+    Reclassify all filtered library entries and replace the cache.
+
+    Args:
+        library (Path):
+            Library directory containing building_blocks_manifest.csv and XYZ files.
+        cache (Path):
+            Directory holding the symmetry CSV manifest and metadata.json.
+        workers (int):
+            Number of classification processes; must be positive. One runs serially.
+
+    Returns:
+        A CacheResult with status miss and the new cache paths and metadata.
+    '''
 
     library = Path(library).resolve()
     cache = Path(cache).expanduser().resolve()
@@ -698,7 +812,22 @@ def ensure_cache(
     workers: int = 1,
     force_rebuild: bool = False,
 ) -> CacheResult:
-    """Return a valid cache, rebuilding it when absent, stale, or forced."""
+    '''
+    Reuse a valid symmetry cache or rebuild it when needed.
+
+    Args:
+        library (Path):
+            Library directory containing building_blocks_manifest.csv and XYZ files.
+        cache (Path):
+            Directory holding the symmetry CSV manifest and metadata.json.
+        workers (int):
+            Number of classification processes; must be positive. One runs serially.
+        force_rebuild (bool):
+            Reclassify even when a valid cache exists. Defaults to False.
+
+    Returns:
+        A CacheResult with status hit when reused or miss when rebuilt.
+    '''
 
     if workers < 1:
         raise ValueError("workers must be positive")
@@ -734,7 +863,22 @@ def copy_cache_manifest(
     output: Path,
     filename: str = CACHE_MANIFEST_NAME,
 ) -> Path:
-    """Atomically copy a validated cache manifest into an output directory."""
+    '''
+    Copy a cache manifest into an output directory using an atomic replacement.
+
+    The caller is responsible for validating the source cache first.
+
+    Args:
+        cache (Path or CacheResult):
+            Cache directory or result identifying the source manifest.
+        output (Path):
+            Destination directory; created if needed.
+        filename (str):
+            Output filename, defaulting to block_symmetry_manifest.csv.
+
+    Returns:
+        The destination Path.
+    '''
 
     source = (
         cache.manifest
@@ -765,7 +909,24 @@ def write_symmetry_manifest(
     workers: int,
     force_rebuild: bool = False,
 ) -> Path:
-    """Ensure the shared cache, copy its manifest, and print CLI statistics."""
+    '''
+    Prepare the cache, copy its manifest, and print classification counts.
+
+    Args:
+        library (Path):
+            Library directory containing building_blocks_manifest.csv and XYZ files.
+        output (Path):
+            Directory that receives a copy of the manifest.
+        cache (Path):
+            Directory holding the symmetry CSV manifest and metadata.json.
+        workers (int):
+            Number of classification processes; must be positive. One runs serially.
+        force_rebuild (bool):
+            Reclassify even when a valid cache exists. Defaults to False.
+
+    Returns:
+        The copied manifest Path.
+    '''
 
     result = ensure_cache(
         library,

@@ -5,6 +5,7 @@ It does not optimize substituted structures or establish charge neutrality.
 Topology folder grouping is deliberately a separate post-processing step.
 """
 from __future__ import annotations
+
 import argparse
 from concurrent.futures import ProcessPoolExecutor
 import csv
@@ -25,6 +26,7 @@ from ase.io.cif import parse_cif
 from ase.neighborlist import neighbor_list
 from pymatgen.core import Element
 from threadpoolctl import threadpool_limits
+from mofbb.io.cif import write_cif
 from mofbb.compose import Builder, BuildingBlock, Topology
 from mofbb.compose.framework import Framework
 from mofbb.common.connectivity import validate_3d_connectivity
@@ -101,7 +103,7 @@ def prepare_template(plan, output):
     # Avoid printing inherited chemical-symmetry or optimization claims in derived CIFs.
     clean = Framework(frame.atoms, frame.bonds, frame.bond_types,
                       {'require_3d': True, 'scale': 1.2}, wrap=False, bond_shifts=frame.bond_shifts)
-    clean.write_cif(assets/'parent.cif')
+    write_cif(assets/'parent.cif', clean)
     atoms, bonds, shifts, labels = read_cif(assets/'parent.cif')
     assert np.array_equal(atoms.numbers, frame.atoms.numbers)
     models = [node_model(bonds, indices) for indices in maps]

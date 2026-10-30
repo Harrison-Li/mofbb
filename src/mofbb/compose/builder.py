@@ -1,4 +1,9 @@
-"""Framework composition pipeline."""
+'''
+Build periodic MOFs by placing building blocks on a topology.
+
+Placement assigns X ports, fits the cell and block positions, and joins
+real atoms across each pair of ports.
+'''
 
 import numpy as np
 from pymatgen.core import Element
@@ -19,15 +24,40 @@ from mofbb.compose.scaler import Scaler
 
 
 class Builder:
-    """Assemble building blocks on a topology."""
+    '''
+    Place node and edge building blocks on a periodic net.
+
+    Args:
+        locator (Locator or None):
+            Port alignment helper. If omitted, a new Locator is used.
+    '''
 
     def __init__(self, locator=None):
-        """Store placement helpers, creating defaults when needed."""
+        '''
+        Set up the port alignment and geometry fitting helpers.
+
+        Args:
+            locator (Locator or None):
+                Port alignment helper. If omitted, a new Locator is used.
+        '''
         self.locator = locator if locator is not None else Locator()
         self.scaler = Scaler()
 
     def expand_bbs(self, topology, node_bbs, edge_bbs=None):
-        """Expand type-keyed blocks into independent per-slot copies."""
+        '''
+        Copy each template into the topology slots that use its type.
+
+        Args:
+            topology (Topology):
+                Net whose node and edge slots will be filled.
+            node_bbs (dict[int, Node]):
+                Node templates keyed by node type.
+            edge_bbs (dict[tuple[int, int], Edge] or None):
+                Optional edge templates keyed by endpoint node types.
+
+        Returns:
+            A list of independent blocks in slot order, with None for unfilled edges.
+        '''
         bbs = [None] * topology.n_slots
 
         for i in topology.node_idx:
@@ -46,10 +76,16 @@ class Builder:
 
     @staticmethod
     def get_block_type(block):
-        """Return the explicit role, or None for a generic BuildingBlock.
+        '''
+        Read the explicit role of a building block.
 
-        Port count alone cannot distinguish an edge from a two-connected node.
-        """
+        Args:
+            block (BuildingBlock):
+                Block to check; the number of ports does not determine its role.
+
+        Returns:
+            "node" for Node, "edge" for Edge, or None for a generic BuildingBlock.
+        '''
         if isinstance(block, Edge):
             return "edge"
         if isinstance(block, Node):
@@ -72,18 +108,41 @@ class Builder:
         strict_symmetry=False,
         require_3d=True,
     ):
-        """Assign ports, jointly fit rigid geometry, and assemble the framework.
+        '''
+        Place building blocks on a topology and join their connection atoms.
 
-        Supply ``node_bbs`` keyed by topology node type and optional ``edge_bbs``
-        keyed by endpoint node types. Each block is copied into matching slots.
+        Args:
+            topology (Topology):
+                Periodic net that defines the slots and their connections.
+            node_bbs (dict[int, Node]):
+                Node templates keyed by topology node type.
+            edge_bbs (dict[tuple[int, int], Edge] or None):
+                Optional edge templates keyed by endpoint node types. Missing edges join
+                nodes directly.
+            perms (dict[int, array-like] or None):
+                Port mappings by slot, with perm[target] = source. Defaults to stored
+                topology mappings.
+            n_angles (int):
+                Samples per Euler-angle axis, with a minimum of four. Up to five ports
+                use all permutations.
+            wrap (bool):
+                Whether to wrap the final atoms into the unit cell.
+            port_tol (float):
+                Largest allowed gap between paired X ports, in angstroms.
+            bond_scale (float):
+                Multiplier for summed covalent radii when checking bond lengths.
+            overlap_scale (float):
+                Multiplier for summed covalent radii when checking atomic overlaps.
+            sym_tol (float):
+                Site-symmetry fitting tolerance, in angstroms.
+            strict_symmetry (bool):
+                Whether to reject blocks that cannot keep the required site symmetry.
+            require_3d (bool):
+                Whether to require three-dimensional periodic connectivity.
 
-        ``perms`` maps slots to port assignments: ``perm[target] = source``.
-        ``n_angles`` samples each Euler-angle axis, with a minimum of four;
-        blocks with at most five ports use exhaustive permutations instead.
-        ``port_tol`` is the maximum paired-port gap in angstroms.
-        ``bond_scale`` multiplies summed covalent radii for bond cutoffs;
-        ``sym_tol`` is the site-symmetry compatibility tolerance in angstroms.
-        """
+        Returns:
+            A Framework containing atoms, periodic bonds, and placement diagnostics.
+        '''
         bbs = self.expand_bbs(topology, node_bbs, edge_bbs)
         return self._build_from_slots(
             topology,

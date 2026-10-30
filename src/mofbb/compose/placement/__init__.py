@@ -1,1 +1,3 @@
-"""Port assignment, symmetry constraints, and rigid-block placement."""
+'''
+Port assignment, symmetry constraints, and rigid-block placement.
+'''

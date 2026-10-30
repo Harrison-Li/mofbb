@@ -45,6 +45,12 @@ class ConnectionPortAssigner:
         }
 
     def assign(self) -> None:
+        '''
+        Assign connection ports and update each fragment topology role in place.
+
+        Organic fragments with two logical ports become topology edges; those
+        with more than two become organic nodes.
+        '''
         for fragment in self.fragments:
             fragment.connection_ports = self.ports_for_fragment(fragment)
             fragment.topology_kind = fragment.kind
@@ -59,6 +65,17 @@ class ConnectionPortAssigner:
         self,
         fragment: Fragment,
     ) -> tuple[ConnectionPort, ...]:
+        '''
+        Group dummy sites that connect to the same neighboring fragment image.
+
+        Args:
+            fragment (Fragment):
+                Fragment whose sites should be grouped.
+
+        Returns:
+            ConnectionPort records with sorted local dummy indices and zero-based port
+            IDs.
+        '''
         grouped_x_indices: dict[tuple[str, int, tuple[int, int, int]], list[int]] = (
             defaultdict(list)
         )

@@ -1,12 +1,11 @@
-"""Assembled framework model and CIF writer."""
+'''
+Store assembled atoms and bonds, including their periodic images.
+'''
 
 import copy
-from pathlib import Path
 
 import numpy as np
-from ase.cell import Cell
 
-from mofbb.io.cif import write_bonded_cif
 
 from mofbb.common.connectivity import (
     bond_arrays,
@@ -16,10 +15,44 @@ from mofbb.common.connectivity import (
 
 
 class Framework:
-    """Hold a fully assembled periodic framework and write it to CIF."""
+    '''
+    Keep the geometry, periodic bonds, and metadata of an assembled MOF.
+
+    Args:
+        atoms (ase.Atoms):
+            Atomic coordinates and periodic unit cell.
+        bonds (array-like):
+            An (n_bonds, 2) array of atom-index pairs.
+        bond_types (sequence[str]):
+            One bond-order label per bond.
+        info (dict):
+            Assembly metadata and validation settings.
+        wrap (bool):
+            Whether to wrap atoms into the unit cell on construction.
+        bond_shifts (array-like or None):
+            An (n_bonds, 3) array of integer images of the second atom relative to the
+            first. If omitted, use minimum-image shifts.
+    '''
 
     def __init__(self, atoms, bonds, bond_types, info, wrap=True, *, bond_shifts=None):
-        """Store copies of the geometry, bonds, and metadata."""
+        '''
+        Copy the supplied structure and bond data into a framework.
+
+        Args:
+            atoms (ase.Atoms):
+                Atomic coordinates and periodic unit cell.
+            bonds (array-like):
+                An (n_bonds, 2) array of atom-index pairs.
+            bond_types (sequence[str]):
+                One bond-order label per bond.
+            info (dict):
+                Assembly metadata and validation settings.
+            wrap (bool):
+                Whether to wrap atoms into the unit cell on construction.
+            bond_shifts (array-like or None):
+                An (n_bonds, 3) array of integer images of the second atom relative to
+                the first. If omitted, use minimum-image shifts.
+        '''
         self.atoms = atoms.copy()
         if bond_shifts is None:
             bond_shifts = mic_shifts(atoms, bonds)
@@ -33,7 +66,12 @@ class Framework:
             self.wrap()
 
     def wrap(self):
-        """Fold atoms into ``[0, 1)`` using only lattice translations."""
+        '''
+        Move atoms into the unit cell and update their bond image shifts.
+
+        Coordinates and bond shifts are changed in place so each bond still
+        connects the same periodic images.
+        '''
 
         scaled = self.atoms.get_scaled_positions(wrap=False)
         images = np.floor(scaled).astype(int)
@@ -41,7 +79,12 @@ class Framework:
         self.atoms.set_scaled_positions(scaled - images)
 
     def validate_3d(self):
-        """Check current coordinates against the intended periodic bond graph."""
+        '''
+        Check the framework geometry against its periodic bond graph.
+
+        Returns:
+            A dictionary of connectivity diagnostics, also added to self.info.
+        '''
         quality = validate_3d_connectivity(
             self.atoms,
             self.bonds,
@@ -50,40 +93,3 @@ class Framework:
         )
         self.info.update(quality)
         return quality
-
-    def write_cif(self, filename: str | Path) -> Path:
-        """Write the framework to a CIF file."""
-        path = Path(filename).resolve()
-        if path.suffix != ".cif":
-            path = path.with_suffix(".cif")
-
-        # Check the serialized geometry: rounding must not break a bridge.
-        cell_parameters = np.round(self.atoms.cell.cellpar(), 3)
-        cell = np.asarray(Cell.fromcellpar(cell_parameters))
-        rounded = np.round(self.atoms.get_scaled_positions(wrap=False), 10)
-        frac_coords = np.mod(rounded, 1.0)
-        atom_images = np.rint(rounded - frac_coords).astype(int)
-        left, right = self.bonds.T
-        shifts = (
-            self.bond_shifts
-            + atom_images[right]
-            - atom_images[left]
-        )
-        images = shifts + 5  # CIF encodes the zero image as 555.
-        if np.any((images < 0) | (images > 9)):
-            raise ValueError("Bond image cannot be represented by a CIF 1_abc code.")
-        if self.info.get("require_3d", False):
-            serialized = self.atoms.copy()
-            serialized.set_cell(cell)
-            serialized.set_scaled_positions(frac_coords)
-            self.info.update(
-                validate_3d_connectivity(
-                    serialized, self.bonds, shifts,
-                    bond_scale=self.info.get("scale", 1.2),
-                )
-            )
-
-        return write_bonded_cif(
-            path, self.atoms, self.bonds, self.bond_types, self.info,
-            cell_parameters, cell, frac_coords, shifts,
-        )

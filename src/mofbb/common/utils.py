@@ -1,3 +1,7 @@
+'''
+Coordinate helpers and SMILES-to-XYZ conversion.
+'''
+
 import os
 from collections.abc import Iterable
 
@@ -11,7 +15,23 @@ def minimum_image_delta(
     start: np.ndarray,
     end: np.ndarray,
 ) -> np.ndarray:
-    """Return the minimum-image Cartesian vector from ``start`` to ``end``."""
+    '''
+    Wrap a displacement into the central fractional cell.
+
+    Fractional components are rounded independently. For a skewed cell, this
+    need not be the shortest Cartesian image vector.
+
+    Args:
+        cell (numpy.ndarray):
+            (3, 3) cell matrix with lattice vectors as rows.
+        start (numpy.ndarray):
+            (3,) Cartesian starting position.
+        end (numpy.ndarray):
+            (3,) Cartesian ending position in the same units as cell.
+
+    Returns:
+        A (3,) Cartesian displacement. For a singular cell, return end - start.
+    '''
 
     cell = np.asarray(cell, dtype=float)
     start = np.asarray(start, dtype=float)
@@ -24,7 +44,18 @@ def minimum_image_delta(
 
 
 def cart_to_frac(cell: np.ndarray, cart: np.ndarray) -> np.ndarray:
-    """Convert Cartesian coordinates to fractional coordinates."""
+    '''
+    Convert a Cartesian vector to fractional coordinates.
+
+    Args:
+        cell (numpy.ndarray):
+            (3, 3) cell matrix with lattice vectors as rows.
+        cart (numpy.ndarray):
+            (3,) Cartesian vector in the same units as cell.
+
+    Returns:
+        A (3,) fractional vector, or a copy of cart when the cell is singular.
+    '''
 
     cell = np.asarray(cell, dtype=float)
     cart = np.asarray(cart, dtype=float)
@@ -36,7 +67,19 @@ def cart_to_frac(cell: np.ndarray, cart: np.ndarray) -> np.ndarray:
 def unwrap_fractional_near(
     frac_position: Iterable[float], reference_frac: Iterable[float]
 ) -> tuple[float, float, float]:
-    """Translate ``frac_position`` to the periodic image nearest ``reference_frac``."""
+    '''
+    Shift a fractional position to the central image around a reference.
+
+    Args:
+        frac_position (iterable of float):
+            Three fractional coordinates to shift.
+        reference_frac (iterable of float):
+            Three fractional coordinates defining the reference image.
+
+    Returns:
+        A three-float tuple whose displacement from the reference lies within
+        half a cell along each fractional axis.
+    '''
 
     frac = np.array(tuple(frac_position), dtype=float)
     reference = np.array(tuple(reference_frac), dtype=float)
@@ -44,7 +87,18 @@ def unwrap_fractional_near(
 
 
 def center_positions(positions: np.ndarray, cell: np.ndarray) -> np.ndarray:
-    """Move a fragment centroid to the center of the unit cell."""
+    '''
+    Translate positions so their centroid lies at the unit-cell center.
+
+    Args:
+        positions (numpy.ndarray):
+            (n, 3) Cartesian positions.
+        cell (numpy.ndarray):
+            (3, 3) cell matrix in the same units, with lattice vectors as rows.
+
+    Returns:
+        An (n, 3) translated array. Empty input is returned unchanged.
+    '''
 
     if len(positions) == 0:
         return positions
@@ -54,7 +108,18 @@ def center_positions(positions: np.ndarray, cell: np.ndarray) -> np.ndarray:
 
 
 def wrap_frac(values, tolerance=1.0e-12):
-    """Return canonical fractional coordinates in the interval ``[0, 1)``."""
+    '''
+    Wrap fractional coordinates into [0, 1), snapping cell boundaries to zero.
+
+    Args:
+        values (array-like):
+            Fractional coordinates of any shape.
+        tolerance (float):
+            Absolute tolerance for treating a wrapped value as a cell boundary.
+
+    Returns:
+        A NumPy array with the same shape as values.
+    '''
 
     wrapped = np.mod(values, 1.0)
     on_boundary = np.isclose(wrapped, 0.0, atol=tolerance, rtol=0.0) | np.isclose(
@@ -67,6 +132,23 @@ def wrap_frac(values, tolerance=1.0e-12):
 
 
 def smiles_to_xyz(smiles, out_xyz, random_seed=42):
+    '''
+    Build a hydrogen-complete 3D molecule from SMILES and save an XYZ file.
+
+    Embedding uses ETKDG, followed by UFF optimization with an MMFF fallback.
+    If both optimizers fail, the embedded coordinates are still written.
+
+    Args:
+        smiles (str):
+            Molecule in SMILES notation.
+        out_xyz (str or path-like):
+            Output XYZ path. Parent directories are created if needed.
+        random_seed (int):
+            Seed for the first embedding attempt; the fallback uses RDKit defaults.
+
+    Returns:
+        The supplied output path. Invalid SMILES or failed embedding raises an error.
+    '''
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         raise ValueError(f"Could not parse SMILES: {smiles}")

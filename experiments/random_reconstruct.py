@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+
 import argparse
 import csv
 import gzip
@@ -23,6 +24,7 @@ import ase.neighborlist
 import numpy as np
 from pymatgen.core import Structure
 
+from mofbb.io.cif import write_cif
 from mofbb.compose import Builder, BuildingBlock, Topology
 from mofbb.compose.log import logger
 
@@ -336,7 +338,7 @@ def build_one(
             f"{MIN_ATOM_DISTANCE:.3f} Å"
         )
 
-    framework.write_cif(cif_path)
+    write_cif(cif_path, framework)
     if not cif_path.is_file():
         raise ValueError("framework CIF writer did not produce a file")
     structure = Structure.from_file(cif_path, primitive=False)

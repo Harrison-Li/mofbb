@@ -11,6 +11,16 @@ from mofbb.common.linkers import validate_single_linker
 
 
 def main(argv=None):
+    '''
+    Check CIF connectivity and print one JSON result per file.
+
+    Args:
+        argv (list[str] or None):
+            Command-line arguments. If None, read the process arguments.
+
+    Returns:
+        Exit code 0 if every structure passes, or 1 if any structure fails.
+    '''
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("cifs", nargs="+", type=Path)
     parser.add_argument("--bond-scale", type=float, default=1.2)

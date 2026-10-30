@@ -26,7 +26,12 @@ from mofbb.decompose.constants import is_metal
 
 @dataclass(frozen=True)
 class BondNetwork:
-    """Undirected minimum-image bond graph for an ASE structure."""
+    '''
+    Store undirected bonds, their vectors, and optional bond types.
+
+    Vector keys are atom pairs in increasing index order. Each vector points
+    from the lower index to the chosen image of the higher index.
+    '''
 
     adjacency: tuple[frozenset[int], ...]
     vectors: dict[tuple[int, int], np.ndarray]
@@ -37,16 +42,51 @@ class BondNetwork:
         return sorted(self.vectors)
 
     def vector(self, i: int, j: int) -> np.ndarray:
+        '''
+        Get the directed bond vector from atom i to atom j.
+
+        Args:
+            i (int):
+                Source atom index.
+            j (int):
+                Bonded neighbor index.
+
+        Returns:
+            A (3,) Cartesian vector in angstroms, including the stored periodic image.
+        '''
         if i < j:
             return self.vectors[(i, j)]
         return -self.vectors[(j, i)]
 
     def bond_type(self, i: int, j: int) -> str:
+        '''
+        Look up a bond type without requiring ordered atom indices.
+
+        Args:
+            i (int):
+                First atom index.
+            j (int):
+                Second atom index.
+
+        Returns:
+            The stored bond type, or "S" when no type was recorded.
+        '''
         return self.bond_types.get(tuple(sorted((i, j))), "S")
 
 
 def build_bond_network(atoms: ase.Atoms, scale: float = 1.2) -> BondNetwork:
-    """Build a minimum-image bond graph from covalent cutoffs."""
+    '''
+    Infer bonds from covalent radii and keep the shortest image of each pair.
+
+    Args:
+        atoms (ase.Atoms):
+            Atoms and periodic cell to search.
+        scale (float):
+            Multiplier for covalent radii; metal-metal contacts use unscaled radii.
+
+    Returns:
+        A BondNetwork after repairs for common spurious contacts and missing bonds.
+    '''
 
     base_cutoffs = natural_cutoffs(atoms)
     cutoffs = [scale * cutoff for cutoff in base_cutoffs]
@@ -91,7 +131,18 @@ def build_bond_network_from_cif(
     cif: str | Path,
     atoms: ase.Atoms,
 ) -> BondNetwork | None:
-    """Build a bond graph from a CIF ``_geom_bond`` loop when present."""
+    '''
+    Read explicit bonds from a CIF geometry bond loop.
+
+    Args:
+        cif (str or Path):
+            CIF containing atom labels and optional bond records.
+        atoms (ase.Atoms):
+            Parsed atoms, in the same order as the CIF atom rows.
+
+    Returns:
+        A BondNetwork, or None if no usable bond loop or one-to-one atom mapping exists.
+    '''
 
     loops = list(cif_loops(Path(cif)))
     label_to_index = atom_label_to_index(loops)
@@ -172,7 +223,20 @@ def read_bonded_structure(
     scale: float = 1.2,
     cleanup: bool = True,
 ) -> tuple[ase.Atoms, BondNetwork]:
-    """Read a CIF and return atoms with the best available bond graph."""
+    '''
+    Read a CIF, using explicit bonds when available and distance cutoffs otherwise.
+
+    Args:
+        cif (str or Path):
+            Input CIF path.
+        scale (float):
+            Covalent-radius multiplier used when inferring bonds.
+        cleanup (bool):
+            Keep only the largest connected component when True.
+
+    Returns:
+        The atoms with wrapped fractional positions and their matching BondNetwork.
+    '''
 
     atoms = read_atoms(cif)
     bonds = build_bond_network_from_cif(cif, atoms)
@@ -197,7 +261,21 @@ def subset_bonded_structure(
     bonds: BondNetwork,
     indices: Iterable[int],
 ) -> tuple[ase.Atoms, BondNetwork, tuple[int, ...]]:
-    """Return an ordered atom subset with its reindexed bond graph."""
+    '''
+    Select atoms and renumber the bonds to match their new order.
+
+    Args:
+        atoms (ase.Atoms):
+            Source structure.
+        bonds (BondNetwork):
+            Bond graph for the source structure.
+        indices (Iterable[int]):
+            Unique source indices in the desired output order.
+
+    Returns:
+        The selected atoms, their bond graph, and a tuple mapping new indices to source
+        indices.
+    '''
 
     selected_to_original = tuple(int(index) for index in indices)
     if len(set(selected_to_original)) != len(selected_to_original):
@@ -235,7 +313,19 @@ def largest_connected_component_with_bonds(
     atoms: ase.Atoms,
     bonds: BondNetwork,
 ) -> tuple[ase.Atoms, BondNetwork]:
-    """Return the largest bonded component and a reindexed bond graph."""
+    '''
+    Keep the largest bonded group and discard disconnected components.
+
+    Args:
+        atoms (ase.Atoms):
+            Source structure.
+        bonds (BondNetwork):
+            Bond graph for the source structure.
+
+    Returns:
+        The retained atoms and reindexed bonds. Returns the inputs if no split is
+        needed.
+    '''
 
     graph = nx.Graph()
     graph.add_nodes_from(range(len(atoms)))

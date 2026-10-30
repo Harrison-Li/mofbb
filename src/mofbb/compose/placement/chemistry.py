@@ -1,4 +1,6 @@
-"""Choose and validate chemically compatible port permutations."""
+'''
+Choose and validate chemically compatible port permutations.
+'''
 
 from __future__ import annotations
 
@@ -11,7 +13,9 @@ from mofbb.common.matching import BuildingBlockGraph, compare_building_blocks
 
 
 class BBGroups:
-    """Compare the rigid templates assigned within one symmetry orbit."""
+    '''
+    Compare the rigid templates assigned within one symmetry orbit.
+    '''
 
     def __init__(self, blocks, symmetry, fixed_perms):
         self.blocks = blocks
@@ -20,6 +24,19 @@ class BBGroups:
 
     @cache
     def same(self, left, right):
+        '''
+        Check whether two blocks describe the same rigid template.
+
+        Args:
+            left (BuildingBlock or None):
+                First block or empty slot.
+            right (BuildingBlock or None):
+                Second block or empty slot.
+
+        Returns:
+            True if the blocks agree in connectivity, ports, charge, and geometry after
+            a proper rotation. Two empty slots also match.
+        '''
         if left is right or left is None or right is None:
             return left is right
         if (
@@ -62,6 +79,16 @@ class BBGroups:
         return bool(np.max(error, initial=0) <= 1.0e-6)
 
     def one(self, orbit):
+        '''
+        Check whether every slot in an orbit uses the same rigid template.
+
+        Args:
+            orbit (SlotOrbit):
+                Orbit whose assigned blocks will be compared.
+
+        Returns:
+            True when all member blocks match the representative, including empty slots.
+        '''
         representative = self.blocks[orbit.representative]
         return all(
             self.same(representative, self.blocks[member])
@@ -69,6 +96,17 @@ class BBGroups:
         )
 
     def perm(self, orbit):
+        '''
+        Carry a fixed member port mapping back to the orbit representative.
+
+        Args:
+            orbit (SlotOrbit):
+                Orbit to search for a fixed mapping.
+
+        Returns:
+            The representative mapping derived from the lowest-index fixed member, or
+            None if no member is fixed.
+        '''
         source = min(
             (member for member in orbit.members if member in self.fixed_perms),
             default=None,
@@ -79,7 +117,9 @@ class BBGroups:
 
 
 class PortRules:
-    """Centralize chemistry checks for port assignment and rigid-block placement."""
+    '''
+    Centralize chemistry checks for port assignment and rigid-block placement.
+    '''
 
     def __init__(
         self,
@@ -100,7 +140,9 @@ class PortRules:
         self.groups = groups
 
     def pref(self, edge):
-        """Return a deterministic preferred orientation for an edge slot."""
+        '''
+        Return a deterministic preferred orientation for an edge slot.
+        '''
         near, far = self.topology.neighbor_list[edge]
         forward = (
             self.topology.node_types[near.index]
@@ -109,7 +151,19 @@ class PortRules:
         return np.array([0, 1] if forward else [1, 0])
 
     def node_mask(self, node, edge_perms):
-        """Return a target/source feasibility mask for one node slot."""
+        '''
+        Find chemically allowed source ports for each node connection.
+
+        Args:
+            node (int):
+                Node slot index.
+            edge_perms (dict):
+                Endpoint mappings for occupied edge slots.
+
+        Returns:
+            A target-by-source Boolean mask and the first forbidden element pair found,
+            or None.
+        '''
         src_symbols = self.blocks[node].conn_symbols
         neighbors = self.topology.neighbor_list[node]
         allowed = np.ones((len(neighbors), len(src_symbols)), dtype=bool)
@@ -158,7 +212,13 @@ class PortRules:
         return allowed, bad_pair
 
     def choose(self):
-        """Choose edge orientations jointly with all node port assignments."""
+        '''
+        Choose edge endpoint mappings that allow the node ports to connect.
+
+        Returns:
+            A dictionary of edge port mappings. Feasible choices are ranked by summed
+            node direction RMSD; raises ValueError if none are feasible.
+        '''
         fixed_perms, choices = self._options()
         if not choices:
             return fixed_perms
@@ -180,7 +240,9 @@ class PortRules:
         return best[1]
 
     def edge_ok(self, edge, perm, placed, perms):
-        """Return whether an edge orientation avoids forbidden fused pairs."""
+        '''
+        Return whether an edge orientation avoids forbidden fused pairs.
+        '''
         block = self.blocks[edge]
         if block is None:
             return True
@@ -208,7 +270,9 @@ class PortRules:
         )
 
     def edge_perm(self, edge, chosen, placed, perms):
-        """Return the first compatible preferred edge orientation."""
+        '''
+        Return the first compatible preferred edge orientation.
+        '''
         pref = chosen.get(edge, self.pref(edge))
         for perm in (pref, pref[::-1]):
             if self.edge_ok(edge, perm, placed, perms):
@@ -297,7 +361,7 @@ class PortRules:
                 if not self.locator.has_compatible_permutation(allowed):
                     return None
                 cache[key] = self.locator.locate(
-                    self.topology.local_structure(node),
+                    self.topology.connection_directions(node),
                     self.blocks[node],
                     allowed=allowed,
                 )[2]

@@ -1,1 +1,3 @@
-"""CGD topology parsing and serialization."""
+'''
+CGD topology parsing and serialization.
+'''

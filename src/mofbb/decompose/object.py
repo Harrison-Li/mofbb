@@ -16,7 +16,7 @@ from mofbb.decompose.constants import is_metal
 
 @dataclass
 class Site:
-    """A node or linker atom group in a collapsed connectivity graph."""
+    """A node or ligand atom group in a collapsed connectivity graph."""
 
     role: Literal["node", "linker"]
     atom_indices: set[int]
@@ -33,7 +33,12 @@ class Edge:
 
 @dataclass(frozen=True)
 class XSite:
-    """One dummy connection site on a capped fragment."""
+    '''
+    Record one dummy atom and the source bond it replaces.
+
+    x_index and anchor_index use fragment-local indices. The source indices
+    and integer cell shifts identify the two ends of the original cut bond.
+    '''
 
     x_index: int
     anchor_index: int
@@ -55,6 +60,13 @@ class ConnectionPort:
     translation: tuple[int, int, int]
 
     def as_dict(self) -> dict[str, object]:
+        '''
+        Convert this port to JSON-compatible values.
+
+        Returns:
+            A dictionary with the port ID, dummy atom indices, neighbor, and cell
+            translation.
+        '''
         return {
             "logical_port_id": self.logical_port_id,
             "x_indices": list(self.x_indices),
@@ -66,7 +78,12 @@ class ConnectionPort:
 
 @dataclass
 class Fragment:
-    """One capped node or linker building-block fragment."""
+    '''
+    Store a capped building block and its links back to the source crystal.
+
+    Atom indices in bonds and x_sites refer to the local atoms object.
+    source_indices and source_image_offsets refer to the input structure.
+    '''
 
     kind: str
     index: int
@@ -103,12 +120,13 @@ class Fragment:
         ]
 
     def identify_kind(self) -> str:
-        """Infer the physical kind from real elements and physical X sites.
+        '''
+        Infer the fragment role without changing its assigned kind.
 
-        Return ``metal_node`` for metal-containing fragments, otherwise ``edge``
-        for two X sites and ``organic_node`` for other counts. This does not
-        overwrite the assigned kind or perform connection-port classification.
-        """
+        Returns:
+            "metal_node" if a real atom is a metal, otherwise "edge" for two dummy
+            sites or "organic_node" for any other number of dummy sites.
+        '''
         x_indices = set(self._x_indices())
         if any(
             is_metal(symbol)
@@ -119,7 +137,13 @@ class Fragment:
         return "edge" if len(x_indices) == 2 else "organic_node"
 
     def get_bb_centroid(self) -> np.ndarray:
-        """Return the real-atom centroid in local Cartesian coordinates (angstroms)."""
+        '''
+        Find the mean position of the real atoms, excluding dummy connection atoms.
+
+        Returns:
+            A (3,) array of local Cartesian coordinates in angstroms. Raises ValueError
+            if the fragment has no real atoms.
+        '''
         x_indices = set(self._x_indices())
         indices = [i for i in range(len(self.atoms)) if i not in x_indices]
         if not indices:
@@ -127,20 +151,35 @@ class Fragment:
         return self.atoms.positions[indices].mean(axis=0)
 
     def get_x_centroid(self) -> np.ndarray:
-        """Return the local Cartesian X centroid (angstroms), or real-atom centroid."""
+        '''
+        Find the mean position of the dummy connection atoms.
+
+        Returns:
+            A (3,) array of local Cartesian coordinates in angstroms. Uses the real-atom
+            centroid if there are no dummy atoms.
+        '''
         indices = self._x_indices()
         if not indices:
             return self.get_bb_centroid()
         return self.atoms.positions[indices].mean(axis=0)
 
     def write_xyz(self, path: Path) -> Path:
-        """Write a PORMAKE-readable extended XYZ file and return its path."""
+        '''
+        Write the capped fragment as an extended XYZ building block.
+
+        Args:
+            path (Path):
+                Destination file for the atoms and local bond records.
+
+        Returns:
+            The path of the written file.
+        '''
         return write_bb_xyz(path, self.atoms, self.bonds)
 
 
 @dataclass(frozen=True)
 class TopologyVertex:
-    """One collapsed node or linker vertex in the CGD topology."""
+    """One collapsed fragment vertex in the CGD topology."""
 
     kind: str
     index: int

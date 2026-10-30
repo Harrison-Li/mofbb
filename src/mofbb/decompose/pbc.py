@@ -19,7 +19,19 @@ class PeriodicCutSelection:
 
 
 def periodic_bonds(atoms: Atoms, bonds: BondNetwork) -> tuple[PeriodicBond, ...]:
-    """Return source bonds annotated with integer cell translations."""
+    '''
+    Recover the cell translation carried by each stored bond vector.
+
+    Args:
+        atoms (ase.Atoms):
+            Source positions, cell, and periodic-axis flags.
+        bonds (BondNetwork):
+            Bond graph whose vectors include the chosen neighbor images.
+
+    Returns:
+        PeriodicBond records in sorted atom-pair order. Nonperiodic axes have zero
+        shift.
+    '''
 
     periodic_axes = np.asarray(atoms.pbc, dtype=bool)
     inverse_cell = (

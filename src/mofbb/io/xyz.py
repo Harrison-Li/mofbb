@@ -1,4 +1,6 @@
-"""Building-block XYZ files with appended bond records."""
+'''
+Building-block XYZ files with appended bond records.
+'''
 
 from collections.abc import Iterable
 from pathlib import Path
@@ -8,7 +10,17 @@ import numpy as np
 
 
 def read_bb_xyz(bb_file: str | Path) -> ase.Atoms:
-    """Parse a building-block ``.xyz`` file into an :class:`ase.Atoms`."""
+    '''
+    Read atom coordinates and appended bonds from a building-block XYZ file.
+
+    Args:
+        bb_file (str or Path):
+            Input XYZ file; optional fifth atom columns hold partial charges.
+
+    Returns:
+        An ase.Atoms object with X-port indices, the file stem, bond pairs, and
+        bond labels in info. Missing bond records are stored as None.
+    '''
     path = Path(bb_file)
     lines = path.read_text(encoding="utf-8").splitlines()
     n_atoms = int(lines[0])
@@ -43,7 +55,20 @@ def write_bb_xyz(
     atoms: ase.Atoms,
     bonds: Iterable[tuple[int, int, str]],
 ) -> Path:
-    """Write coordinates, dummy-atom indices, and appended bond records."""
+    '''
+    Write a building block as XYZ coordinates followed by bond records.
+
+    Args:
+        path (Path):
+            Output file. Parent directories are created if needed.
+        atoms (ase.Atoms):
+            Atoms to write, with Cartesian positions in angstroms.
+        bonds (iterable of (int, int, str)):
+            Zero-based atom pairs and their bond labels, in output order.
+
+    Returns:
+        The output Path. Atom charges are not written.
+    '''
     path.parent.mkdir(parents=True, exist_ok=True)
     symbols = atoms.get_chemical_symbols()
     x_indices = [str(i) for i, symbol in enumerate(symbols) if symbol == "X"]

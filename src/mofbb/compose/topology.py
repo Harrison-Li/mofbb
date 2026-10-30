@@ -1,4 +1,6 @@
-"""Periodic topology model."""
+'''
+Read a CGD net and describe its periodic node and edge slots.
+'''
 import copy
 from functools import cached_property
 
@@ -6,15 +8,27 @@ import numpy as np
 
 from mofbb.io.cgd.reader import CgdReader
 from mofbb.common.connectivity import periodic_components
-from mofbb.compose.local_structure import LocalStructure
+from mofbb.common.geometry import normalize_directions
 from mofbb.compose.neighbor import NeighborList
 
 
 class Topology:
-    """Represent the slots, cell, types, and connectivity of a CGD net."""
+    '''
+    Read a CGD topology and check its declared connections.
+
+    Args:
+        cgd_file (str or Path):
+            CGD file containing the unit cell, nodes, and edges.
+    '''
 
     def __init__(self, cgd_file):
-        """Parse ``cgd_file`` and build/validate the net's properties."""
+        '''
+        Read a CGD topology and check its declared connections.
+
+        Args:
+            cgd_file (str or Path):
+                CGD file containing the unit cell, nodes, and edges.
+        '''
         self.atoms = CgdReader(cgd_file).read()
         self.update_properties()
 
@@ -85,13 +99,35 @@ class Topology:
             )
 
     def find_avail_bbs(self, library, *, max_rmsd=0.1, n_angles=4):
-        """List geometric library candidates; see compatibility.find_avail_bbs."""
+        '''
+        Find library blocks whose port geometry fits this topology.
+
+        A candidate must fit every slot of at least one type. Assembly still
+        needs to check symmetry, bond lengths, chemistry, and atomic overlaps.
+
+        Args:
+            library (str or Path):
+                Library directory containing node/ and edge/ XYZ files.
+            max_rmsd (float):
+                Largest allowed RMSD between unit port directions; dimensionless.
+            n_angles (int):
+                Samples per Euler-angle axis when searching blocks with more than five
+                ports.
+
+        Returns:
+            A dictionary of absolute XYZ paths under m_nodes, o_nodes, and edges.
+        '''
         from mofbb.compose.compatibility import find_avail_bbs
 
         return find_avail_bbs(self, library, max_rmsd=max_rmsd, n_angles=n_angles)
 
     def copy(self):
-        """Return a deep, independent copy of this topology."""
+        '''
+        Copy the topology and its stored geometry.
+
+        Returns:
+            An independent Topology, including copies of its nested data.
+        '''
         return copy.deepcopy(self)
 
     def calculate_properties(self):
@@ -112,15 +148,19 @@ class Topology:
             for kind in self.unique_node_types
         ])
 
-    def local_structure(self, i):
-        """Return the normalized neighbor directions around slot ``i``."""
-        indices = []
-        positions = []
-        for n in self.neighbor_list[i]:
-            indices.append(n.index)
-            positions.append(n.distance_vector)
+    def connection_directions(self, i: int) -> np.ndarray:
+        '''
+        Calculate the unit connection vectors for a topology slot.
 
-        return LocalStructure(positions, indices)
+        Args:
+            i (int):
+                Slot index in the topology.
+
+        Returns:
+            A (cn[i], 3) array of unit vectors in neighbor-list order.
+        '''
+        positions = np.array([n.distance_vector for n in self.neighbor_list[i]])
+        return normalize_directions(positions)
 
     @property
     def unique_node_types(self):

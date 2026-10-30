@@ -1,4 +1,6 @@
-"""Exact reconstruction from a decomposition output directory."""
+'''
+Rebuild source structures or load grouped blocks from decomposition files.
+'''
 
 from __future__ import annotations
 
@@ -18,14 +20,38 @@ from mofbb.common.utils import wrap_frac
 
 
 class Reconstructor:
-    """Rebuild exact source geometry from decomposition artifacts."""
+    '''
+    Locate the files needed to rebuild a decomposed structure.
+
+    Args:
+        decomp_dir (str or Path):
+            Directory containing reconstruction_map.json and the exact fragment XYZ
+            files.
+    '''
 
     def __init__(self, decomp_dir: str | Path) -> None:
+        '''
+        Locate the files needed to rebuild a decomposed structure.
+
+        Args:
+            decomp_dir (str or Path):
+                Directory containing reconstruction_map.json and the exact fragment XYZ
+                files.
+        '''
         self.decomp_dir = Path(decomp_dir)
         self.map_path = self.decomp_dir / "reconstruction_map.json"
 
     def reconstruct(self) -> Framework:
-        """Return the reconstructed periodic framework."""
+        '''
+        Rejoin the saved fragments at their source positions.
+
+        Uses exact fractional positions from the reconstruction map, or CGD
+        node positions when exact positions are absent. Dummy X caps are removed.
+
+        Returns:
+            A periodic Framework with wrapped atoms in source-index order and restored
+            bonds.
+        '''
 
         data = json.loads(self.map_path.read_text(encoding="utf-8"))
         topology = data["topology"]
@@ -154,7 +180,19 @@ class Reconstructor:
 
 @dataclass
 class TopoInput:
-    """Topology and grouped BB templates loaded without reconstruction data."""
+    '''
+    Hold an abstract topology and the grouped building blocks assigned to it.
+
+    Args:
+        topology (Topology):
+            Net loaded from the decomposition output.
+        templates (dict[str, BuildingBlock]):
+            Reusable blocks keyed by building-block group ID.
+        slot_bb_ids (tuple[str or None, ...]):
+            Group ID for each slot; None marks a topology edge without an edge building block.
+        template_paths (dict[str, str]):
+            Template paths relative to the decomposition directory.
+    '''
 
     topology: Topology
     templates: dict[str, BuildingBlock]
@@ -163,7 +201,17 @@ class TopoInput:
 
     @classmethod
     def from_dir(cls, decomp_dir: str | Path):
-        """Read ``topology.cgd`` and grouped BBs from a decomposition directory."""
+        '''
+        Read an abstract topology and its grouped building blocks.
+
+        Args:
+            decomp_dir (str or Path):
+                Directory containing decomposition_summary.json, its CGD topology, and
+                grouped XYZ files.
+
+        Returns:
+            A TopoInput with templates and slot assignments checked against port counts.
+        '''
 
         root = Path(decomp_dir)
         summary = json.loads((root / "decomposition_summary.json").read_text(encoding="utf-8"))
@@ -222,7 +270,12 @@ class TopoInput:
         )
 
     def copy_bbs(self) -> list[BuildingBlock | None]:
-        """Return independent per-slot copies of the grouped templates."""
+        '''
+        Make a separate copy of the assigned template for each slot.
+
+        Returns:
+            A list of BuildingBlock copies in slot order, with None for unfilled edges.
+        '''
 
         return [
             None if bb_id is None else self.templates[bb_id].copy()

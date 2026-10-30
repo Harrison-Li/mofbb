@@ -1,4 +1,6 @@
-"""Discrete port-assignment constraints for joint framework optimization."""
+'''
+Discrete port-assignment constraints for joint framework optimization.
+'''
 
 from __future__ import annotations
 
@@ -8,7 +10,21 @@ from scipy.sparse import coo_matrix
 
 
 def connection_residuals(vectors, spans, direct):
-    """Return port errors after eliminating independent rigid linker poses."""
+    '''
+    Measure connection errors without fitting separate edge poses.
+
+    Args:
+        vectors (numpy.ndarray):
+            An (n, 3) array of vectors between matched node ports, in angstroms.
+        spans (numpy.ndarray):
+            An (n,) array of edge port-to-port lengths in angstroms.
+        direct (numpy.ndarray):
+            An (n,) Boolean mask for topology edges with no edge building block.
+
+    Returns:
+        A flat residual array: edge length errors divided by sqrt(2), followed by
+        Cartesian gaps for direct connections.
+    '''
     return np.concatenate([
         (np.linalg.norm(vectors[~direct], axis=1) - spans[~direct]) / np.sqrt(2.0),
         vectors[direct].ravel(),
@@ -36,13 +52,28 @@ def _variables(shapes, count=0):
 
 
 class Constraints:
-    """Build sparse bounded constraints for binary port assignments."""
+    '''
+    Build sparse bounded constraints for binary port assignments.
+    '''
 
     def __init__(self):
         self.rows, self.columns, self.values = [], [], []
         self.lower, self.upper = [], []
 
     def add(self, indices, coefficients, minimum, maximum):
+        '''
+        Append one bounded linear constraint.
+
+        Args:
+            indices (sequence):
+                Variable indices in this row.
+            coefficients (sequence):
+                Coefficient for each selected variable.
+            minimum (float):
+                Lower bound for the weighted sum.
+            maximum (float):
+                Upper bound for the weighted sum.
+        '''
         row = len(self.lower)
         self.rows.extend([row] * len(indices))
         self.columns.extend(indices)
@@ -51,6 +82,16 @@ class Constraints:
         self.upper.append(maximum)
 
     def scipy(self, count):
+        '''
+        Convert accumulated rows into a SciPy linear constraint.
+
+        Args:
+            count (int):
+                Total number of optimization variables.
+
+        Returns:
+            A scipy.optimize.LinearConstraint backed by a sparse CSR matrix.
+        '''
         matrix = coo_matrix(
             (self.values, (self.rows, self.columns)),
             shape=(len(self.lower), count),
@@ -76,6 +117,21 @@ class Constraints:
 
 
 def solve_binary(costs, bounds, rules):
+    '''
+    Solve a bounded binary port-assignment problem.
+
+    Args:
+        costs (numpy.ndarray):
+            Linear cost for each binary variable.
+        bounds (numpy.ndarray):
+            Upper bounds; set an entry to zero to forbid that variable.
+        rules (Constraints):
+            Sparse linear constraints defining allowed assignments.
+
+    Returns:
+        The scipy.optimize.milp result, including solver status and the candidate
+        solution.
+    '''
     return scipy.optimize.milp(
         costs,
         integrality=np.ones(len(costs)),
@@ -104,11 +160,20 @@ def _edge_endpoint_offsets(topology, edge: int) -> list[tuple[int, int]]:
 
 
 class PortAssignmentSolver:
-    """Optimize compatible ports using the joint node and linker-span loss."""
+    '''
+    Optimize compatible ports using the joint node and edge-span loss.
+    '''
 
     @classmethod
     def initialize(cls, placement):
-        """Place initial blocks and enforce connection chemistry by default."""
+        '''
+        Choose initial poses and repair chemically invalid port assignments.
+
+        Args:
+            placement (BBPlacement):
+                Placement to initialize and update in place. Fixed mappings and declared
+                symmetry are respected.
+        '''
         assignment = placement.assignment
         assignment.run()
         for slot, perm in assignment.fixed_perms.items():
@@ -145,7 +210,7 @@ class PortAssignmentSolver:
         self.connections = self._connections()
         self.allowed = {}
         # Direct-edge chemistry and geometry share the same joint variables.
-        # Linkers also need edge-node variables to constrain endpoint chemistry.
+        # Edges also need edge-node variables to constrain endpoint chemistry.
         self.variable_connections = self.edges + [
             link for link in self.connections if link[0] in placement.topology.edge_idx
         ]
@@ -159,7 +224,7 @@ class PortAssignmentSolver:
                 if np.array_equal(job.perms[node], perms[node]):
                     continue
                 block, _ = job.locator.locate_with_permutation(
-                    job.topology.local_structure(node), job.blocks[node], perms[node]
+                    job.topology.connection_directions(node), job.blocks[node], perms[node]
                 )
                 block.set_centroid(job.topology.atoms.positions[node])
                 if shared:
@@ -179,7 +244,9 @@ class PortAssignmentSolver:
         job.perms[:] = perms
 
     def pair_ok(self, left, x_i, right, x_j):
-        """Return whether two source ports can form a fused bond."""
+        '''
+        Return whether two source ports can form a fused bond.
+        '''
         return self._allowed_pairs(left, right)[x_i, x_j]
 
     def _allowed_pairs(self, left, right):
@@ -192,14 +259,25 @@ class PortAssignmentSolver:
         return self.allowed[left, right]
 
     def valid(self, perms):
-        """Return whether every selected port pair is chemically allowed."""
+        '''
+        Check the chemistry of every selected port pair.
+
+        Args:
+            perms (sequence):
+                Source port indices in target order for each topology slot.
+
+        Returns:
+            True when all pairs pass the element and cap-length checks.
+        '''
         return all(
             self.pair_ok(left, perms[left][x_i], right, perms[right][x_j])
             for left, x_i, right, x_j, _ in self.connections
         )
 
     def _connections(self):
-        """Build node-node or edge-node connections with periodic images."""
+        '''
+        Build node-node or edge-node connections with periodic images.
+        '''
         job = self.placement
         links = []
         edge_shifts = job.topology.edge_shifts
@@ -228,7 +306,19 @@ class PortAssignmentSolver:
         return links
 
     def solve(self, centers, points):
-        """Find the minimum-loss feasible permutation for every occupied slot."""
+        '''
+        Find compatible port mappings with the smallest connection loss.
+
+        Args:
+            centers (numpy.ndarray):
+                An (n, 3) array of Cartesian block centers in slot_indices order.
+            points (sequence):
+                Per-block port positions relative to each center, in angstroms.
+
+        Returns:
+            A slot-indexed list of port permutations, or None if the binary solver fails
+            to find a solution.
+        '''
         assignments, count = _variables(
             (len(points[i]),) * 2 for i in range(len(self.slot_indices))
         )
@@ -270,7 +360,21 @@ class PortAssignmentSolver:
         return perms
 
     def residuals(self, centers, points, perms):
-        """Return actual port-gap vectors in their declared periodic images."""
+        '''
+        Measure the Cartesian gap at every proposed connection.
+
+        Args:
+            centers (numpy.ndarray):
+                An (n, 3) array of Cartesian block centers in slot_indices order.
+            points (sequence):
+                Per-block port positions relative to each center, in angstroms.
+            perms (sequence):
+                Source port indices in target order for each topology slot.
+
+        Returns:
+            An (m, 3) array of port gaps in angstroms, including the selected periodic
+            images.
+        '''
         return np.asarray([
             centers[self.slot_offsets[left]] + points[self.slot_offsets[left]][perms[left][x_i]]
             - centers[self.slot_offsets[right]] - image
@@ -279,7 +383,21 @@ class PortAssignmentSolver:
         ])
 
     def loss(self, centers, points, perms):
-        """Return the sum of squared port residuals with linker poses eliminated."""
+        '''
+        Calculate the connection loss for a set of port mappings.
+
+        Args:
+            centers (numpy.ndarray):
+                An (n, 3) array of Cartesian block centers in slot_indices order.
+            points (sequence):
+                Per-block port positions relative to each center, in angstroms.
+            perms (sequence):
+                Source port indices in target order for each topology slot.
+
+        Returns:
+            The sum of squared connection residuals in square angstroms, with
+            independent edge poses eliminated.
+        '''
         vectors = np.asarray([
             centers[self.slot_offsets[right]] + image
             + points[self.slot_offsets[right]][perms[right][x_j]]

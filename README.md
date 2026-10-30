@@ -90,6 +90,29 @@ framework = builder.build(
 
 `Node.kind` detects `metal_node` or `organic_node` from the real atoms
 
+### Edit a building block
+
+`translate`, `rotate`, and `functionalize` change the block in place and return
+it. Start with `copy()` to keep the original. Rotation angles are in degrees;
+distances are in angstroms. Rotation defaults to the X-port centroid.
+
+```python
+from mofbb.compose import Edge
+
+edge = Edge("edge.xyz")
+moved = edge.copy().rotate(90, axis="z").translate([2, 0, 0])
+
+# Replace terminal atom 7 with a built-in amino group.
+modified = edge.copy().functionalize(7, "amine")
+```
+
+Group names come from `pymatgen.core.structure.FunctionalGroups`, including
+`amine`, `hydroxyl`, `fluoro`, and `methyl`. X ports keep their positions;
+indices after the replaced atom shift down by one. Surviving host atoms
+retain their order, followed by the group atoms. Existing bond labels are
+preserved, and new bonds are recorded as single bonds. Pymatgen handles group
+placement; this does not include geometry relaxation or clash avoidance.
+
 ### Find available SBUs with an abstract topology
 
 ```python
@@ -110,6 +133,7 @@ and `edge/`. This example uses `tbo`: node type `0` is three-connected
 node), and edge type `(0, 1)` optionally takes a linker.
 
 ```python
+from mofbb.io.cif import write_cif
 import random
 from pathlib import Path
 from mofbb.compose import Builder, Edge, Node, Topology
@@ -153,7 +177,7 @@ for metal_path in bbs["m_nodes"]:
         except ValueError as error:
             print(f"Skipped combination {idx}: {error}")
             continue
-        framework.write_cif(output / f"tbo_{idx:06d}.cif")
+        write_cif(output / f"tbo_{idx:06d}.cif", framework)
 ```
 
 

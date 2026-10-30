@@ -21,10 +21,30 @@ from mofbb.decompose.topology import EdgeContractor
 
 
 def logical_port_partition(fragment: Fragment) -> tuple[tuple[int, ...], ...]:
+    '''
+    Group a fragment's dummy atom indices by connection port.
+
+    Args:
+        fragment (Fragment):
+            Fragment with assigned connection ports.
+
+    Returns:
+        One tuple of local dummy atom indices per port, in stored port order.
+    '''
     return tuple(port.x_indices for port in fragment.connection_ports)
 
 
 def fragment_group_key(fragment: Fragment) -> tuple[object, ...]:
+    '''
+    Build the key used to group equivalent building blocks for export.
+
+    Args:
+        fragment (Fragment):
+            Fragment to describe.
+
+    Returns:
+        Its fingerprint, topology role, and sorted connection-port sizes.
+    '''
     port_sizes = tuple(sorted(map(len, logical_port_partition(fragment))))
     return (
         fragment.fingerprint,
@@ -34,6 +54,16 @@ def fragment_group_key(fragment: Fragment) -> tuple[object, ...]:
 
 
 def fragment_group_metadata(fragment: Fragment) -> dict[str, object]:
+    '''
+    Describe physical connection sites and logical ports for export.
+
+    Args:
+        fragment (Fragment):
+            Fragment with connection-site and topology information.
+
+    Returns:
+        A JSON-compatible dictionary of coordination counts, role, and port sizes.
+    '''
     port_sizes = tuple(sorted(map(len, logical_port_partition(fragment))))
     return {
         "physical_cn": fragment.num_x,
@@ -89,7 +119,12 @@ def _write_topology_cgd(
 
 @dataclass
 class NodeEdgeDecompositionResult:
-    """Metal-node, organic-node, and edge fragments for one MOF."""
+    '''
+    Collect the building blocks, topology, and source mappings for one MOF.
+
+    Fragments are kept separately by role. Optional solvent and symmetry data
+    allow exports to retain the relationship to the original crystal.
+    '''
 
     name: str
     cell_parameters: tuple[float, float, float, float, float, float]
@@ -147,6 +182,18 @@ class NodeEdgeDecompositionResult:
         *,
         write_topology: bool = False,
     ) -> dict[str, object]:
+        '''
+        Write fragment files, grouped building blocks, and reconstruction metadata.
+
+        Args:
+            output_dir (Path):
+                Output directory, created if needed.
+            write_topology (bool):
+                Also write topology.cgd when True.
+
+        Returns:
+            The summary dictionary also saved as decomposition_summary.json.
+        '''
         active = self.solvent_mode != "none"
         if active != (self.solvent is not None) or active != (
             self.selected_to_original is not None
@@ -301,6 +348,19 @@ class NodeEdgeDecompositionResult:
         path: Path,
         fragment_to_bb_id: dict[tuple[str, int], str] | None = None,
     ) -> dict[str, object]:
+        '''
+        Export the contracted topology with building-block assignments and port maps.
+
+        Args:
+            path (Path):
+                Destination CGD file.
+            fragment_to_bb_id (dict[tuple[str, int], str] or None):
+                Map fragment role and index to a building-block ID; defaults to group
+                keys.
+
+        Returns:
+            Metadata returned by the CGD writer.
+        '''
         if fragment_to_bb_id is None:
             fragment_to_bb_id = {
                 (fragment.kind, fragment.index): repr(fragment_group_key(fragment))
@@ -341,6 +401,22 @@ class NodeEdgeDecompositionResult:
         fragment_to_bb_id: dict[tuple[str, int], str],
         topology_path: str | None = None,
     ) -> dict[str, object]:
+        '''
+        Save the mappings needed to place building blocks back into the source crystal.
+
+        Args:
+            path (Path):
+                Destination JSON file.
+            group_records (list[dict[str, object]]):
+                Exported building-block group records.
+            fragment_to_bb_id (dict[tuple[str, int], str]):
+                Map each fragment role and index to its exported building-block ID.
+            topology_path (str or None):
+                Topology file name to include in the map, if one was written.
+
+        Returns:
+            The reconstruction dictionary saved to path.
+        '''
         _, _, topology_slots = self._contracted_topology()
         data = ReconstructionMap(
             self,

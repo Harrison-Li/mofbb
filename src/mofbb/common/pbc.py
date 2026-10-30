@@ -1,4 +1,6 @@
-"""Shared periodic-bond types, component rank, and image-offset analysis."""
+'''
+Shared periodic-bond types, component rank, and image-offset analysis.
+'''
 
 from __future__ import annotations
 
@@ -13,7 +15,17 @@ CellShift: TypeAlias = tuple[int, int, int]
 
 @dataclass(frozen=True, order=True)
 class PeriodicBond:
-    """One bond and its integer unit-cell translation."""
+    '''
+    Store a bond to an atom in the same cell or a periodic image.
+
+    Args:
+        i (int):
+            Zero-based index of the first atom.
+        j (int):
+            Zero-based index of the second atom.
+        shift (tuple[int, int, int]):
+            Cell translation applied to j when following the bond from i.
+    '''
 
     i: int
     j: int
@@ -24,11 +36,33 @@ class PeriodicBond:
         return (self.i, self.j)
 
     def oriented_shift(self, start: int, end: int) -> CellShift:
+        '''
+        Return the bond translation in the requested direction.
+
+        Args:
+            start (int):
+                Starting endpoint; must be one of this bond's atoms.
+            end (int):
+                Other endpoint. Accepted for clarity but not checked.
+
+        Returns:
+            The stored shift when start is i, otherwise its negative.
+        '''
         return self.shift if start == self.i else tuple(-v for v in self.shift)
 
 @dataclass(frozen=True)
 class ComponentPeriodicity:
-    """Image offsets and periodic cycle generators for one component."""
+    '''
+    Store cell images and independent translation rank for a connected component.
+
+    Args:
+        offsets (tuple):
+            Pairs of atom indices and integer cell shifts relative to the root atom.
+        generators (tuple):
+            Nonzero cell translations found by closing cycles in the bond graph.
+        rank (int):
+            Number of independent periodic directions, from zero to three.
+    '''
 
     offsets: tuple[tuple[int, CellShift], ...]
     generators: tuple[CellShift, ...]
@@ -39,6 +73,16 @@ class ComponentPeriodicity:
         return dict(self.offsets)
 
     def offset(self, atom_index: int) -> CellShift:
+        '''
+        Look up the cell image assigned to an atom.
+
+        Args:
+            atom_index (int):
+                Zero-based index of an atom in the component.
+
+        Returns:
+            A three-integer cell shift. Missing atoms raise KeyError.
+        '''
         return self._offset_by_atom[atom_index]
 
 def analyze_component(
@@ -46,7 +90,21 @@ def analyze_component(
     records: tuple[PeriodicBond, ...],
     excluded: set[PeriodicBond] | frozenset[PeriodicBond] = frozenset(),
 ) -> ComponentPeriodicity:
-    """Return image offsets and periodic rank for one connected component."""
+    '''
+    Assign cell images and determine the periodic rank of a connected component.
+
+    Args:
+        atom_indices (set[int] or frozenset[int]):
+            Nonempty set of atoms forming one connected component.
+        records (tuple[PeriodicBond, ...]):
+            Bonds, including all periodic images and parallel edges.
+        excluded (set or frozenset):
+            Bond records to omit from the traversal.
+
+    Returns:
+        A ComponentPeriodicity rooted at the smallest atom index. Empty or
+        disconnected selections raise ValueError.
+    '''
 
     selected = set(atom_indices)
     if not selected:
@@ -120,7 +178,24 @@ def connection_shift(
     end_atom: int,
     end_offsets: ComponentPeriodicity,
 ) -> CellShift:
-    """Return the translation from the begin fragment slot to the end slot."""
+    '''
+    Find the cell translation between two fragment slots.
+
+    Args:
+        record (PeriodicBond):
+            Bond joining the two fragments.
+        begin_atom (int):
+            Bond endpoint in the first fragment.
+        begin_offsets (ComponentPeriodicity):
+            Image assignments for the first fragment.
+        end_atom (int):
+            Bond endpoint in the second fragment.
+        end_offsets (ComponentPeriodicity):
+            Image assignments for the second fragment.
+
+    Returns:
+        A three-integer shift corrected for both fragments' atom images.
+    '''
 
     raw = np.asarray(record.oriented_shift(begin_atom, end_atom), dtype=int)
     begin = np.asarray(begin_offsets.offset(begin_atom), dtype=int)

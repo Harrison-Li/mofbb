@@ -8,6 +8,7 @@ demand. Record classes stay here to preserve stored candidate/checkpoint types.
 
 from __future__ import annotations
 
+
 import csv
 from functools import lru_cache
 import hashlib
@@ -25,6 +26,7 @@ import time
 
 import ase.neighborlist
 from ase import Atoms
+from mofbb.io.cif import write_cif
 from mofbb.io.structure import read_atoms
 import numpy as np
 from pymatgen.symmetry.groups import SpaceGroup
@@ -631,10 +633,10 @@ def strict_node_record_fit(
         if int(topology.node_types[orbit.representative]) == node_type
     )
     representative = orbit.representative
-    target = topology.local_structure(representative)
-    target_positions = np.asarray(target.atoms.positions, dtype=float)
+    target = topology.connection_directions(representative)
+    target_positions = target
     block = cached_building_block(str(record.path))
-    source_positions = np.asarray(block.local_structure().positions, dtype=float)
+    source_positions = block.connection_directions()
     locator = Locator()
     best = float("inf")
     for permutation in locator.candidate_permutations(
@@ -1094,7 +1096,7 @@ def build_and_validate(
         )
     atoms = framework.atoms
     structure_quality = _validate_structure(config, atoms)
-    framework.write_cif(cif_path)
+    write_cif(cif_path, framework)
     if not cif_path.is_file() or cif_path.stat().st_size == 0:
         raise ValueError("MOFBB did not write a nonempty CIF")
 

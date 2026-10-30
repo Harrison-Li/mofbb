@@ -35,6 +35,19 @@ class TopologyBuilder:
         fragments: list[Fragment],
         connections: tuple[PeriodicBond, ...],
     ) -> tuple[list[TopologyVertex], list[TopologyEdge]]:
+        '''
+        Collapse fragments to vertices and turn cut bonds into periodic edges.
+
+        Args:
+            fragments (list[Fragment]):
+                Fragments covering the atoms at both ends of each connection. Their
+                real-atom fractional centroids are updated in place.
+            connections (tuple[PeriodicBond, ...]):
+                Cut bonds connecting fragments, including cell translations.
+
+        Returns:
+            Lists of topology vertices and edges with fractional positions.
+        '''
         atom_to_vertex = get_atom_map(fragments)
         frames = {
             (fragment.kind, fragment.index): self.crystal.get_fragment_frame(
@@ -155,6 +168,15 @@ class EdgeContractor:
         list[TopologyEdge],
         dict[tuple[str, int], tuple[str, int]],
     ]:
+        '''
+        Replace two-port fragments with edges between their neighboring vertices.
+
+        Zero-translation loops remain explicit fragments.
+
+        Returns:
+            The remaining vertices, the contracted edges, and a mapping from each
+            fragment key to its node or edge slot.
+        '''
         edge_keys = {
             (fragment.kind, fragment.index) for fragment in self.edge_fragments
         }

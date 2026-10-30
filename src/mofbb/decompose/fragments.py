@@ -1,3 +1,7 @@
+'''
+Build finite fragments from the periodic bond graph and cap their cut bonds.
+'''
+
 from __future__ import annotations
 
 import ase
@@ -12,7 +16,16 @@ from mofbb.decompose.object import Fragment, XSite
 from mofbb.decompose.pbc import periodic_bonds
 
 def get_atom_map(fragments: list[Fragment]) -> dict[int, tuple[str, int]]:
-    """Map each source atom to its fragment kind and index."""
+    '''
+    Look up the fragment that owns each source atom.
+
+    Args:
+        fragments (list[Fragment]):
+            Fragments whose source atom indices refer to the same structure.
+
+    Returns:
+        A dictionary mapping source atom indices to (fragment kind, fragment index).
+    '''
     return {
         atom_index: (fragment.kind, fragment.index)
         for fragment in fragments
@@ -21,7 +34,21 @@ def get_atom_map(fragments: list[Fragment]) -> dict[int, tuple[str, int]]:
 
 
 class FragmentBuilder:
-    """Build finite node or linker fragments from source-atom components."""
+    '''
+    Unwrap bonded atom groups and add dummy atoms at their connection sites.
+
+    Args:
+        atoms (ase.Atoms):
+            Source structure with its periodic cell.
+        bonds (BondNetwork):
+            Source bonds and their Cartesian vectors.
+        symbols (list[str]):
+            Element symbols in source atom order.
+        x_symbol (str):
+            Symbol for dummy connection atoms.
+        bond_images (tuple[PeriodicBond, ...] or None):
+            Periodic bond records; inferred from atoms and bonds when omitted.
+    '''
 
     def __init__(
         self,
@@ -45,6 +72,20 @@ class FragmentBuilder:
         role_indices: set[int] | frozenset[int],
         connecting_bonds: tuple[PeriodicBond, ...],
     ) -> list[Fragment]:
+        '''
+        Separate atoms of one role into capped, connected fragments.
+
+        Args:
+            kind (str):
+                Role label stored on each fragment.
+            role_indices (set[int] or frozenset[int]):
+                Source atom indices belonging to this role.
+            connecting_bonds (tuple[PeriodicBond, ...]):
+                Bonds to cut and replace with dummy connection atoms.
+
+        Returns:
+            Fragments ordered by their lowest source atom index, numbered from one.
+        '''
         graph = nx.Graph()
         graph.add_nodes_from(role_indices)
         excluded = set(connecting_bonds)
@@ -77,6 +118,23 @@ class FragmentBuilder:
         component: set[int],
         connecting_bonds: tuple[PeriodicBond, ...],
     ) -> Fragment:
+        '''
+        Build one finite fragment with local coordinates and dummy connection atoms.
+
+        Args:
+            kind (str):
+                Role label for the fragment.
+            index (int):
+                Identifier within the role.
+            component (set[int]):
+                Source atoms to include; the component must be finite after cutting.
+            connecting_bonds (tuple[PeriodicBond, ...]):
+                Cut bonds that define the fragment connection sites.
+
+        Returns:
+            A Fragment with local bonds, source image offsets, and a connectivity
+            fingerprint.
+        '''
         return self._materialize_fragment(
             kind,
             index,
@@ -235,6 +293,18 @@ class FragmentBuilder:
 def connected_components(
     atom_indices: set[int] | frozenset[int], bonds: list[tuple[int, int]]
 ) -> list[set[int]]:
+    '''
+    Find connected groups within a selected set of atoms.
+
+    Args:
+        atom_indices (set[int] or frozenset[int]):
+            Atoms to include, including any isolated atoms.
+        bonds (list[tuple[int, int]]):
+            Source atom pairs; pairs outside the selection are ignored.
+
+    Returns:
+        Sets of connected atom indices ordered by their lowest index.
+    '''
     graph = nx.Graph()
     graph.add_nodes_from(atom_indices)
     for i, j in bonds:

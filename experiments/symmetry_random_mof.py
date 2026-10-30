@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+
 import argparse
 import csv
 import hashlib
@@ -22,6 +23,7 @@ import numpy as np
 from pymatgen.core import Molecule, Structure
 from pymatgen.symmetry.analyzer import PointGroupAnalyzer
 
+from mofbb.io.cif import write_cif
 from mofbb.compose import Builder, BuildingBlock, Topology
 from mofbb.compose.log import logger
 from mofbb.decompose.bonding import read_bonded_structure
@@ -249,7 +251,7 @@ def topology_record_from_object(topology: object, path: Path) -> TopologyRecord:
             for index in topology.node_idx
             if int(topology.node_types[index]) == node_type
         )
-        directions = topology.local_structure(representative).positions
+        directions = topology.connection_directions(representative)
         sites.append(
             NodeSite(
                 node_type=node_type,
@@ -458,7 +460,7 @@ def build_and_validate(
             f"{config.minimum_atom_distance:.3f} A"
         )
 
-    framework.write_cif(cif_path)
+    write_cif(cif_path, framework)
     structure = Structure.from_file(cif_path, primitive=False)
     expected = Counter(framework.atoms.get_chemical_symbols())
     written = Counter(site.specie.symbol for site in structure)

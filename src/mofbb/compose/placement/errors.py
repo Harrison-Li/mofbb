@@ -1,10 +1,26 @@
-"""Exceptions raised by symmetry-aware placement."""
+'''
+Exceptions raised by symmetry-aware placement.
+'''
 
 from __future__ import annotations
 
 
 class SymmetryCompatibilityError(ValueError):
-    """Reject a build that cannot preserve its declared slot symmetry."""
+    '''
+    Report a placement that cannot preserve the declared slot symmetry.
+
+    Args:
+        reason (str):
+            Short identifier for the failed symmetry check.
+        kind (str):
+            Type of failed slot or check, such as node, edge, or topology.
+        representative (int):
+            Representative slot of the failed orbit.
+        member (int or None):
+            Specific member slot, when the failure is limited to one member.
+        diagnostic (dict or None):
+            Residuals and other details included in the error message when available.
+    '''
 
     def __init__(
         self,

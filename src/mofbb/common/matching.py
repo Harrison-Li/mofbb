@@ -1,4 +1,6 @@
-"""Atom-order-invariant matching for MOF building blocks."""
+'''
+Atom-order-invariant matching for MOF building blocks.
+'''
 
 from __future__ import annotations
 
@@ -20,7 +22,19 @@ Bond = tuple[int, int, str]
 
 @dataclass(frozen=True)
 class BuildingBlockGraph:
-    """Element-labelled molecular graph used by the BB matcher."""
+    '''
+    Store an element-labeled building-block graph for comparison.
+
+    Args:
+        name (str):
+            Name used in comparison results.
+        kind (str):
+            Building-block category, such as metal_node or edge.
+        symbols (tuple[str, ...]):
+            Element symbols in atom-index order; X marks connection sites.
+        bonds (tuple):
+            Zero-based (i, j, bond_type) records. Duplicate and self-bonds are rejected.
+    '''
 
     name: str
     kind: str
@@ -68,7 +82,20 @@ class BuildingBlockGraph:
         kind: str | None = None,
         name: str | None = None,
     ) -> BuildingBlockGraph:
-        """Load a PORMAKE extended XYZ building block."""
+        '''
+        Read a building-block XYZ file and keep its labeled molecular graph.
+
+        Args:
+            path (str or Path):
+                Building-block XYZ file with appended bond records.
+            kind (str or None):
+                Override the building-block kind; otherwise keep the source kind.
+            name (str or None):
+                Override the name; otherwise use the source name.
+
+        Returns:
+            A BuildingBlockGraph with normalized bond records.
+        '''
 
         from mofbb.compose.building_block import BuildingBlock
 
@@ -83,7 +110,20 @@ class BuildingBlockGraph:
         kind: str | None = None,
         name: str | None = None,
     ) -> BuildingBlockGraph:
-        """Create a graph from a composition ``BuildingBlock``."""
+        '''
+        Extract the labeled graph from a composition building block.
+
+        Args:
+            block (BuildingBlock):
+                Building block containing atoms, bonds, and bond labels.
+            kind (str or None):
+                Override the building-block kind; otherwise keep the source kind.
+            name (str or None):
+                Override the name; otherwise use the source name.
+
+        Returns:
+            A BuildingBlockGraph preserving the source atom order.
+        '''
 
         symbols = tuple(block.atoms.get_chemical_symbols())
         if kind is None:
@@ -110,7 +150,18 @@ class BuildingBlockGraph:
         *,
         name: str | None = None,
     ) -> BuildingBlockGraph:
-        """Create a graph from one decomposition fragment."""
+        '''
+        Extract the labeled graph from a decomposition fragment.
+
+        Args:
+            fragment (Fragment):
+                Fragment containing atoms, bonds, kind, and index.
+            name (str or None):
+                Override the name; otherwise combine the fragment kind and index.
+
+        Returns:
+            A BuildingBlockGraph preserving the fragment atom order.
+        '''
 
         return cls(
             name=name or f"{fragment.kind}_{fragment.index:03d}",
@@ -136,7 +187,13 @@ class BuildingBlockGraph:
 
 @dataclass(frozen=True)
 class BuildingBlockMatch:
-    """Detailed result for one reference/candidate comparison."""
+    '''
+    Store the outcome of comparing a reference block with a candidate.
+
+    The individual flags record kind, composition, connectivity, and bond-label
+    agreement. matched follows the comparison options. mapping contains pairs
+    of reference and candidate atom indices when an isomorphism was found.
+    '''
 
     reference_name: str
     candidate_name: str
@@ -150,7 +207,17 @@ class BuildingBlockMatch:
 
 @dataclass(frozen=True)
 class BuildingBlockMultisetMatch:
-    """Maximum one-to-one matching between reference and predicted BBs."""
+    '''
+    Store a one-to-one assignment between reference and candidate blocks.
+
+    Args:
+        reference_count (int):
+            Total number of expected blocks, including repeated copies.
+        candidate_count (int):
+            Total number of predicted blocks, including repeated copies.
+        matched_pairs (tuple[tuple[int, int], ...]):
+            Matched zero-based reference and candidate list indices.
+    '''
 
     reference_count: int
     candidate_count: int
@@ -195,12 +262,23 @@ def compare_building_blocks(
     require_kind: bool = True,
     require_bond_types: bool = False,
 ) -> BuildingBlockMatch:
-    """Compare two BBs by exact labelled-graph isomorphism.
+    '''
+    Compare molecular graphs without depending on atom order or geometry.
 
-    Atom ordering, translation, and rotation do not affect this comparison.
-    The default metric uses element labels and connectivity. Set
-    ``require_bond_types`` to also require PORMAKE/CIF bond labels.
-    """
+    Args:
+        reference (BuildingBlockGraph):
+            Expected building-block graph.
+        candidate (BuildingBlockGraph):
+            Graph to compare against the reference.
+        require_kind (bool):
+            Require matching building-block categories. Defaults to True.
+        require_bond_types (bool):
+            Also require identical bond labels. Defaults to False.
+
+    Returns:
+        A BuildingBlockMatch with comparison flags and, when found, a mapping
+        from reference atom indices to candidate atom indices.
+    '''
 
     kind_match = reference.kind == candidate.kind
     composition_match = reference.composition == candidate.composition
@@ -264,7 +342,23 @@ def match_building_block_multisets(
     require_kind: bool = True,
     require_bond_types: bool = False,
 ) -> BuildingBlockMultisetMatch:
-    """Return a maximum-cardinality one-to-one BB assignment."""
+    '''
+    Find the largest one-to-one assignment of matching building blocks.
+
+    Args:
+        references (list[BuildingBlockGraph]):
+            Expected blocks, including repeated copies.
+        candidates (list[BuildingBlockGraph]):
+            Predicted blocks, including repeated copies.
+        require_kind (bool):
+            Require matching building-block categories. Defaults to True.
+        require_bond_types (bool):
+            Also require identical bond labels. Defaults to False.
+
+    Returns:
+        A BuildingBlockMultisetMatch with matched (reference, candidate) list
+        indices and precision, recall, F1, and exact-match properties.
+    '''
 
     graph = nx.Graph()
     reference_nodes = [("reference", index) for index in range(len(references))]

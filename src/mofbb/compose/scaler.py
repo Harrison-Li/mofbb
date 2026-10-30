@@ -1,4 +1,6 @@
-"""Joint port-assignment, rigid-pose, and lattice optimization."""
+'''
+Joint port-assignment, rigid-pose, and lattice optimization.
+'''
 
 from __future__ import annotations
 
@@ -21,10 +23,25 @@ from mofbb.compose.placement.ports import (
 
 
 class Symmetry:
-    """Small symmetry and linear-algebra helpers."""
+    '''
+    Small symmetry and linear-algebra helpers.
+    '''
 
     @staticmethod
     def diff(left, right):
+        '''
+        Subtract fractional coordinates and wrap the result to the nearest image.
+
+        Args:
+            left (array-like):
+                First set of fractional coordinates.
+            right (array-like):
+                Second set of coordinates, broadcastable against left.
+
+        Returns:
+            The coordinate differences after subtracting their nearest integer
+            translations.
+        '''
         delta = np.asarray(left, dtype=float) - np.asarray(right, dtype=float)
         return delta - np.rint(delta)
 
@@ -50,12 +67,34 @@ class Symmetry:
     @staticmethod
     @lru_cache(maxsize=None)
     def operation_data(symbol):
+        '''
+        Load and sort symmetry operations for a space group.
+
+        Args:
+            symbol (str):
+                Space-group symbol understood by pymatgen.
+
+        Returns:
+            The original operation tuple, sorted operation tuple, and original-to-sorted
+            index tuple. Results are cached by symbol.
+        '''
         return Symmetry._ordered_operation_data(
             tuple(SpaceGroup(symbol).symmetry_ops)
         )
 
     @staticmethod
     def topology_operation_data(topology):
+        '''
+        Read explicit topology operations or fall back to the named space group.
+
+        Args:
+            topology (Topology):
+                Topology supplying symmetry_operations metadata or a space-group symbol.
+
+        Returns:
+            The original operations, deterministically sorted operations, and indices
+            mapping the original order to the sorted order.
+        '''
         declared = topology.atoms.info.get("symmetry_operations")
         if not declared:
             return Symmetry.operation_data(topology.spacegroup)
@@ -69,6 +108,22 @@ class Symmetry:
 
     @staticmethod
     def null_space(constraints, columns, null_tol=1.0e-10):
+        '''
+        Find independent parameter directions that satisfy linear constraints.
+
+        Args:
+            constraints (array-like):
+                Constraint coefficients, reshaped to a matrix with the requested column
+                count.
+            columns (int):
+                Number of unknowns in each constraint row.
+            null_tol (float):
+                Relative singular-value cutoff, with a minimum reference scale of one.
+
+        Returns:
+            A (columns, n_free) orthonormal basis, with column signs chosen
+            consistently.
+        '''
         matrix = np.asarray(constraints, dtype=float).reshape(-1, columns)
         _, values, vectors = np.linalg.svd(matrix, full_matrices=True)
         scale = values[0] if len(values) else 0.0
@@ -85,7 +140,9 @@ class Symmetry:
 
 @dataclass(frozen=True)
 class SiteOrbit:
-    """Cached affine expansion for one crystallographic site orbit."""
+    '''
+    Cached affine expansion for one crystallographic site orbit.
+    '''
 
     tag: int
     member_indices: np.ndarray
@@ -103,7 +160,19 @@ class SiteOrbit:
 
 
 class OptParams:
-    """Define all node-pose and cell variables, bounds, and state expansion."""
+    '''
+    Describe the allowed node motions, block rotations, and cell strains.
+
+    Args:
+        topology (Topology):
+            Initial topology whose declared symmetry the optimized geometry must
+            preserve.
+        map_tol (float):
+            Tolerance for matching node sites in fractional coordinates.
+        compatible_node_orbits (collection):
+            Representative slot indices whose block rotations should remain coupled by
+            symmetry.
+    '''
 
     def __init__(self, topology, map_tol=2.0e-5, *, compatible_node_orbits=()):
         self.map_tol = map_tol
@@ -177,7 +246,19 @@ class OptParams:
                     yield (node,), np.eye(3)[None]
 
     def state(self, values):
-        """Expand a full vector into unwrapped node positions, cell, and rotations."""
+        '''
+        Expand optimizer parameters into a complete geometry.
+
+        Args:
+            values (numpy.ndarray):
+                A flat parameter vector containing node displacements, cell strains, and
+                rotations.
+
+        Returns:
+            Unwrapped fractional node positions, a (3, 3) cell in angstroms, per-node
+            SciPy rotations, and cell derivatives with shape (n_lattice_parameters, 3,
+            3).
+        '''
         values = np.asarray(values, dtype=float)
         fractional = self.positions(values[self.node_slice]) + self.node_images
         cell, derivatives = self.lattice_and_derivatives(values[self.lattice_slice])
@@ -218,7 +299,18 @@ class OptParams:
         return np.einsum("ak,aij->kij", coefficients, symmetric)
 
     def lattice_and_derivatives(self, parameters):
-        """Return the strained lattice and its exact parameter derivatives."""
+        '''
+        Apply a symmetry-allowed strain and calculate its exact cell derivatives.
+
+        Args:
+            parameters (numpy.ndarray):
+                Dimensionless coefficients of the symmetric strain basis.
+
+        Returns:
+            The (3, 3) cell and its (n_parameters, 3, 3) derivatives in angstroms. The
+            exponential strain keeps the cell nonsingular for finite, well-conditioned
+            inputs.
+        '''
 
         parameters = np.asarray(parameters, dtype=float)
         strain = np.einsum("k,kij->ij", parameters, self.lattice_basis)
@@ -248,6 +340,13 @@ class OptParams:
         return lattice, derivatives
 
     def map_nodes(self):
+        '''
+        Match every node to its symmetry-transformed position.
+
+        Returns:
+            An (n_operations, n_nodes) integer array of indices into node_idx. Each
+            operation must preserve node tags and map nodes one-to-one.
+        '''
         mappings = []
         node_count = len(self.node_idx)
         for operation_index, (rotation, translation) in enumerate(
@@ -286,6 +385,13 @@ class OptParams:
         return indices[0]
 
     def build_orbits(self):
+        '''
+        Group node sites into symmetry orbits and allocate displacement parameters.
+
+        Returns:
+            A tuple of SiteOrbit records and a tuple of bounds for their combined
+            displacement parameters.
+        '''
         orbits, bounds = [], []
         start = 0
         for tag in np.unique(self.tags):
@@ -342,7 +448,21 @@ class OptParams:
         zero_tol=1.0e-12,
         image_margin=1.0e-8,
     ):
-        """Bound amplitudes so each cached periodic image stays unique."""
+        '''
+        Bound displacements so the cached periodic images remain unambiguous.
+
+        Args:
+            jacobians (numpy.ndarray):
+                An (n_members, 3, n_parameters) array of fractional position
+                derivatives.
+            zero_tol (float):
+                Threshold below which a derivative is treated as zero.
+            image_margin (float):
+                Fractional-coordinate margin kept below a half-cell displacement.
+
+        Returns:
+            A tuple of (lower, upper) bounds for each displacement parameter.
+        '''
 
         dimension = jacobians.shape[2]
         if dimension == 0:
@@ -358,18 +478,41 @@ class OptParams:
         return tuple((-value, value) for value in upper)
 
     def positions(self, node_parameters):
-        """Expand orbit amplitudes into all node positions."""
+        '''
+        Expand independent orbit displacements to all node sites.
+
+        Args:
+            node_parameters (numpy.ndarray):
+                A flat vector of displacement coefficients for the allowed orbit
+                directions.
+
+        Returns:
+            An (n_nodes, 3) array of fractional positions in the cached base images.
+        '''
         return self.base_positions + np.einsum("mrd,d->mr", self.position_jacobian, node_parameters)
 
 
 class Scaler:
-    """Alternate port assignments with a joint fit of node poses and the cell."""
+    '''
+    Alternate compatible port assignments with fits of the cell and node poses.
+
+    Args:
+        max_nfev (int):
+            Maximum number of residual evaluations in each continuous geometry fit.
+    '''
 
     def __init__(self, max_nfev=120):
         self.max_nfev = max_nfev
 
     def optimize(self, placement):
-        """Keep improving feasible assignments and continuous geometry together."""
+        '''
+        Fit connection geometry and retain the best feasible placement found.
+
+        Args:
+            placement (BBPlacement):
+                Placement to update in place, including blocks, topology, port mappings,
+                and fit diagnostics.
+        '''
         PortAssignmentSolver.initialize(placement)
         initial_diagnostics = deepcopy(placement.symmetry_diagnostics)
         fields = (
@@ -421,13 +564,29 @@ class Scaler:
 
 
 class GeomOpt:
-    """Fit the joint loss using the complete variables defined by OptParams."""
+    '''
+    Fit node positions, block rotations, and cell shape for fixed port mappings.
+
+    Args:
+        placement (BBPlacement):
+            Placement whose geometry and diagnostics will be updated.
+        max_nfev (int):
+            Maximum number of residual evaluations in the least-squares fit.
+    '''
 
     def __init__(self, placement, max_nfev):
         self.placement = placement
         self.max_nfev = max_nfev
 
     def solve(self, *, seed=True):
+        '''
+        Fit connection gaps and write the optimized geometry back to the placement.
+
+        Args:
+            seed (bool):
+                Rescale the initial topology from block and edge lengths before
+                fitting.
+        '''
         self.placement.edge_shifts = self.placement.topology.edge_shifts
         if seed:
             self._init_scale()
@@ -442,7 +601,9 @@ class GeomOpt:
         self.placement.geometry_optimization_result = OptimizeResult(fun=2 * result.cost)
 
     def _init_scale(self):
-        """Set an initial physical scale analytically, without a second solver."""
+        '''
+        Set an initial physical scale analytically, without a second solver.
+        '''
         p = self.placement
         distances, targets = [], []
         for edge in p.topology.edge_idx:
@@ -490,6 +651,17 @@ class GeomOpt:
         self.spans, self.direct = solver.spans, solver.direct
 
     def _calc_res(self, values):
+        '''
+        Calculate the edge-span and direct-connection errors for a trial geometry.
+
+        Args:
+            values (numpy.ndarray):
+                Full vector of optimization parameters.
+
+        Returns:
+            A flat array of connection residuals in angstroms, with edge-span terms
+            first and direct Cartesian gaps last.
+        '''
         fractional, cell, rotations, _ = self.parameters.state(values)
         vectors = (
             (fractional[self.right] - fractional[self.left] + self.shifts) @ cell
@@ -500,10 +672,22 @@ class GeomOpt:
 
     @staticmethod
     def _skew(vectors):
-        """Return matrices that apply cross products with the input vectors."""
+        '''
+        Return matrices that apply cross products with the input vectors.
+        '''
         return np.cross(np.eye(3), np.asarray(vectors)[..., None, :])
 
     def _calc_jacobian(self, values):
+        '''
+        Calculate exact derivatives of the connection residuals.
+
+        Args:
+            values (numpy.ndarray):
+                Full vector of optimization parameters.
+
+        Returns:
+            An (n_residuals, n_parameters) Jacobian in the same row order as _calc_res.
+        '''
         parameters = self.parameters
         fractional, cell, rotations, cell_derivatives = parameters.state(values)
         delta = fractional[self.right] - fractional[self.left] + self.shifts
@@ -563,13 +747,15 @@ class GeomOpt:
             p.symmetry_diagnostics["nodes"].append(diagnostic)
         p.rmsds = np.array([
             np.sqrt(np.mean(np.sum((
-                p.topology.local_structure(node).atoms.positions
-                - p.blocks[node].local_structure().atoms.positions[p.perms[node]]
+                p.topology.connection_directions(node)
+                - p.blocks[node].connection_directions()[p.perms[node]]
             ) ** 2, axis=1))) for node in self.parameters.node_idx
         ])
 
     def _update_topo(self, topology, centers, cell):
-        """Move graph centers without changing any declared periodic images."""
+        '''
+        Move graph centers without changing any declared periodic images.
+        '''
         original = self.placement.topology
         positions = np.asarray(topology.atoms.positions).copy()
         positions[original.node_idx] = centers

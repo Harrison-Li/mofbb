@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+
 import argparse
 import json
 from pathlib import Path
 
+from mofbb.io.cif import write_cif
 from mofbb.compose.builder import Builder
 from mofbb.compose.building_block import BuildingBlock
 from mofbb.compose.reconstructor import TopoInput, Reconstructor
@@ -199,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
             wrap=not args.no_wrap,
             require_3d=not args.allow_low_dimensional,
         )
-    output = framework.write_cif(args.output)
+    output = write_cif(args.output, framework)
     print(f"Wrote composed framework to {output}")
     return 0
 

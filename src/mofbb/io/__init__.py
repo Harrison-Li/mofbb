@@ -1,1 +1,3 @@
-"""Structure and topology file readers and serializers."""
+'''
+Structure and topology file readers and serializers.
+'''

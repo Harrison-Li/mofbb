@@ -1,4 +1,6 @@
-"""Serialize prepared topology geometry and metadata as CGD records."""
+'''
+Serialize prepared topology geometry and metadata as CGD records.
+'''
 
 from __future__ import annotations
 
@@ -10,14 +12,30 @@ import numpy as np
 
 
 def format_float(value: float) -> str:
-    """Compact float formatting for CGD files."""
+    '''
+    Format a number with up to ten significant digits.
+
+    Args:
+        value (float):
+            Number to place in a CGD record.
+
+    Returns:
+        The formatted string.
+    '''
 
     return f"{value:.10g}"
 
 
 @dataclass
 class CgdWriter:
-    """Serialize prepared topology geometry, symmetry, and assembly metadata."""
+    '''
+    Write prepared topology geometry with MOFBB symmetry and assembly metadata.
+
+    Cell lengths are in angstroms and angles in degrees. Symmetry operations,
+    node maps, and edge maps share the same operation order. Node tags and
+    coordinations follow node order; colors follow edge order. Slot and port
+    maps use zero-based indices internally and are written as one-based IDs.
+    '''
 
     name: str
     cell: tuple[float, float, float, float, float, float]
@@ -42,6 +60,21 @@ class CgdWriter:
         positions: np.ndarray,
         endpoints: list[tuple[np.ndarray, np.ndarray]],
     ) -> None:
+        '''
+        Write prepared topology sites and metadata to a decorated CGD file.
+
+        Args:
+            path (Path):
+                Output file. Parent directories are created if needed.
+            positions (numpy.ndarray):
+                (n, 3) fractional node positions in the same order as node_tags.
+            endpoints (list of tuple):
+                Pairs of (3,) fractional edge endpoints, including periodic images,
+                in the same order as colors.
+
+        Returns:
+            None. The file is created or overwritten.
+        '''
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", encoding="utf-8") as out:
             self._write_header(out)

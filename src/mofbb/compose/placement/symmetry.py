@@ -1,4 +1,6 @@
-"""Crystallographic orbit maps for atomistic building-block placement."""
+'''
+Crystallographic orbit maps for atomistic building-block placement.
+'''
 
 from __future__ import annotations
 
@@ -15,7 +17,21 @@ from mofbb.compose.scaler import Symmetry
 
 @dataclass(frozen=True, slots=True)
 class SlotOrbit:
-    """One crystallographic orbit of topology node or edge slots."""
+    '''
+    Store symmetry-related topology slots and the operations connecting them.
+
+    Args:
+        tag (int):
+            Shared topology type.
+        representative (int):
+            Slot used as the reference for this orbit.
+        members (numpy.ndarray):
+            Slot indices belonging to the orbit.
+        operations (numpy.ndarray):
+            Operation taking the representative to each member, in member order.
+        stabilizers (numpy.ndarray):
+            Operations that leave the representative slot in place.
+    '''
 
     tag: int
     representative: int
@@ -25,12 +41,34 @@ class SlotOrbit:
 
 
 class StabilizerFit:
-    """Measure site-symmetry residuals and optimize linker torsion."""
+    '''
+    Measure site-symmetry residuals and optimize edge torsion.
+    '''
 
     def __init__(self, symmetry):
         self.symmetry = symmetry
 
     def diagnose(self, orbit, block, perm, cell, tolerance):
+        '''
+        Check whether a block preserves the symmetry of its topology site.
+
+        Args:
+            orbit (SlotOrbit):
+                Orbit containing the representative slot and its site-symmetry
+                operations.
+            block (BuildingBlock):
+                Building block at the representative slot.
+            perm (numpy.ndarray):
+                Source port indices in target connection order.
+            cell (array-like):
+                A (3, 3) cell matrix with lattice vectors as rows, in angstroms.
+            tolerance (float):
+                Maximum atom or port mismatch in angstroms.
+
+        Returns:
+            A dictionary with the largest atom and port residuals in angstroms, orbit
+            metadata, and a compatible flag.
+        '''
         positions = block.atoms.positions - block.centroid
         symbols = np.asarray(block.atoms.get_chemical_symbols())
         ports = np.asarray(block.port_idx, int)
@@ -58,6 +96,26 @@ class StabilizerFit:
         }
 
     def fit(self, orbit, block, perm, cell, tolerance):
+        '''
+        Rotate an edge about its port axis to satisfy site symmetry.
+
+        Args:
+            orbit (SlotOrbit):
+                Orbit containing the representative slot and its site-symmetry
+                operations.
+            block (BuildingBlock):
+                Building block at the representative slot.
+            perm (numpy.ndarray):
+                Source port indices in target connection order.
+            cell (array-like):
+                A (3, 3) cell matrix with lattice vectors as rows, in angstroms.
+            tolerance (float):
+                Maximum atom or port mismatch in angstroms.
+
+        Returns:
+            A fitted copy and diagnostic dictionary when a compatible angle is found.
+            Otherwise, the original block and diagnostics are returned.
+        '''
         base = self.diagnose(orbit, block, perm, cell, tolerance)
         error = max(base["max_atom_residual"], base["max_port_residual"])
         base.update(
@@ -114,6 +172,21 @@ class StabilizerFit:
 
     @staticmethod
     def species_error(moved, reference, symbols):
+        '''
+        Match atoms of the same element and measure their largest displacement.
+
+        Args:
+            moved (numpy.ndarray):
+                An (n, 3) array of transformed atom positions.
+            reference (numpy.ndarray):
+                An (n, 3) array of reference positions in the same units.
+            symbols (array-like):
+                Element symbol for each atom.
+
+        Returns:
+            The largest matched distance after a minimum-total-distance assignment
+            within each element.
+        '''
         error = 0.0
         for symbol in np.unique(symbols):
             indices = np.flatnonzero(symbols == symbol)
@@ -126,14 +199,25 @@ class StabilizerFit:
 
 
 class SymPlacement:
-    """Map topology slots and their ports under a space group."""
+    '''
+    Map topology slots and connection orders under the declared space group.
+
+    Args:
+        topology (Topology):
+            Topology with node and edge slots, connectivity, and symmetry metadata.
+        map_tol (float):
+            Tolerance for matching positions and neighbor vectors in fractional
+            coordinates.
+    '''
 
     _cache = WeakKeyDictionary()
     _cache_lock = RLock()
 
     @staticmethod
     def topology_signature(topology):
-        """Return the topology state that determines symmetry mappings."""
+        '''
+        Return the topology state that determines symmetry mappings.
+        '''
 
         groups = tuple(topology.neighbor_list)
         counts = np.asarray([len(group) for group in groups], dtype=np.int64)
@@ -164,7 +248,19 @@ class SymPlacement:
 
     @classmethod
     def cached(cls, topology, map_tol=1.0e-4):
-        """Return a validated placement cache entry for the topology state."""
+        '''
+        Reuse symmetry maps when the topology and matching tolerance are unchanged.
+
+        Args:
+            topology (Topology):
+                Topology whose current geometry and connectivity determine the cache
+                entry.
+            map_tol (float):
+                Matching tolerance in fractional coordinates.
+
+        Returns:
+            A SymPlacement instance for the current topology state.
+        '''
 
         key = (
             cls,
@@ -186,7 +282,9 @@ class SymPlacement:
 
     @classmethod
     def clear_cache(cls):
-        """Clear cached topology placements, primarily for controlled tests."""
+        '''
+        Clear cached topology placements, primarily for controlled tests.
+        '''
 
         with cls._cache_lock:
             cls._cache.clear()
@@ -215,7 +313,17 @@ class SymPlacement:
 
     @staticmethod
     def read_neighbors(topology):
-        """Return neighbor indices and fractional neighbor vectors."""
+        '''
+        Convert topology neighbor records to fractional-coordinate arrays.
+
+        Args:
+            topology (Topology):
+                Topology with Cartesian neighbor vectors and a cell.
+
+        Returns:
+            Two tuples, indexed by slot: neighbor index arrays and (n_neighbors, 3)
+            fractional displacement arrays.
+        '''
 
         inverse = np.linalg.inv(np.asarray(topology.atoms.cell, float))
         groups = topology.neighbor_list
@@ -227,7 +335,13 @@ class SymPlacement:
         return indices, vectors
 
     def map_slots(self):
-        """Map every topology slot under every symmetry operation."""
+        '''
+        Find the destination of each slot under every symmetry operation.
+
+        Returns:
+            An (n_operations, n_slots) integer array. Declared mappings are checked for
+            positions, tags, and one-to-one correspondence.
+        '''
 
         declared = self.topology.atoms.info.get("slot_mappings")
         if declared is not None:
@@ -300,7 +414,9 @@ class SymPlacement:
         return np.asarray(maps, int)
 
     def find_identity(self):
-        """Return the identity operation index."""
+        '''
+        Return the identity operation index.
+        '''
 
         identity = np.eye(3, dtype=int)
         for index, (rotation, translation) in enumerate(zip(self.rotations, self.translations)):
@@ -311,14 +427,26 @@ class SymPlacement:
         raise ValueError("The space group does not contain an identity operation.")
 
     def check_links(self):
-        """Check that every operation preserves topology connectivity."""
+        '''
+        Check that every operation preserves topology connectivity.
+        '''
 
         for op_index, mapping in enumerate(self.operation_mappings):
             for source, target in enumerate(mapping):
                 self.offset_map(source, int(target), op_index)
 
     def make_orbits(self, slots):
-        """Build crystallographic orbits for topology slots."""
+        '''
+        Group symmetry-related slots with the same topology tag.
+
+        Args:
+            slots (array-like):
+                Topology slot indices to group.
+
+        Returns:
+            A tuple of SlotOrbit records with representative slots, member operations,
+            and stabilizers.
+        '''
 
         slots = np.asarray(slots, int)
         tags = self.tags[slots]
@@ -362,13 +490,17 @@ class SymPlacement:
 
     @staticmethod
     def operation(orbit, member):
-        """Return the operation mapping an orbit representative to a member."""
+        '''
+        Return the operation mapping an orbit representative to a member.
+        '''
 
         matches = np.flatnonzero(orbit.members == member)
         return int(orbit.operations[int(matches[0])])
 
     def operations_between(self, source, target):
-        """Return operation indices that map one slot onto another."""
+        '''
+        Return operation indices that map one slot onto another.
+        '''
 
         matches = np.flatnonzero(self.operation_mappings[:, source] == target)
         if not len(matches):
@@ -376,7 +508,21 @@ class SymPlacement:
         return matches
 
     def offset_map(self, source, target, op_index):
-        """Map source neighbor offsets onto target neighbor offsets."""
+        '''
+        Match the source connection order to the transformed target connection order.
+
+        Args:
+            source (int):
+                Source topology slot.
+            target (int):
+                Target topology slot.
+            op_index (int):
+                Symmetry operation mapping source to target.
+
+        Returns:
+            An integer array mapping each source neighbor offset to its target offset.
+            Periodic displacement vectors are included in the match.
+        '''
 
         source_neighbors = self.neighbor_indices[source]
         target_neighbors = self.neighbor_indices[target]
@@ -404,7 +550,21 @@ class SymPlacement:
         return result
 
     def to_member(self, orbit, member, perm):
-        """Map a representative port permutation to an orbit member."""
+        '''
+        Carry a representative port mapping to another member of its orbit.
+
+        Args:
+            orbit (SlotOrbit):
+                Orbit containing the representative slot and its site-symmetry
+                operations.
+            member (int):
+                Member topology slot index.
+            perm (numpy.ndarray):
+                Source port indices in target connection order.
+
+        Returns:
+            Source port indices in the member slot connection order.
+        '''
 
         perm = np.asarray(perm, int)
         offsets = self.offset_map(orbit.representative, member, self.operation(orbit, member))
@@ -413,14 +573,40 @@ class SymPlacement:
         return result
 
     def to_representative(self, orbit, member, perm):
-        """Map a member port permutation back to its representative."""
+        '''
+        Carry a member port mapping back to its orbit representative.
+
+        Args:
+            orbit (SlotOrbit):
+                Orbit containing the representative slot and its site-symmetry
+                operations.
+            member (int):
+                Member topology slot index.
+            perm (numpy.ndarray):
+                Source port indices in target connection order.
+
+        Returns:
+            Source port indices in the representative slot connection order.
+        '''
 
         perm = np.asarray(perm, int)
         offsets = self.offset_map(orbit.representative, member, self.operation(orbit, member))
         return perm[offsets]
 
     def transform(self, op_index, cell):
-        """Return the row-vector Cartesian transform for an operation."""
+        '''
+        Convert a fractional symmetry rotation to a Cartesian row-vector transform.
+
+        Args:
+            op_index (int):
+                Index of the symmetry operation.
+            cell (array-like):
+                A (3, 3) cell matrix with lattice vectors as rows, in angstroms.
+
+        Returns:
+            A (3, 3) orthogonal matrix. Raises ValueError if the cell does not preserve
+            orthogonality for this operation.
+        '''
 
         cell = np.asarray(cell, float)
         transform = np.linalg.inv(cell) @ self.rotations[op_index].T @ cell
@@ -430,7 +616,22 @@ class SymPlacement:
         return transform
 
     def place(self, block, op_index, centroid, cell):
-        """Create an orbit member from a representative building block."""
+        '''
+        Copy a representative block to a symmetry-related slot.
+
+        Args:
+            block (BuildingBlock):
+                Building block at the representative slot.
+            op_index (int):
+                Symmetry operation to apply about the block centroid.
+            centroid (array-like):
+                Desired three-component Cartesian center in angstroms.
+            cell (array-like):
+                A (3, 3) cell matrix with lattice vectors as rows, in angstroms.
+
+        Returns:
+            A transformed BuildingBlock copy centered at the requested position.
+        '''
 
         member = block.copy()
         centered = block.atoms.positions - block.centroid
@@ -441,7 +642,26 @@ class SymPlacement:
         return member
 
     def diagnose(self, orbit, block, perm, cell, tolerance):
-        """Measure motif compatibility with an orbit stabilizer."""
+        '''
+        Check whether a block preserves the symmetry of its topology site.
+
+        Args:
+            orbit (SlotOrbit):
+                Orbit containing the representative slot and its site-symmetry
+                operations.
+            block (BuildingBlock):
+                Building block at the representative slot.
+            perm (numpy.ndarray):
+                Source port indices in target connection order.
+            cell (array-like):
+                A (3, 3) cell matrix with lattice vectors as rows, in angstroms.
+            tolerance (float):
+                Maximum atom or port mismatch in angstroms.
+
+        Returns:
+            A dictionary with the largest atom and port residuals in angstroms, orbit
+            metadata, and a compatible flag.
+        '''
         return StabilizerFit(self).diagnose(
             orbit,
             block,
@@ -451,7 +671,26 @@ class SymPlacement:
         )
 
     def fit_torsion(self, orbit, block, perm, cell, tolerance):
-        """Fit the free linker-axis torsion to an edge-slot stabilizer."""
+        '''
+        Fit an edge rotation about its port axis to the edge site symmetry.
+
+        Args:
+            orbit (SlotOrbit):
+                Orbit containing the representative slot and its site-symmetry
+                operations.
+            block (BuildingBlock):
+                Building block at the representative slot.
+            perm (numpy.ndarray):
+                Source port indices in target connection order.
+            cell (array-like):
+                A (3, 3) cell matrix with lattice vectors as rows, in angstroms.
+            tolerance (float):
+                Maximum atom or port mismatch in angstroms.
+
+        Returns:
+            The compatible fitted block and diagnostics, or the original block and
+            diagnostics if no acceptable angle is found.
+        '''
         return StabilizerFit(self).fit(
             orbit,
             block,
