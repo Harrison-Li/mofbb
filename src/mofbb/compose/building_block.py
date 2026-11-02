@@ -131,11 +131,23 @@ class BuildingBlock:
             bb_file (str or Path):
                 Path to the building-block XYZ file.
         '''
-        self.atoms = read_bb_xyz(bb_file)
+        self.atoms = self.read(bb_file)
         self.name = self.atoms.info["name"]
         self.port_idx = np.array(self.atoms.info["port_idx"])
         self._bonds = self.atoms.info["bonds"]
         self._bond_types = self.atoms.info["bond_types"]
+
+    def read(self, bb_file):
+        """Read building-block atoms and metadata from an XYZ file.
+
+        Args:
+            bb_file (str or Path):
+                Building-block XYZ file, optionally followed by bond records.
+
+        Returns:
+            An ASE Atoms object containing ports and stored bond metadata.
+        """
+        return read_bb_xyz(bb_file)
 
     def copy(self):
         '''

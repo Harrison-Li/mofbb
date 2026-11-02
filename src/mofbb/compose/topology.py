@@ -29,8 +29,20 @@ class Topology:
             cgd_file (str or Path):
                 CGD file containing the unit cell, nodes, and edges.
         '''
-        self.atoms = CgdReader(cgd_file).read()
+        self.atoms = self.read(cgd_file)
         self.update_properties()
+
+    def read(self, cgd_file):
+        """Read topology atoms and metadata from a CGD file.
+
+        Args:
+            cgd_file (str or Path):
+                CGD file containing the unit cell, nodes, and edges.
+
+        Returns:
+            An ASE Atoms object containing the cell, nodes, edges, and metadata.
+        """
+        return CgdReader(cgd_file).read()
 
     def update_properties(self):
         """Parse, validate, and cache all net properties from ``self.atoms``."""
