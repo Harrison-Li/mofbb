@@ -84,10 +84,10 @@ def node_key(numbers, model):
 def prepare_template(plan, output):
     assets = output / 'template'
     assets.mkdir(exist_ok=True)
-    metal, organic = BuildingBlock(plan['template_metal_path']), BuildingBlock(plan['organic_path'])
+    metal, organic = BuildingBlock.read(plan['template_metal_path']), BuildingBlock.read(plan['organic_path'])
     assert organic.n_ports == 3 and metal.n_ports == 4
     metal.validate_connectivity(); organic.validate_connectivity()
-    topology = Topology(plan['topology_path'])
+    topology = Topology.read(plan['topology_path'])
     frame = Builder().build(topology, node_bbs={plan['metal_node_type']: metal, plan['organic_node_type']: organic}, n_angles=4)
     maps, offset = [], 0
     placed_topology = frame.info['topology']
@@ -150,7 +150,7 @@ def generate_one(variant):
     target = output/'.staging'/f"{variant['name']}.cif"
     try:
         assert sha(variant['path']) == variant['sha256']
-        node = BuildingBlock(variant['path']); node.validate_connectivity()
+        node = BuildingBlock.read(variant['path']); node.validate_connectivity()
         assert canonical_key(node.atoms.numbers, node.bonds) == variant['graph_sha256']
         node_numbers = node.atoms.numbers[meta['metal_real_indices']]
         numbers = data['numbers'].copy()
@@ -240,11 +240,11 @@ def run_substitutions(plan_path, forwarded, history, history_paths):
     for p, h in [('topology_path','topology_sha256'),('template_metal_path','template_metal_sha256'),
                  ('organic_path','organic_sha256'),('source_verified_cif','source_verified_cif_sha256')]:
         assert sha(plan[p]) == plan[h], p
-    parent = BuildingBlock(plan['template_metal_path'])
+    parent = BuildingBlock.read(plan['template_metal_path'])
     seen = set()
     for v in plan['variants']:
         assert sha(v['path']) == v['sha256']
-        block = BuildingBlock(v['path'])
+        block = BuildingBlock.read(v['path'])
         assert np.array_equal(block.atoms.positions, parent.atoms.positions)
         assert np.array_equal(block.bonds, parent.bonds)
         assert all(old == new or (old, new) in [('Mo','W'),('Zn','Cd')]

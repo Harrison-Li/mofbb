@@ -215,7 +215,7 @@ def load_block_pools(
             continue
 
         try:
-            block = core.BuildingBlock(path)
+            block = core.BuildingBlock.read(path)
             block.validate_connectivity()
             contains_carbon = "C" in block.atoms.get_chemical_symbols()
             conn_symbols = tuple(block.conn_symbols)
@@ -462,9 +462,9 @@ def load_eligible_topologies(
                     if topology_cache_is_stale(cgd_path, pickle_path):
                         raise ValueError("topology pickle is older than its CGD")
                 except Exception:
-                    topology = core.Topology(cgd_path)
+                    topology = core.Topology.read(cgd_path)
             else:
-                topology = core.Topology(cgd_path)
+                topology = core.Topology.read(cgd_path)
         except Exception:
             skipped["unreadable_topology"] += 1
             continue
@@ -482,7 +482,7 @@ def load_eligible_topologies(
         try:
             # Read legacy PORMAKE topologies from CGD to apply the current rules.
             if not hasattr(topology, "validate_3d"):
-                topology = core.Topology(cgd_path)
+                topology = core.Topology.read(cgd_path)
             topology.validate_3d()
         except ValueError:
             skipped["non_3d_topology"] += 1

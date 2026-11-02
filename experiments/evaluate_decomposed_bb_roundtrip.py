@@ -70,7 +70,7 @@ def load_case_inputs(decomposition_dir: Path) -> CaseInputs:
             encoding="utf-8"
         )
     )
-    topology = Topology(decomposition_dir / reconstruction["topology"]["path"])
+    topology = Topology.read(decomposition_dir / reconstruction["topology"]["path"])
     slots = sorted(reconstruction["slots"], key=lambda item: item["slot_id"])
     node_idx = [int(index) for index in topology.node_idx]
     edge_idx = [int(index) for index in topology.edge_idx]
@@ -97,7 +97,7 @@ def load_case_inputs(decomposition_dir: Path) -> CaseInputs:
     group_blocks: dict[str, BuildingBlock] = {}
     group_graphs: dict[str, BuildingBlockGraph] = {}
     for bb_id, group in group_records.items():
-        block = BuildingBlock(decomposition_dir / str(group["path"]))
+        block = BuildingBlock.read(decomposition_dir / str(group["path"]))
         group_blocks[bb_id] = block
         group_graphs[bb_id] = BuildingBlockGraph.from_building_block(
             block,

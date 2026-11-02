@@ -76,19 +76,20 @@ are optional; omitted edges connect nodes directly.
 ```python
 from mofbb.compose import Builder, Edge, Node, Topology
 
-topology = Topology("topology.cgd")
+topology = Topology.read("topology.cgd")
 builder = Builder()
 framework = builder.build(
     topology,
-    node_bbs={0: Node("node_type_0.xyz")},
-    # edge_bbs={(0, 0): Edge("edge_type_0_0.xyz")},  # optional linker
+    node_bbs={0: Node.read("node_type_0.xyz")},
+    # edge_bbs={(0, 0): Edge.read("edge_type_0_0.xyz")},  # optional linker
     port_tol=0.3,  # maximum paired-port gap in angstroms
     bond_scale=1.2,  # bond cutoff multiplier for summed covalent radii
     sym_tol=0.1,  # site-symmetry compatibility tolerance in angstroms
 )
 ```
 
-`Node.kind` detects `metal_node` or `organic_node` from the real atoms
+`Node.kind` detects `metal_node` or `organic_node` from the real atoms.
+
 
 ### Edit a building block
 
@@ -99,7 +100,7 @@ distances are in angstroms. Rotation defaults to the X-port centroid.
 ```python
 from mofbb.compose import Edge
 
-edge = Edge("edge.xyz")
+edge = Edge.read("edge.xyz")
 moved = edge.copy().rotate(90, axis="z").translate([2, 0, 0])
 
 # Replace terminal atom 7 with a built-in amino group.
@@ -118,7 +119,7 @@ placement; this does not include geometry relaxation or clash avoidance.
 ```python
 from mofbb.compose import Topology
 
-topology = Topology("/nanolab/libo/mof_builder/lib/topology/pcu.cgd")
+topology = Topology.read("/nanolab/libo/mof_builder/lib/topology/pcu.cgd")
 bbs = topology.find_avail_bbs("/nanolab/libo/mof_builder/lib")
 # {"m_nodes": [...], "o_nodes": [...], "edges": [...]}
 # Each list contains absolute XYZ file paths.
@@ -141,7 +142,7 @@ from mofbb.compose import Builder, Edge, Node, Topology
 library = Path("/path/to/library")
 
 # 1. Load an abstract topology.
-topology = Topology(library / "topology" / "tbo.cgd")
+topology = Topology.read(library / "topology" / "tbo.cgd")
 
 # 2. Find geometrically compatible building blocks.
 bbs = topology.find_avail_bbs(library)
@@ -155,11 +156,11 @@ builder = Builder()
 
 idx = 0
 for metal_path in bbs["m_nodes"]:
-    metal_node = Node(metal_path)
+    metal_node = Node.read(metal_path)
     if metal_node.n_ports != 4:
         continue
     for organic_path in bbs["o_nodes"]:
-        organic_node = Node(organic_path)
+        organic_node = Node.read(organic_path)
         if organic_node.n_ports != 3:
             continue
         idx += 1
@@ -167,7 +168,7 @@ for metal_path in bbs["m_nodes"]:
         edge_bbs = {}
         if random.randint(0, 1) == 1:
             edge_path = random.choice(bbs["edges"])
-            edge_bbs = {(0, 1): Edge(edge_path)}
+            edge_bbs = {(0, 1): Edge.read(edge_path)}
         try:
             framework = builder.build(
                 topology,

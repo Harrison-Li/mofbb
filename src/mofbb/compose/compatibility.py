@@ -58,7 +58,7 @@ def find_avail_bbs(topology, library, *, max_rmsd=0.1, n_angles=4):
     keys = {"metal_node": "m_nodes", "organic_node": "o_nodes", "edge": "edges"}
     for role, block_class in (("node", Node), ("edge", Edge)):
         for path in sorted((library / role).rglob("*.xyz")):
-            block = block_class(path)
+            block = block_class.read(path)
             relevant = [slots for slots in groups[role]
                         if all(int(topology.cn[i]) == block.n_ports for i in slots)]
             if not relevant:

@@ -88,7 +88,7 @@ class Reconstructor:
 
         for slot, vertex in zip(slots, vertices):
             slot_id = int(slot["slot_id"])
-            block = BuildingBlock(self.decomp_dir / slot["exact_instance_path"])
+            block = BuildingBlock.read(self.decomp_dir / slot["exact_instance_path"])
             source_indices = [int(value) for value in slot["source_indices"]]
             source_count = len(source_indices)
             block_symbols = block.atoms.get_chemical_symbols()
@@ -221,7 +221,7 @@ class TopoInput:
                 f"Decomposition directory {root} has no abstract topology."
             )
         topology_path = root / topology_record.get("path", "topology.cgd")
-        topology = Topology(topology_path)
+        topology = Topology.read(topology_path)
 
         group_paths = {}
         for group in summary.get("groups", ()):
@@ -249,7 +249,7 @@ class TopoInput:
 
         referenced = sorted({bb_id for bb_id in slot_bb_ids if bb_id is not None})
         templates = {
-            bb_id: BuildingBlock(root / group_paths[bb_id])
+            bb_id: BuildingBlock.read(root / group_paths[bb_id])
             for bb_id in referenced
         }
         for slot, bb_id in enumerate(slot_bb_ids):

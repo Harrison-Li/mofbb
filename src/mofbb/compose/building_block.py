@@ -116,28 +116,31 @@ def _orient_pca_axis(axis, transverse, axial, pca_tol=1e-8, frame_epsilon=1e-12)
 
 class BuildingBlock:
     '''
-    Load a molecular fragment and its X connection sites from an XYZ file.
+    Store a molecular fragment and its X connection sites.
 
     Args:
-        bb_file (str or Path):
-            Building-block XYZ file, optionally followed by bond records.
+        atoms (ase.Atoms):
+            Atoms with building-block metadata; use read(path) to load a file.
     '''
 
-    def __init__(self, bb_file):
+    def __init__(self, atoms):
         '''
-        Read the atoms, ports, and stored bonds of a building block.
+        Initialize a building block from atoms, ports, and stored bonds.
 
         Args:
-            bb_file (str or Path):
-                Path to the building-block XYZ file.
+            atoms (ase.Atoms):
+                Atoms with building-block metadata.
         '''
-        self.atoms = self.read(bb_file)
+        if not isinstance(atoms, Atoms):
+            raise TypeError("Use .read(path) to load a building-block file.")
+        self.atoms = atoms
         self.name = self.atoms.info["name"]
         self.port_idx = np.array(self.atoms.info["port_idx"])
         self._bonds = self.atoms.info["bonds"]
         self._bond_types = self.atoms.info["bond_types"]
 
-    def read(self, bb_file):
+    @classmethod
+    def read(cls, bb_file):
         """Read building-block atoms and metadata from an XYZ file.
 
         Args:
@@ -145,9 +148,9 @@ class BuildingBlock:
                 Building-block XYZ file, optionally followed by bond records.
 
         Returns:
-            An ASE Atoms object containing ports and stored bond metadata.
+            A new instance of the requested class with atoms, ports, and bonds.
         """
-        return read_bb_xyz(bb_file)
+        return cls(read_bb_xyz(bb_file))
 
     def copy(self):
         '''
@@ -525,19 +528,19 @@ class Node(BuildingBlock):
     Two-connected nodes keep their node role.
 
     Args:
-        bb_file (str or Path):
-            Path to the building-block XYZ file.
+        atoms (ase.Atoms):
+            Atoms with building-block metadata; use read(path) to load a file.
     '''
 
-    def __init__(self, bb_file):
+    def __init__(self, atoms):
         '''
         Load a node building block with at least one X port.
 
         Args:
-            bb_file (str or Path):
-                Path to the building-block XYZ file.
+            atoms (ase.Atoms):
+                Atoms with building-block metadata.
         '''
-        super().__init__(bb_file)
+        super().__init__(atoms)
         if self.n_ports < 1:
             raise ValueError(f"Node {self.name!r} requires at least one X port.")
 
@@ -557,19 +560,19 @@ class Edge(BuildingBlock):
     Load an edge with exactly two X ports.
 
     Args:
-        bb_file (str or Path):
-            Path to the building-block XYZ file.
+        atoms (ase.Atoms):
+            Atoms with building-block metadata; use read(path) to load a file.
     '''
 
-    def __init__(self, bb_file):
+    def __init__(self, atoms):
         '''
         Load an edge with exactly two X ports.
 
         Args:
-            bb_file (str or Path):
-                Path to the building-block XYZ file.
+            atoms (ase.Atoms):
+                Atoms with building-block metadata.
         '''
-        super().__init__(bb_file)
+        super().__init__(atoms)
         if self.n_ports != 2:
             raise ValueError(f"Edge {self.name!r} requires exactly two X ports.")
 

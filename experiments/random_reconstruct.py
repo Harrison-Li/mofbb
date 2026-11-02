@@ -307,7 +307,7 @@ def build_one(
     edge_paths: dict[tuple[int, int], Path],
     cif_path: Path,
 ) -> tuple[object, Structure, float]:
-    topology = Topology(topology_record.cgd_path)
+    topology = Topology.read(topology_record.cgd_path)
     actual_type_cns = tuple(
         (int(node_type), int(cn))
         for node_type, cn in zip(topology.unique_node_types, topology.unique_cn)
@@ -317,8 +317,8 @@ def build_one(
 
     framework = Builder().build(
         topology=topology,
-        node_bbs={key: BuildingBlock(path) for key, path in node_paths.items()},
-        edge_bbs={key: BuildingBlock(path) for key, path in edge_paths.items()},
+        node_bbs={key: BuildingBlock.read(path) for key, path in node_paths.items()},
+        edge_bbs={key: BuildingBlock.read(path) for key, path in edge_paths.items()},
         n_angles=ACCURACY,
     )
     if float(framework.info["max_rmsd"]) > MAX_RMSD:

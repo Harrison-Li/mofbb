@@ -260,7 +260,7 @@ def classify_block(
 
     row = _base_row(candidate, actual_sha256)
     try:
-        block = BuildingBlock(path)
+        block = BuildingBlock.read(path)
         row["connection_anchor_symbols"] = _compact_json(
             block.conn_symbols
         )

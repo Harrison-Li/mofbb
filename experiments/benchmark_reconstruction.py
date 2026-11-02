@@ -147,13 +147,13 @@ def load_backend_inputs(backend: str, case: BenchmarkCase, database_root: Path):
 
         build_kwargs = {}
 
-    topology = Topology(database_root / "topologies" / f"{case.topology}.cgd")
+    topology = Topology.read(database_root / "topologies" / f"{case.topology}.cgd")
     nodes = {
-        node_type: BuildingBlock(database_root / "bbs" / f"{name}.xyz")
+        node_type: BuildingBlock.read(database_root / "bbs" / f"{name}.xyz")
         for node_type, name in case.node_blocks
     }
     edges = {
-        edge_type: BuildingBlock(database_root / "bbs" / f"{name}.xyz")
+        edge_type: BuildingBlock.read(database_root / "bbs" / f"{name}.xyz")
         for edge_type, name in case.edge_blocks
     }
 

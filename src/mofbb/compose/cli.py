@@ -134,7 +134,7 @@ def _load_assignments(
     for key, path in assignments:
         if key in loaded:
             raise ValueError(f"Duplicate building-block assignment for {key!r}.")
-        loaded[key] = BuildingBlock(path)
+        loaded[key] = BuildingBlock.read(path)
     return loaded
 
 
@@ -152,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
         from mofbb.compose.compatibility import format_report
 
         source = args.source / "topology.cgd" if args.source.is_dir() else args.source
-        report = Topology(source).find_avail_bbs(
+        report = Topology.read(source).find_avail_bbs(
             args.compatible_blocks, max_rmsd=args.max_port_rmsd, n_angles=args.n_angles,
         )
         print(json.dumps(report, indent=2) if args.compatible_json else format_report(report))
@@ -187,7 +187,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError(
                 "At least one --node-bb assignment is required for a CGD file."
             )
-        topology = Topology(args.source)
+        topology = Topology.read(args.source)
         node_bbs = _load_assignments(args.node_bb)
         edge_bbs = _load_assignments(args.edge_bb)
         framework = Builder().build(

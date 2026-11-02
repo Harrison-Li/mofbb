@@ -437,11 +437,11 @@ def build_and_validate(
     edge_paths: dict[tuple[int, int], Path],
     cif_path: Path,
 ) -> dict[str, object]:
-    topology = Topology(topology_record.cgd_path)
+    topology = Topology.read(topology_record.cgd_path)
     framework = Builder().build(
         topology=topology,
-        node_bbs={key: BuildingBlock(path) for key, path in node_paths.items()},
-        edge_bbs={key: BuildingBlock(path) for key, path in edge_paths.items()},
+        node_bbs={key: BuildingBlock.read(path) for key, path in node_paths.items()},
+        edge_bbs={key: BuildingBlock.read(path) for key, path in edge_paths.items()},
         n_angles=config.accuracy,
     )
     max_rmsd = float(framework.info["max_rmsd"])

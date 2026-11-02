@@ -99,7 +99,7 @@ class BuildingBlockGraph:
 
         from mofbb.compose.building_block import BuildingBlock
 
-        block = BuildingBlock(path)
+        block = BuildingBlock.read(path)
         return cls.from_building_block(block, kind=kind, name=name)
 
     @classmethod

@@ -5,6 +5,7 @@ import copy
 from functools import cached_property
 
 import numpy as np
+from ase import Atoms
 
 from mofbb.io.cgd.reader import CgdReader
 from mofbb.common.connectivity import periodic_components
@@ -14,25 +15,28 @@ from mofbb.compose.neighbor import NeighborList
 
 class Topology:
     '''
-    Read a CGD topology and check its declared connections.
+    Initialize a topology from atoms and check its declared connections.
 
     Args:
-        cgd_file (str or Path):
-            CGD file containing the unit cell, nodes, and edges.
+        atoms (ase.Atoms):
+            Atoms with topology metadata; use read(path) to load a CGD file.
     '''
 
-    def __init__(self, cgd_file):
+    def __init__(self, atoms):
         '''
-        Read a CGD topology and check its declared connections.
+        Initialize a topology from atoms and check its declared connections.
 
         Args:
-            cgd_file (str or Path):
-                CGD file containing the unit cell, nodes, and edges.
+            atoms (ase.Atoms):
+                Atoms with topology metadata.
         '''
-        self.atoms = self.read(cgd_file)
+        if not isinstance(atoms, Atoms):
+            raise TypeError("Use Topology.read(path) to load a CGD file.")
+        self.atoms = atoms
         self.update_properties()
 
-    def read(self, cgd_file):
+    @classmethod
+    def read(cls, cgd_file):
         """Read topology atoms and metadata from a CGD file.
 
         Args:
@@ -40,9 +44,9 @@ class Topology:
                 CGD file containing the unit cell, nodes, and edges.
 
         Returns:
-            An ASE Atoms object containing the cell, nodes, edges, and metadata.
+            A new topology with validated connections and populated properties.
         """
-        return CgdReader(cgd_file).read()
+        return cls(CgdReader(cgd_file).read())
 
     def update_properties(self):
         """Parse, validate, and cache all net properties from ``self.atoms``."""

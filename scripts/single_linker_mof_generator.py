@@ -175,14 +175,14 @@ _GENERATION_WORKER_BUILDER: Builder | None = None
 def cached_building_block(path: str) -> BuildingBlock:
     """Load each XYZ template once per long-lived generation worker."""
 
-    return BuildingBlock(Path(path))
+    return BuildingBlock.read(Path(path))
 
 
 @lru_cache(maxsize=64)
 def cached_topology(path: str) -> Topology:
     """Load each topology once per long-lived generation worker."""
 
-    return Topology(Path(path))
+    return Topology.read(Path(path))
 
 
 def configure_quiet_builder_logging() -> None:
